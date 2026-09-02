@@ -115,8 +115,8 @@ export const SavingsGoalsView: React.FC = () => {
                 {/* Progress Bar */}
                 <div className="space-y-1.5 pt-2">
                   <div className="flex justify-between text-xs font-mono">
-                    <span className="text-emerald-400 font-bold">${goal.current_amount.toLocaleString()}</span>
-                    <span className="text-slate-400">Target: ${goal.target_amount.toLocaleString()}</span>
+                    <span className="text-emerald-400 font-bold">₱{goal.current_amount.toLocaleString()}</span>
+                    <span className="text-slate-400">Target: ₱{goal.target_amount.toLocaleString()}</span>
                   </div>
 
                   <div className="w-full h-3 rounded-full bg-slate-900 overflow-hidden p-0.5">
@@ -127,7 +127,7 @@ export const SavingsGoalsView: React.FC = () => {
                   </div>
 
                   <p className="text-[11px] text-slate-400 text-right">
-                    {remaining > 0 ? `$${remaining.toLocaleString()} left to reach goal` : 'Goal Completed! 🎉'}
+                    {remaining > 0 ? `₱${remaining.toLocaleString()} left to reach goal` : 'Goal Completed! 🎉'}
                   </p>
                 </div>
               </div>
@@ -169,12 +169,12 @@ export const SavingsGoalsView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Target Amount ($)</label>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Target Amount (₱ PHP)</label>
                 <input
                   type="number"
                   step="0.01"
                   required
-                  placeholder="5000.00"
+                  placeholder="50000.00"
                   value={targetAmount}
                   onChange={(e) => setTargetAmount(e.target.value)}
                   className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
@@ -226,7 +226,7 @@ export const SavingsGoalsView: React.FC = () => {
 
             <form onSubmit={handleFundSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Contribution Amount ($)</label>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Contribution Amount (₱ PHP)</label>
                 <input
                   type="number"
                   step="0.01"

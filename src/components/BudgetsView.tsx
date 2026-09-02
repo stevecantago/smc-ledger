@@ -128,7 +128,7 @@ export const BudgetsView: React.FC = () => {
                 <div className="flex justify-between text-xs">
                   <span className="text-slate-400">Spent this month</span>
                   <span className={`font-mono font-bold ${isOver ? 'text-rose-400' : 'text-slate-200'}`}>
-                    ${catSpend.toFixed(2)} / ${limit.toFixed(2)}
+                    ₱{catSpend.toFixed(2)} / ₱{limit.toFixed(2)}
                   </span>
                 </div>
 
@@ -143,7 +143,7 @@ export const BudgetsView: React.FC = () => {
 
                 <div className="flex justify-between text-[11px] font-medium pt-1">
                   <span className={isOver ? 'text-rose-400 font-bold' : 'text-emerald-400'}>
-                    {isOver ? `Over budget by $${Math.abs(remaining).toFixed(2)}` : `$${remaining.toFixed(2)} remaining`}
+                    {isOver ? `Over budget by ₱${Math.abs(remaining).toFixed(2)}` : `₱${remaining.toFixed(2)} remaining`}
                   </span>
                   <span className="text-slate-400">{percent}% used</span>
                 </div>
@@ -173,12 +173,12 @@ export const BudgetsView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Monthly Envelope Budget Limit ($)</label>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Monthly Envelope Budget Limit (₱ PHP)</label>
                 <input
                   type="number"
                   step="0.01"
                   required
-                  placeholder="500.00"
+                  placeholder="5000.00"
                   value={budgetLimit}
                   onChange={(e) => setBudgetLimit(e.target.value)}
                   className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
@@ -193,7 +193,7 @@ export const BudgetsView: React.FC = () => {
                   className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
                 >
                   <option value="shopping-cart">Shopping Cart (Groceries)</option>
-                  <option value="zap">Utilities / Electric</option>
+                  <option value="zap">Utilities / Meralco / Electric</option>
                   <option value="utensils">Dining / Restaurants</option>
                   <option value="film">Movies & Entertainment</option>
                   <option value="book-open">Books & Education</option>
@@ -228,7 +228,7 @@ export const BudgetsView: React.FC = () => {
 
             <form onSubmit={handleUpdateLimitSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Monthly Budget Limit ($)</label>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Monthly Budget Limit (₱ PHP)</label>
                 <input
                   type="number"
                   step="0.01"

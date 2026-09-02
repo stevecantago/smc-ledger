@@ -103,7 +103,7 @@ export const WalletsView: React.FC = () => {
                 <div>
                   <span className="text-[11px] text-slate-400">Current Balance</span>
                   <div className="text-xl font-bold font-mono text-emerald-400">
-                    ${w.current_balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    ₱{w.current_balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </div>
                 </div>
 
@@ -134,7 +134,7 @@ export const WalletsView: React.FC = () => {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Bank of America Checking, Venmo, Cash Pocket"
+                  placeholder="e.g. BDO Checking, GCash, Maya, Cash Pocket"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
@@ -148,14 +148,14 @@ export const WalletsView: React.FC = () => {
                   onChange={(e) => setWalletType(e.target.value as WalletType)}
                   className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
                 >
-                  <option value="bank">Bank Account</option>
-                  <option value="e_wallet">E-Wallet (Venmo / Apple Pay / PayPal)</option>
+                  <option value="bank">Bank Account (BDO / BPI / Metrobank / UnionBank)</option>
+                  <option value="e_wallet">E-Wallet (GCash / Maya / GrabPay)</option>
                   <option value="cash">Physical Cash / Allowance</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Initial Opening Balance ($)</label>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Initial Opening Balance (₱ PHP)</label>
                 <input
                   type="number"
                   step="0.01"

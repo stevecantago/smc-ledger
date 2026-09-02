@@ -76,7 +76,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
             </div>
           </div>
           <div className="text-2xl font-bold text-white tracking-tight">
-            ${totalBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            ₱{totalBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </div>
           <p className="text-xs text-slate-400">{visibleWallets.length} active wallets visible</p>
         </div>
@@ -90,7 +90,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
             </div>
           </div>
           <div className="text-2xl font-bold text-emerald-400 tracking-tight">
-            +${totalIncome.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            +₱{totalIncome.toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </div>
           <p className="text-xs text-slate-400">All household members</p>
         </div>
@@ -104,9 +104,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
             </div>
           </div>
           <div className="text-2xl font-bold text-rose-400 tracking-tight">
-            -${totalExpense.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            -₱{totalExpense.toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </div>
-          <p className="text-xs text-slate-400">Budget cap: ${totalMonthlyBudget.toLocaleString()}</p>
+          <p className="text-xs text-slate-400">Budget cap: ₱{totalMonthlyBudget.toLocaleString()}</p>
         </div>
 
         {/* Sinking Funds / Goals */}
@@ -118,7 +118,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
             </div>
           </div>
           <div className="text-2xl font-bold text-indigo-300 tracking-tight">
-            ${savingsGoals.reduce((sum, g) => sum + g.current_amount, 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            ₱{savingsGoals.reduce((sum, g) => sum + g.current_amount, 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </div>
           <p className="text-xs text-slate-400">{savingsGoals.length} active sinking funds</p>
         </div>
@@ -159,7 +159,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
                   <div className="flex justify-between text-xs">
                     <span className="font-semibold text-slate-200">{cat.name}</span>
                     <span className={`font-mono ${isOver ? 'text-rose-400 font-bold' : 'text-slate-400'}`}>
-                      ${catSpend.toFixed(2)} / ${cat.monthly_budget_limit.toFixed(2)}
+                      ₱{catSpend.toFixed(2)} / ₱{cat.monthly_budget_limit.toFixed(2)}
                     </span>
                   </div>
 
@@ -238,7 +238,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
                     tx.type === 'income' ? 'text-emerald-400' :
                     'text-indigo-300'
                   }`}>
-                    {tx.type === 'expense' ? '-' : tx.type === 'income' ? '+' : ''}${tx.amount.toFixed(2)}
+                    {tx.type === 'expense' ? '-' : tx.type === 'income' ? '+' : ''}₱{tx.amount.toFixed(2)}
                   </div>
                 </div>
               );
@@ -277,8 +277,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
 
                 <div className="space-y-1">
                   <div className="flex justify-between text-xs text-slate-400 font-mono">
-                    <span>${goal.current_amount.toLocaleString()}</span>
-                    <span>Target: ${goal.target_amount.toLocaleString()}</span>
+                    <span>₱{goal.current_amount.toLocaleString()}</span>
+                    <span>Target: ₱{goal.target_amount.toLocaleString()}</span>
                   </div>
                   <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
                     <div className="h-full bg-gradient-to-r from-sky-500 to-indigo-500 rounded-full" style={{ width: `${percent}%` }} />

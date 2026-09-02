@@ -260,7 +260,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                         'text-indigo-300'
                       }`}>
                         {tx.type === 'expense' ? '-' : tx.type === 'income' ? '+' : ''}
-                        ${tx.amount.toFixed(2)}
+                        ₱{tx.amount.toFixed(2)}
                       </td>
 
                       {/* Receipt Link */}
@@ -369,7 +369,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
 
               {/* Amount */}
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Amount ($ USD)</label>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Amount (₱ PHP)</label>
                 <input
                   type="number"
                   step="0.01"
@@ -393,7 +393,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                 >
                   {visibleWallets.map(w => (
                     <option key={w.id} value={w.id}>
-                      {w.name} (${w.current_balance.toFixed(2)})
+                      {w.name} (₱{w.current_balance.toFixed(2)})
                     </option>
                   ))}
                 </select>
@@ -411,7 +411,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                     <option value="">-- Select Destination Account --</option>
                     {visibleWallets.map(w => (
                       <option key={w.id} value={w.id}>
-                        {w.name} (${w.current_balance.toFixed(2)})
+                        {w.name} (₱{w.current_balance.toFixed(2)})
                       </option>
                     ))}
                   </select>
@@ -430,7 +430,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                     <option value="">-- Select Envelope Category --</option>
                     {categories.map(c => (
                       <option key={c.id} value={c.id}>
-                        {c.name} (Budget: ${c.monthly_budget_limit})
+                        {c.name} (Budget: ₱{c.monthly_budget_limit})
                       </option>
                     ))}
                   </select>

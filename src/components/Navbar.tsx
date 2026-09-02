@@ -42,7 +42,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
               <WalletIcon className="w-4 h-4 text-sky-400" />
               <span className="text-xs text-slate-400">Total Net Worth:</span>
               <span className="font-bold text-sm text-emerald-400">
-                ${totalNetWorth.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                ₱{totalNetWorth.toLocaleString('en-US', { minimumFractionDigits: 2 })}
               </span>
             </div>
 
