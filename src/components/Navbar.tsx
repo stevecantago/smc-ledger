@@ -20,7 +20,14 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
   const [showAuthModal, setShowAuthModal] = useState(false);
 
   const visibleWallets = wallets.filter(w => isAdmin || w.is_shared || w.owner_id === currentMember.id);
-  const totalNetWorth = visibleWallets.reduce((acc, w) => acc + w.current_balance, 0);
+  const liquidAssets = visibleWallets
+    .filter(w => w.wallet_type !== 'credit_card')
+    .reduce((acc, w) => acc + w.current_balance, 0);
+  const creditDebt = visibleWallets
+    .filter(w => w.wallet_type === 'credit_card')
+    .reduce((acc, w) => acc + w.current_balance, 0);
+
+  const totalNetWorth = liquidAssets - creditDebt;
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
@@ -96,7 +103,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
             <div className="hidden md:flex items-center space-x-3">
               <div className="px-3 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700/60 flex items-center space-x-2">
                 <WalletIcon className="w-4 h-4 text-sky-400" />
-                <span className="text-xs text-slate-400">Net Worth:</span>
+                <span className="text-xs text-slate-400">Net Assets:</span>
                 <span className="font-bold text-sm text-emerald-400">
                   ₱{totalNetWorth.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                 </span>

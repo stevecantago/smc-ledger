@@ -23,7 +23,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
   const [errorMsg, setErrorMsg] = useState('');
 
   const visibleWallets = wallets.filter(w => isAdmin || w.is_shared || w.owner_id === currentMember.id);
-  const totalNetWorth = visibleWallets.reduce((sum, w) => sum + w.current_balance, 0);
+
+  // Net Worth = Liquid assets (Bank, E-Wallet, Cash) minus Credit Card Used debt & Loan remaining balances
+  const liquidAssets = visibleWallets
+    .filter(w => w.wallet_type !== 'credit_card')
+    .reduce((sum, w) => sum + w.current_balance, 0);
+
+  const creditCardDebt = visibleWallets
+    .filter(w => w.wallet_type === 'credit_card')
+    .reduce((sum, w) => sum + w.current_balance, 0);
+
+  const totalNetWorth = liquidAssets - creditCardDebt;
 
   const totalMonthlyBudget = categories.reduce((sum, c) => sum + c.monthly_budget_limit, 0);
 
@@ -41,7 +51,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
     .filter(t => t.type === 'income')
     .reduce((sum, t) => sum + t.amount, 0);
 
-  const totalRemainingDebt = loans.reduce((sum, l) => sum + l.remaining_balance, 0);
+  const totalRemainingDebt = loans.reduce((sum, l) => sum + l.remaining_balance, 0) + creditCardDebt;
 
   const handlePaySubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,7 +81,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
         {/* Total Net Worth */}
         <div className="bg-slate-800/90 border border-slate-700/80 rounded-xl p-5 shadow-lg space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-400 font-medium">Household Net Worth</span>
+            <span className="text-xs text-slate-400 font-medium">Household Net Liquid Assets</span>
             <div className="p-2 rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20">
               <Wallet className="w-4 h-4" />
             </div>
@@ -127,7 +137,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
           <div className="text-2xl font-bold font-mono text-rose-400">
             ₱{totalRemainingDebt.toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </div>
-          <p className="text-[11px] text-slate-400">{loans.length} active loans / mortgages</p>
+          <p className="text-[11px] text-slate-400">{loans.length} loans + credit card statement balances</p>
         </div>
       </div>
 
@@ -153,19 +163,40 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {visibleWallets.map(w => (
-                <div key={w.id} className="bg-slate-900/60 border border-slate-700/60 rounded-lg p-3.5 flex items-center justify-between">
-                  <div>
-                    <h4 className="font-semibold text-xs text-white">{w.name}</h4>
-                    <span className="text-[10px] text-slate-400 uppercase font-mono">{w.wallet_type.replace('_', ' ')}</span>
+              {visibleWallets.map(w => {
+                const isCreditCard = w.wallet_type === 'credit_card';
+                const creditLimitVal = w.credit_limit || 0;
+                const usedBalance = w.current_balance;
+                const availableCredit = isCreditCard 
+                  ? (creditLimitVal > 0 ? creditLimitVal - usedBalance : 0) 
+                  : w.current_balance;
+
+                return (
+                  <div key={w.id} className="bg-slate-900/60 border border-slate-700/60 rounded-lg p-3.5 flex items-center justify-between">
+                    <div>
+                      <h4 className="font-semibold text-xs text-white">{w.name}</h4>
+                      <span className="text-[10px] text-slate-400 uppercase font-mono">{w.wallet_type.replace('_', ' ')}</span>
+                    </div>
+                    <div className="text-right">
+                      {isCreditCard ? (
+                        <>
+                          <span className="text-[9px] text-slate-400 uppercase font-mono block">Remaining Available</span>
+                          <span className="font-bold text-sm font-mono text-emerald-400">
+                            ₱{availableCredit.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          </span>
+                          <span className="text-[10px] text-rose-400 font-mono block">
+                            Used: ₱{usedBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="font-bold text-sm font-mono text-emerald-400">
+                          ₱{w.current_balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <span className="font-bold text-sm font-mono text-emerald-400">
-                      ₱{w.current_balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                    </span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
