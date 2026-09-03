@@ -58,7 +58,10 @@ interface HouseholdContextType {
   }) => void;
   toggleRecurringTransfer: (id: string) => void;
 
+  // Family Roster CRUD Actions
   addMember: (displayName: string, role: HouseholdRole) => void;
+  updateMember: (id: string, updates: { display_name?: string; role?: HouseholdRole }) => { success: boolean; error?: string };
+  deleteMember: (id: string) => { success: boolean; error?: string };
   
   // Security Checks
   canEditTransaction: (tx: Transaction) => boolean;
@@ -389,6 +392,55 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setMembers(prev => [...prev, newMember]);
   };
 
+  const updateMember = (id: string, updates: { display_name?: string; role?: HouseholdRole }) => {
+    if (!isAdmin) {
+      return { success: false, error: 'Only Household Admins / Parents can edit family roster members.' };
+    }
+
+    const target = members.find(m => m.id === id);
+    if (!target) return { success: false, error: 'Member record not found.' };
+
+    // Prevent demoting the last Admin
+    if (updates.role && updates.role === 'member' && target.role === 'admin') {
+      const adminCount = members.filter(m => m.role === 'admin').length;
+      if (adminCount <= 1) {
+        return { success: false, error: 'Cannot demote the last remaining Admin in the household.' };
+      }
+    }
+
+    setMembers(prev => prev.map(m => m.id === id ? { ...m, ...updates } : m));
+    
+    // Also update active logged-in persona if current active user is edited
+    if (currentMember.id === id) {
+      setCurrentMember(prev => ({ ...prev, ...updates }));
+    }
+
+    return { success: true };
+  };
+
+  const deleteMember = (id: string) => {
+    if (!isAdmin) {
+      return { success: false, error: 'Only Household Admins / Parents can remove family roster members.' };
+    }
+
+    if (currentMember.id === id) {
+      return { success: false, error: 'Cannot remove your own active logged-in member profile. Switch to another Admin profile first.' };
+    }
+
+    const target = members.find(m => m.id === id);
+    if (!target) return { success: false, error: 'Member record not found.' };
+
+    if (target.role === 'admin') {
+      const adminCount = members.filter(m => m.role === 'admin').length;
+      if (adminCount <= 1) {
+        return { success: false, error: 'Cannot remove the last remaining Admin in the household.' };
+      }
+    }
+
+    setMembers(prev => prev.filter(m => m.id !== id));
+    return { success: true };
+  };
+
   return (
     <HouseholdContext.Provider value={{
       household,
@@ -415,6 +467,8 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       addRecurringTransfer,
       toggleRecurringTransfer,
       addMember,
+      updateMember,
+      deleteMember,
       canEditTransaction,
       canDeleteTransaction,
     }}>

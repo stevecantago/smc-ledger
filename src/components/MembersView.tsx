@@ -2,14 +2,26 @@
 
 import React, { useState } from 'react';
 import { useHousehold } from '../context/HouseholdContext';
-import { Users, ShieldCheck, UserCheck, Plus, Check, X, ShieldAlert } from 'lucide-react';
-import { HouseholdRole } from '../types/database';
+import { Users, ShieldCheck, UserCheck, Plus, Check, X, Edit2, Trash2, AlertCircle, ShieldAlert } from 'lucide-react';
+import { HouseholdMember, HouseholdRole } from '../types/database';
 
 export const MembersView: React.FC = () => {
-  const { members, currentMember, isAdmin, addMember } = useHousehold();
+  const { 
+    members, wallets, transactions, currentMember, isAdmin, 
+    addMember, updateMember, deleteMember 
+  } = useHousehold();
+
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [editingMember, setEditingMember] = useState<HouseholdMember | null>(null);
+
+  // Add Form
   const [displayName, setDisplayName] = useState('');
   const [role, setRole] = useState<HouseholdRole>('member');
+
+  // Edit Form
+  const [editName, setEditName] = useState('');
+  const [editRole, setEditRole] = useState<HouseholdRole>('member');
+  const [errorMsg, setErrorMsg] = useState('');
 
   const handleInviteSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -17,6 +29,32 @@ export const MembersView: React.FC = () => {
     addMember(displayName.trim(), role);
     setDisplayName('');
     setShowInviteModal(false);
+  };
+
+  const handleUpdateSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+    if (!editingMember) return;
+
+    const res = updateMember(editingMember.id, {
+      display_name: editName.trim(),
+      role: editRole,
+    });
+
+    if (!res.success) {
+      setErrorMsg(res.error || 'Failed to update member.');
+      return;
+    }
+
+    setEditingMember(null);
+  };
+
+  const handleDeleteMember = (member: HouseholdMember) => {
+    if (!window.confirm(`Are you sure you want to remove ${member.display_name} from the household roster?`)) return;
+    const res = deleteMember(member.id);
+    if (!res.success) {
+      alert(res.error);
+    }
   };
 
   const matrix = [
@@ -39,10 +77,10 @@ export const MembersView: React.FC = () => {
         <div>
           <h2 className="text-lg font-bold text-white flex items-center space-x-2">
             <Users className="w-5 h-5 text-sky-400" />
-            <span>Household Family Roster & RBAC Permissions</span>
+            <span>Household Family Roster & Role Manager</span>
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Manage multi-tenant household memberships and review active Row-Level Security guardrails.
+            Parent/Admin full CRUD control over family memberships, roles (Admin vs Member), and RBAC security.
           </p>
         </div>
 
@@ -52,58 +90,106 @@ export const MembersView: React.FC = () => {
             className="flex items-center space-x-2 bg-sky-600 hover:bg-sky-500 text-white px-4 py-2 rounded-lg font-medium text-xs transition-all shadow"
           >
             <Plus className="w-4 h-4" />
-            <span>+ Add Household Member</span>
+            <span>+ Add Family Member</span>
           </button>
         ) : (
           <div className="text-xs text-slate-400 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
-            Read-only mode (Admin manages family roster)
+            Read-only mode (Parents manage family roster)
           </div>
         )}
       </div>
 
       {/* Active Household Members Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        {members.map(m => (
-          <div 
-            key={m.id} 
-            className={`bg-slate-800/90 border rounded-xl p-5 space-y-3 transition-all ${
-              m.id === currentMember.id 
-                ? 'border-sky-500/60 ring-1 ring-sky-500/30' 
-                : 'border-slate-700/80 hover:border-slate-600'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center font-bold text-white text-sm border border-slate-600">
-                  {m.display_name.charAt(0)}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        {members.map(m => {
+          const memberWallets = wallets.filter(w => w.owner_id === m.id);
+          const memberTxCount = transactions.filter(t => t.payer_id === m.id).length;
+
+          return (
+            <div 
+              key={m.id} 
+              className={`bg-slate-800/90 border rounded-xl p-5 space-y-4 shadow-lg transition-all flex flex-col justify-between ${
+                m.id === currentMember.id 
+                  ? 'border-sky-500/60 ring-1 ring-sky-500/30' 
+                  : 'border-slate-700/80 hover:border-slate-600'
+              }`}
+            >
+              <div className="space-y-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-slate-700 to-slate-600 flex items-center justify-center font-bold text-white text-base border border-slate-500 shadow">
+                      {m.display_name.charAt(0)}
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-sm text-white flex items-center space-x-1.5">
+                        <span>{m.display_name}</span>
+                        {m.id === currentMember.id && (
+                          <span className="text-[10px] bg-sky-400/20 text-sky-300 px-1.5 py-0.2 rounded font-medium">Active Persona</span>
+                        )}
+                      </h3>
+                      <p className="text-[11px] text-slate-400 font-mono">ID: {m.id.substring(0, 15)}...</p>
+                    </div>
+                  </div>
+
+                  {m.role === 'admin' ? (
+                    <span className="flex items-center text-[10px] font-semibold text-amber-400 bg-amber-400/10 px-2.5 py-1 rounded border border-amber-400/20">
+                      <ShieldCheck className="w-3.5 h-3.5 mr-1" /> Admin
+                    </span>
+                  ) : (
+                    <span className="flex items-center text-[10px] font-semibold text-sky-400 bg-sky-400/10 px-2.5 py-1 rounded border border-sky-400/20">
+                      <UserCheck className="w-3.5 h-3.5 mr-1" /> Member
+                    </span>
+                  )}
                 </div>
-                <div>
-                  <h3 className="font-bold text-sm text-white flex items-center space-x-1.5">
-                    <span>{m.display_name}</span>
-                    {m.id === currentMember.id && (
-                      <span className="text-[10px] bg-sky-400/20 text-sky-300 px-1.5 py-0.2 rounded font-medium">You</span>
-                    )}
-                  </h3>
-                  <p className="text-[11px] text-slate-400 font-mono">ID: {m.id.substring(0, 15)}...</p>
+
+                {/* Info Grid */}
+                <div className="grid grid-cols-2 gap-2 text-xs bg-slate-900/60 p-2.5 rounded-lg border border-slate-700/50">
+                  <div>
+                    <span className="text-slate-400">Assigned Accounts:</span>
+                    <p className="font-semibold text-slate-200">{memberWallets.length} Wallets</p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Logged Tx:</span>
+                    <p className="font-semibold text-slate-200">{memberTxCount} Entries</p>
+                  </div>
                 </div>
               </div>
 
-              {m.role === 'admin' ? (
-                <span className="flex items-center text-[10px] font-semibold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/20">
-                  <ShieldCheck className="w-3 h-3 mr-1" /> Admin
+              <div className="pt-3 border-t border-slate-700/60 flex items-center justify-between">
+                <span className="text-[11px] text-slate-400">
+                  Joined: <strong className="text-slate-300 font-medium">{new Date(m.created_at).toLocaleDateString()}</strong>
                 </span>
-              ) : (
-                <span className="flex items-center text-[10px] font-semibold text-sky-400 bg-sky-400/10 px-2 py-0.5 rounded border border-sky-400/20">
-                  <UserCheck className="w-3 h-3 mr-1" /> Member
-                </span>
-              )}
-            </div>
 
-            <p className="text-xs text-slate-400 pt-2 border-t border-slate-700/60">
-              Joined: <span className="text-slate-300 font-medium">{new Date(m.created_at).toLocaleDateString()}</span>
-            </p>
-          </div>
-        ))}
+                {isAdmin && (
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => {
+                        setErrorMsg('');
+                        setEditingMember(m);
+                        setEditName(m.display_name);
+                        setEditRole(m.role);
+                      }}
+                      title="Edit Member Role / Name"
+                      className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-amber-400/10 rounded transition-colors"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+
+                    {m.id !== currentMember.id && (
+                      <button
+                        onClick={() => handleDeleteMember(m)}
+                        title="Remove Member from Household"
+                        className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* PRD Role & Permission Matrix (RBAC) */}
@@ -167,11 +253,11 @@ export const MembersView: React.FC = () => {
         </div>
       </div>
 
-      {/* Invite Member Modal */}
+      {/* Add Member Modal */}
       {showInviteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6 space-y-5 shadow-2xl">
-            <h3 className="text-base font-bold text-white">Add Household Member</h3>
+            <h3 className="text-base font-bold text-white">Add Household Family Member</h3>
 
             <form onSubmit={handleInviteSubmit} className="space-y-4">
               <div>
@@ -179,7 +265,7 @@ export const MembersView: React.FC = () => {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Jordan Miller, Grandma Betty"
+                  placeholder="e.g. Jordan Miller, Chloe, Ethan"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
@@ -193,7 +279,7 @@ export const MembersView: React.FC = () => {
                   onChange={(e) => setRole(e.target.value as HouseholdRole)}
                   className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
                 >
-                  <option value="member">Member (Dependent / Teen)</option>
+                  <option value="member">Member (Dependent / Teen / Child)</option>
                   <option value="admin">Admin (Parent / Guardian)</option>
                 </select>
               </div>
@@ -211,6 +297,63 @@ export const MembersView: React.FC = () => {
                   className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold rounded-lg transition-all shadow"
                 >
                   Add Member
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Member Modal */}
+      {editingMember && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6 space-y-5 shadow-2xl">
+            <h3 className="text-base font-bold text-white">Edit Family Member: {editingMember.display_name}</h3>
+
+            {errorMsg && (
+              <div className="p-3 bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs rounded-lg flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleUpdateSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Display Name</label>
+                <input
+                  type="text"
+                  required
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Household Role</label>
+                <select
+                  value={editRole}
+                  onChange={(e) => setEditRole(e.target.value as HouseholdRole)}
+                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                >
+                  <option value="admin">Admin (Parent / Guardian)</option>
+                  <option value="member">Member (Dependent / Teen)</option>
+                </select>
+              </div>
+
+              <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setEditingMember(null)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg transition-all shadow"
+                >
+                  Save Member Changes
                 </button>
               </div>
             </form>
