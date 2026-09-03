@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useHousehold } from '../context/HouseholdContext';
 import { 
-  ShieldCheck, UserCheck, Wallet as WalletIcon, Home, PlusCircle, Users, Landmark, Target, Menu, X, Plus, HeartHandshake 
+  ShieldCheck, UserCheck, Wallet as WalletIcon, Home, PlusCircle, Users, Landmark, Target, Plus, HeartHandshake 
 } from 'lucide-react';
 import { HouseholdRole } from '../types/database';
 
@@ -15,7 +15,6 @@ interface NavbarProps {
 
 export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenAddTxModal }) => {
   const { household, currentMember, members, switchMember, wallets, isAdmin } = useHousehold();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const visibleWallets = wallets.filter(w => isAdmin || w.is_shared || w.owner_id === currentMember.id);
   const totalNetWorth = visibleWallets.reduce((acc, w) => acc + w.current_balance, 0);
@@ -56,7 +55,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
   return (
     <>
       <header className="sticky top-0 z-40 bg-slate-900/95 backdrop-blur-md border-b border-slate-800">
-        <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14 sm:h-16 gap-2">
             
             {/* Brand Logo & Household Name */}
@@ -69,7 +68,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
                   <span className="font-bold text-base sm:text-lg text-white tracking-tight">SMCLedger</span>
                   <span className="hidden xs:inline-block text-[9px] px-1 py-0.2 rounded bg-slate-800 text-slate-400 font-mono border border-slate-700">MVP</span>
                 </div>
-                <p className="text-[10px] sm:text-xs text-slate-400 font-medium truncate max-w-[100px] xs:max-w-[140px] sm:max-w-none">{household.name}</p>
+                <p className="text-[10px] sm:text-xs text-slate-400 font-medium truncate max-w-[110px] xs:max-w-[150px] sm:max-w-none">{household.name}</p>
               </div>
             </div>
 
@@ -92,17 +91,17 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
               </button>
             </div>
 
-            {/* Persona Switcher & Mobile Controls */}
-            <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
-              <div className="bg-slate-800/90 border border-slate-700 rounded-lg p-0.5 sm:p-1 flex items-center">
-                <div className="px-1 py-0.5 flex items-center text-[10px] sm:text-xs font-semibold">
+            {/* Persona Switcher (Clean & Uncluttered on Mobile) */}
+            <div className="flex items-center shrink-0">
+              <div className="bg-slate-800/90 border border-slate-700 rounded-lg p-1 flex items-center">
+                <div className="px-1.5 py-0.5 flex items-center text-[10px] sm:text-xs font-semibold">
                   {renderRoleBadge(currentMember.role)}
                 </div>
 
                 <select
                   value={currentMember.id}
                   onChange={(e) => switchMember(e.target.value)}
-                  className="bg-slate-900 text-slate-200 text-[10px] sm:text-xs font-medium border border-slate-700 rounded px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-sky-500 cursor-pointer max-w-[95px] xs:max-w-[120px] sm:max-w-none truncate"
+                  className="bg-slate-900 text-slate-200 text-[11px] sm:text-xs font-medium border border-slate-700 rounded px-1.5 sm:px-2.5 py-1 focus:outline-none focus:ring-1 focus:ring-sky-500 cursor-pointer max-w-[125px] xs:max-w-[150px] sm:max-w-none truncate"
                   title="Switch Member Persona"
                 >
                   {members.map(m => (
@@ -112,25 +111,6 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
                   ))}
                 </select>
               </div>
-
-              {/* Mobile Header Log Tx Button */}
-              <button
-                onClick={onOpenAddTxModal}
-                className="md:hidden flex items-center space-x-1 px-2 py-1.5 bg-sky-600 active:bg-sky-500 text-white text-xs font-bold rounded-lg transition-colors shadow"
-                title="Log Transaction"
-              >
-                <Plus className="w-4 h-4" />
-                <span className="hidden xs:inline text-[11px]">Log</span>
-              </button>
-
-              {/* Mobile Menu Hamburger Toggle */}
-              <button
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="md:hidden p-1.5 text-slate-400 hover:text-white bg-slate-800 border border-slate-700 rounded-lg transition-colors"
-                aria-label="Toggle Navigation Menu"
-              >
-                {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-              </button>
             </div>
 
           </div>
@@ -156,46 +136,6 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
               );
             })}
           </div>
-
-          {/* Mobile Expanded Menu Dropdown */}
-          {mobileMenuOpen && (
-            <div className="md:hidden py-3 border-t border-slate-800 space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
-              <button
-                onClick={() => {
-                  onOpenAddTxModal();
-                  setMobileMenuOpen(false);
-                }}
-                className="w-full flex items-center justify-center space-x-2 bg-sky-600 text-white font-bold text-xs py-2.5 rounded-lg shadow"
-              >
-                <PlusCircle className="w-4 h-4" />
-                <span>+ Log New Transaction</span>
-              </button>
-
-              <div className="grid grid-cols-2 gap-2">
-                {navItems.map(tab => {
-                  const Icon = tab.icon;
-                  const isActive = activeTab === tab.id;
-                  return (
-                    <button
-                      key={tab.id}
-                      onClick={() => {
-                        setActiveTab(tab.id);
-                        setMobileMenuOpen(false);
-                      }}
-                      className={`flex items-center space-x-2 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all ${
-                        isActive
-                          ? 'bg-sky-500/20 text-sky-400 border border-sky-500/40'
-                          : 'bg-slate-800/80 text-slate-300 border border-slate-700/60 active:bg-slate-700'
-                      }`}
-                    >
-                      <Icon className="w-4 h-4 text-sky-400" />
-                      <span>{tab.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
         </div>
       </header>
 
