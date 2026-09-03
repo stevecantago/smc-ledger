@@ -2,9 +2,10 @@
 
 import React, { useState } from 'react';
 import { useHousehold } from '../context/HouseholdContext';
-import { ShieldCheck, Plus, Edit2, AlertTriangle, AlertCircle, ShoppingCart, Zap, Utensils, Film, BookOpen, Receipt, Download } from 'lucide-react';
+import { ShieldCheck, Plus, Edit2, AlertTriangle, AlertCircle, Download } from 'lucide-react';
 import { Category } from '../types/database';
 import { exportBudgetSummaryToCsv } from '../lib/exportCsv';
+import { CategoryIcon, IconPickerGrid } from './CategoryIcon';
 
 export const BudgetsView: React.FC = () => {
   const { categories, transactions, isAdmin, addCategory, updateCategoryLimit } = useHousehold();
@@ -13,7 +14,7 @@ export const BudgetsView: React.FC = () => {
 
   // New Category Form
   const [name, setName] = useState('');
-  const [iconSlug, setIconSlug] = useState('shopping-cart');
+  const [iconSlug, setIconSlug] = useState('graduation-cap');
   const [budgetLimit, setBudgetLimit] = useState('');
 
   // Limit Edit Form
@@ -63,17 +64,6 @@ export const BudgetsView: React.FC = () => {
     if (!editingCategory) return;
     updateCategoryLimit(editingCategory.id, parseFloat(newLimit) || 0);
     setEditingCategory(null);
-  };
-
-  const getIconComponent = (slug: string) => {
-    switch (slug) {
-      case 'shopping-cart': return <ShoppingCart className="w-5 h-5 text-sky-400" />;
-      case 'zap': return <Zap className="w-5 h-5 text-amber-400" />;
-      case 'utensils': return <Utensils className="w-5 h-5 text-rose-400" />;
-      case 'film': return <Film className="w-5 h-5 text-indigo-400" />;
-      case 'book-open': return <BookOpen className="w-5 h-5 text-emerald-400" />;
-      default: return <Receipt className="w-5 h-5 text-slate-400" />;
-    }
   };
 
   return (
@@ -160,8 +150,8 @@ export const BudgetsView: React.FC = () => {
           >
             <div className="flex items-start justify-between">
               <div className="flex items-center space-x-3">
-                <div className="p-3 rounded-xl bg-slate-900 border border-slate-700/60">
-                  {getIconComponent(cat.icon_slug)}
+                <div className="p-3 rounded-xl bg-slate-900 border border-slate-700/60 flex items-center justify-center">
+                  <CategoryIcon slug={cat.icon_slug} className="w-6 h-6" />
                 </div>
                 <div>
                   <h3 className="font-bold text-sm text-white">{cat.name}</h3>
@@ -223,11 +213,11 @@ export const BudgetsView: React.FC = () => {
         ))}
       </div>
 
-      {/* Add Category Modal */}
+      {/* Add Category Modal with Visual Icon Picker Grid */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6 space-y-5 shadow-2xl">
-            <h3 className="text-base font-bold text-white">Create Budget Category</h3>
+          <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-lg w-full p-6 space-y-5 shadow-2xl">
+            <h3 className="text-base font-bold text-white">Create Budget Envelope Category</h3>
 
             <form onSubmit={handleAddSubmit} className="space-y-4">
               <div>
@@ -235,7 +225,7 @@ export const BudgetsView: React.FC = () => {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Healthcare, Pets, Subscriptions"
+                  placeholder="e.g. School Dues - Kid 1, Healthcare, Transport"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
@@ -248,27 +238,18 @@ export const BudgetsView: React.FC = () => {
                   type="number"
                   step="0.01"
                   required
-                  placeholder="5000.00"
+                  placeholder="10000.00"
                   value={budgetLimit}
                   onChange={(e) => setBudgetLimit(e.target.value)}
-                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Icon Style</label>
-                <select
-                  value={iconSlug}
-                  onChange={(e) => setIconSlug(e.target.value)}
-                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                >
-                  <option value="shopping-cart">Shopping Cart (Groceries)</option>
-                  <option value="zap">Utilities / Meralco / Electric</option>
-                  <option value="utensils">Dining / Restaurants</option>
-                  <option value="film">Movies & Entertainment</option>
-                  <option value="book-open">Books & Education</option>
-                </select>
-              </div>
+              {/* Interactive Visual Icon Picker */}
+              <IconPickerGrid 
+                selectedSlug={iconSlug} 
+                onSelectSlug={setIconSlug} 
+              />
 
               <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-800">
                 <button
@@ -282,7 +263,7 @@ export const BudgetsView: React.FC = () => {
                   type="submit"
                   className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold rounded-lg transition-all shadow"
                 >
-                  Create Category
+                  Create Envelope
                 </button>
               </div>
             </form>
@@ -294,7 +275,10 @@ export const BudgetsView: React.FC = () => {
       {editingCategory && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6 space-y-5 shadow-2xl">
-            <h3 className="text-base font-bold text-white">Edit Limit: {editingCategory.name}</h3>
+            <h3 className="text-base font-bold text-white flex items-center space-x-2">
+              <CategoryIcon slug={editingCategory.icon_slug} className="w-5 h-5" />
+              <span>Edit Limit: {editingCategory.name}</span>
+            </h3>
 
             <form onSubmit={handleUpdateLimitSubmit} className="space-y-4">
               <div>

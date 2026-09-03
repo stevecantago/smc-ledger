@@ -3,6 +3,7 @@
 import React from 'react';
 import { useHousehold } from '../context/HouseholdContext';
 import { Wallet, TrendingUp, TrendingDown, ArrowRightLeft, ShieldCheck, Target, AlertTriangle } from 'lucide-react';
+import { CategoryIcon } from './CategoryIcon';
 
 interface DashboardViewProps {
   setActiveTab: (tab: string) => void;
@@ -156,8 +157,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
 
               return (
                 <div key={cat.id} className="space-y-1.5">
-                  <div className="flex justify-between text-xs">
-                    <span className="font-semibold text-slate-200">{cat.name}</span>
+                  <div className="flex justify-between text-xs items-center">
+                    <span className="font-semibold text-slate-200 flex items-center space-x-2">
+                      <CategoryIcon slug={cat.icon_slug} className="w-4 h-4" />
+                      <span>{cat.name}</span>
+                    </span>
                     <span className={`font-mono ${isOver ? 'text-rose-400 font-bold' : 'text-slate-400'}`}>
                       ₱{catSpend.toFixed(2)} / ₱{cat.monthly_budget_limit.toFixed(2)}
                     </span>
