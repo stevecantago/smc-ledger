@@ -44,7 +44,7 @@ interface HouseholdContextType {
   deleteCategory: (id: string) => { success: boolean; error?: string };
 
   // Transactions CRUD
-  addTransaction: (tx: { wallet_id: string; destination_wallet_id?: string | null; category_id?: string | null; type: Transaction['type']; amount: number; transaction_date: string; note?: string; receipt_url?: string }) => { success: boolean; error?: string };
+  addTransaction: (tx: { wallet_id: string; destination_wallet_id?: string | null; category_id?: string | null; type: Transaction['type']; amount: number; fee?: number | null; transaction_date: string; note?: string; receipt_url?: string }) => { success: boolean; error?: string };
   updateTransaction: (id: string, updates: Partial<Transaction>) => { success: boolean; error?: string };
   deleteTransaction: (id: string) => { success: boolean; error?: string };
 
@@ -292,13 +292,14 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return { success: true };
   };
 
-  // Transactions CRUD
+  // Transactions CRUD with Processing Fee Accounting
   const addTransaction = (data: { 
     wallet_id: string; 
     destination_wallet_id?: string | null; 
     category_id?: string | null; 
     type: Transaction['type']; 
     amount: number; 
+    fee?: number | null;
     transaction_date: string; 
     note?: string; 
     receipt_url?: string 
@@ -306,19 +307,23 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const sourceWallet = wallets.find(w => w.id === data.wallet_id);
     if (!sourceWallet) return { success: false, error: 'Source wallet not found' };
 
+    const feeAmount = data.fee || 0;
     let updatedWallets = [...wallets];
 
     if (data.type === 'expense') {
-      updatedWallets = updatedWallets.map(w => w.id === data.wallet_id ? { ...w, current_balance: w.current_balance - data.amount } : w);
+      const totalOutflow = data.amount + feeAmount;
+      updatedWallets = updatedWallets.map(w => w.id === data.wallet_id ? { ...w, current_balance: w.current_balance - totalOutflow } : w);
     } else if (data.type === 'income') {
-      updatedWallets = updatedWallets.map(w => w.id === data.wallet_id ? { ...w, current_balance: w.current_balance + data.amount } : w);
+      const netInflow = data.amount - feeAmount;
+      updatedWallets = updatedWallets.map(w => w.id === data.wallet_id ? { ...w, current_balance: w.current_balance + netInflow } : w);
     } else if (data.type === 'transfer') {
       if (!data.destination_wallet_id) return { success: false, error: 'Destination wallet required for transfers' };
       const destWallet = wallets.find(w => w.id === data.destination_wallet_id);
       if (!destWallet) return { success: false, error: 'Destination wallet not found' };
 
+      const totalDeducted = data.amount + feeAmount;
       updatedWallets = updatedWallets.map(w => {
-        if (w.id === data.wallet_id) return { ...w, current_balance: w.current_balance - data.amount };
+        if (w.id === data.wallet_id) return { ...w, current_balance: w.current_balance - totalDeducted };
         if (w.id === data.destination_wallet_id) return { ...w, current_balance: w.current_balance + data.amount };
         return w;
       });
@@ -333,6 +338,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       payer_id: currentMember.id,
       type: data.type,
       amount: data.amount,
+      fee: feeAmount > 0 ? feeAmount : null,
       transaction_date: data.transaction_date,
       note: data.note || null,
       receipt_url: data.receipt_url || null,
@@ -370,14 +376,19 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       };
     }
 
+    const feeAmount = target.fee || 0;
     let updatedWallets = [...wallets];
+
     if (target.type === 'expense') {
-      updatedWallets = updatedWallets.map(w => w.id === target.wallet_id ? { ...w, current_balance: w.current_balance + target.amount } : w);
+      const totalOutflow = target.amount + feeAmount;
+      updatedWallets = updatedWallets.map(w => w.id === target.wallet_id ? { ...w, current_balance: w.current_balance + totalOutflow } : w);
     } else if (target.type === 'income') {
-      updatedWallets = updatedWallets.map(w => w.id === target.wallet_id ? { ...w, current_balance: w.current_balance - target.amount } : w);
+      const netInflow = target.amount - feeAmount;
+      updatedWallets = updatedWallets.map(w => w.id === target.wallet_id ? { ...w, current_balance: w.current_balance - netInflow } : w);
     } else if (target.type === 'transfer') {
+      const totalDeducted = target.amount + feeAmount;
       updatedWallets = updatedWallets.map(w => {
-        if (w.id === target.wallet_id) return { ...w, current_balance: w.current_balance + target.amount };
+        if (w.id === target.wallet_id) return { ...w, current_balance: w.current_balance + totalDeducted };
         if (w.id === target.destination_wallet_id) return { ...w, current_balance: w.current_balance - target.amount };
         return w;
       });

@@ -53,6 +53,7 @@ export interface Transaction {
   payer_id: string;
   type: TransactionType;
   amount: number;
+  fee?: number | null; // Processing / transaction / transfer fee
   transaction_date: string;
   note?: string | null;
   receipt_url?: string | null;
