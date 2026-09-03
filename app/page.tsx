@@ -27,7 +27,7 @@ export default function Home() {
         onOpenAddTxModal={handleOpenAddTxModal} 
       />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-20 md:pb-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-32 md:pb-8">
         {activeTab === 'dashboard' && (
           <DashboardView 
             setActiveTab={setActiveTab} 
@@ -47,7 +47,7 @@ export default function Home() {
         {activeTab === 'members' && <MembersView />}
       </main>
 
-      <footer className="border-t border-slate-800 py-6 text-center text-xs text-slate-500 mb-12 md:mb-0">
+      <footer className="border-t border-slate-800 py-6 text-center text-xs text-slate-500 mb-20 md:mb-0">
         <p>SMCLedger • Multi-Tenant Family Financial Tracker (Next.js MVP 1.0.0)</p>
       </footer>
     </div>
