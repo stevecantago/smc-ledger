@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useHousehold } from '../context/HouseholdContext';
-import { Landmark, Plus, DollarSign, Calendar, AlertCircle, Percent, Edit2, Trash2, ShieldCheck, Clock } from 'lucide-react';
+import { Landmark, Plus, DollarSign, Calendar, AlertCircle, Percent, Edit2, Trash2, ShieldCheck, Clock, CheckCircle2 } from 'lucide-react';
 import { Loan, LoanPaymentFrequency } from '../types/database';
 
 export const LoansView: React.FC = () => {
@@ -16,22 +16,26 @@ export const LoansView: React.FC = () => {
   const [name, setName] = useState('');
   const [lender, setLender] = useState('');
   const [totalPrincipal, setTotalPrincipal] = useState('');
+  const [amountPaid, setAmountPaid] = useState('');
   const [interestRate, setInterestRate] = useState('');
   const [monthlyAmortization, setMonthlyAmortization] = useState('');
   const [paymentFrequency, setPaymentFrequency] = useState<LoanPaymentFrequency>('monthly');
   const [dueDay, setDueDay] = useState('15');
   const [secondDueDay, setSecondDueDay] = useState('30');
+  const [nextDueDate, setNextDueDate] = useState('');
 
   // Edit Loan Form
   const [editName, setEditName] = useState('');
   const [editLender, setEditLender] = useState('');
   const [editPrincipal, setEditPrincipal] = useState('');
+  const [editAmountPaid, setEditAmountPaid] = useState('');
   const [editBalance, setEditBalance] = useState('');
   const [editInterest, setEditInterest] = useState('');
   const [editMonthly, setEditMonthly] = useState('');
   const [editFrequency, setEditFrequency] = useState<LoanPaymentFrequency>('monthly');
   const [editDueDay, setEditDueDay] = useState('15');
   const [editSecondDueDay, setEditSecondDueDay] = useState('30');
+  const [editNextDueDate, setEditNextDueDate] = useState('');
 
   // Pay Amortization Form
   const [payAmount, setPayAmount] = useState('');
@@ -49,22 +53,30 @@ export const LoansView: React.FC = () => {
     e.preventDefault();
     if (!name.trim() || !lender.trim()) return;
 
+    const principal = parseFloat(totalPrincipal) || 0;
+    const paid = parseFloat(amountPaid) || 0;
+
     addLoan({
       name: name.trim(),
       lender: lender.trim(),
-      total_principal: parseFloat(totalPrincipal) || 0,
+      total_principal: principal,
+      amount_paid: paid,
+      remaining_balance: Math.max(0, principal - paid),
       interest_rate_annual: parseFloat(interestRate) || 0,
       monthly_amortization: parseFloat(monthlyAmortization) || 0,
       payment_frequency: paymentFrequency,
       due_day_of_month: parseInt(dueDay) || 1,
       second_due_day_of_month: paymentFrequency === 'bi_monthly' ? (parseInt(secondDueDay) || 15) : null,
+      next_due_date: nextDueDate.trim() || null,
     });
 
     setName('');
     setLender('');
     setTotalPrincipal('');
+    setAmountPaid('');
     setInterestRate('');
     setMonthlyAmortization('');
+    setNextDueDate('');
     setShowAddModal(false);
   };
 
@@ -72,16 +84,22 @@ export const LoansView: React.FC = () => {
     e.preventDefault();
     if (!editingLoan) return;
 
+    const principal = parseFloat(editPrincipal) || 0;
+    const paid = parseFloat(editAmountPaid) || 0;
+    const balance = editBalance ? parseFloat(editBalance) : Math.max(0, principal - paid);
+
     updateLoan(editingLoan.id, {
       name: editName.trim(),
       lender: editLender.trim(),
-      total_principal: parseFloat(editPrincipal) || 0,
-      remaining_balance: parseFloat(editBalance) || 0,
+      total_principal: principal,
+      amount_paid: paid,
+      remaining_balance: balance,
       interest_rate_annual: parseFloat(editInterest) || 0,
       monthly_amortization: parseFloat(editMonthly) || 0,
       payment_frequency: editFrequency,
       due_day_of_month: parseInt(editDueDay) || 1,
       second_due_day_of_month: editFrequency === 'bi_monthly' ? (parseInt(editSecondDueDay) || 15) : null,
+      next_due_date: editNextDueDate.trim() || null,
     });
 
     setEditingLoan(null);
@@ -124,7 +142,7 @@ export const LoansView: React.FC = () => {
             <span>Loans & Amortization Manager</span>
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Track total principal debt, annual interest rates, monthly & bi-monthly (semi-monthly) amortization schedules.
+            Track total principal debt, amounts paid to date, annual interest rates, monthly & bi-monthly due dates.
           </p>
         </div>
 
@@ -169,7 +187,7 @@ export const LoansView: React.FC = () => {
       {/* Loan Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {loans.map(loan => {
-          const paidAmount = loan.total_principal - loan.remaining_balance;
+          const paidAmount = loan.amount_paid !== undefined ? loan.amount_paid : (loan.total_principal - loan.remaining_balance);
           const percentPaid = loan.total_principal > 0 
             ? Math.min(Math.round((paidAmount / loan.total_principal) * 100), 100) 
             : 0;
@@ -201,12 +219,14 @@ export const LoansView: React.FC = () => {
                             setEditName(loan.name);
                             setEditLender(loan.lender);
                             setEditPrincipal(loan.total_principal.toString());
+                            setEditAmountPaid(paidAmount.toString());
                             setEditBalance(loan.remaining_balance.toString());
                             setEditInterest(loan.interest_rate_annual.toString());
                             setEditMonthly(loan.monthly_amortization.toString());
                             setEditFrequency(loan.payment_frequency || 'monthly');
                             setEditDueDay(loan.due_day_of_month.toString());
                             setEditSecondDueDay((loan.second_due_day_of_month || 30).toString());
+                            setEditNextDueDate(loan.next_due_date || '');
                           }}
                           title="Edit Loan Agreement"
                           className="p-1 text-slate-400 hover:text-amber-400 hover:bg-amber-400/10 rounded transition-colors"
@@ -225,15 +245,25 @@ export const LoansView: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Schedule Frequency Badge */}
-                <div>
+                {/* Next Due Date & Frequency Badges */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {loan.next_due_date ? (
+                    <span className="inline-flex items-center text-[11px] font-bold text-amber-300 bg-amber-500/15 px-2.5 py-0.5 rounded border border-amber-500/30">
+                      <Calendar className="w-3 h-3 mr-1" /> Next Due: {loan.next_due_date}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center text-[11px] font-medium text-slate-400 bg-slate-800 px-2.5 py-0.5 rounded border border-slate-700">
+                      <Calendar className="w-3 h-3 mr-1" /> Due Day {loan.due_day_of_month}
+                    </span>
+                  )}
+
                   {isBiMonthly ? (
                     <span className="inline-flex items-center text-[11px] font-bold text-purple-300 bg-purple-500/15 px-2.5 py-0.5 rounded border border-purple-500/30">
-                      <Clock className="w-3 h-3 mr-1" /> Bi-Monthly (2x/month • Days {loan.due_day_of_month} & {loan.second_due_day_of_month || 30})
+                      <Clock className="w-3 h-3 mr-1" /> Bi-Monthly (Days {loan.due_day_of_month} & {loan.second_due_day_of_month || 30})
                     </span>
                   ) : (
                     <span className="inline-flex items-center text-[11px] font-medium text-sky-300 bg-sky-500/15 px-2.5 py-0.5 rounded border border-sky-500/30">
-                      <Calendar className="w-3 h-3 mr-1" /> Monthly (1x/month • Day {loan.due_day_of_month})
+                      <Clock className="w-3 h-3 mr-1" /> Monthly (1x/mo)
                     </span>
                   )}
                 </div>
@@ -245,26 +275,18 @@ export const LoansView: React.FC = () => {
                     <p className="font-bold font-mono text-rose-400 text-sm">₱{loan.remaining_balance.toLocaleString()}</p>
                   </div>
                   <div>
-                    <span className="text-slate-400">
-                      {isBiMonthly ? 'Bi-Monthly Payment:' : 'Monthly Amortization:'}
-                    </span>
-                    <p className="font-bold font-mono text-white text-sm">₱{singleInstallment.toLocaleString()}</p>
-                    {isBiMonthly && (
-                      <span className="text-[10px] text-slate-400 block font-mono">
-                        (₱{loan.monthly_amortization.toLocaleString()} total/mo)
-                      </span>
-                    )}
+                    <span className="text-slate-400">Total Paid to Date:</span>
+                    <p className="font-bold font-mono text-emerald-400 text-sm">₱{paidAmount.toLocaleString()}</p>
                   </div>
                   <div>
                     <span className="text-slate-400">Original Principal:</span>
                     <p className="font-medium text-slate-300">₱{loan.total_principal.toLocaleString()}</p>
                   </div>
                   <div>
-                    <span className="text-slate-400">Due Schedule:</span>
-                    <p className="font-medium text-slate-300 flex items-center">
-                      <Calendar className="w-3 h-3 mr-1 text-amber-400" /> 
-                      {isBiMonthly ? `Days ${loan.due_day_of_month} & ${loan.second_due_day_of_month || 30}` : `Day ${loan.due_day_of_month} of month`}
-                    </p>
+                    <span className="text-slate-400">
+                      {isBiMonthly ? 'Bi-Monthly Installment:' : 'Monthly Amortization:'}
+                    </span>
+                    <p className="font-bold font-mono text-white">₱{singleInstallment.toLocaleString()}</p>
                   </div>
                 </div>
 
@@ -306,7 +328,7 @@ export const LoansView: React.FC = () => {
       {/* Add Loan Modal */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6 space-y-5 shadow-2xl">
+          <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6 space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto">
             <h3 className="text-base font-bold text-white">Create Loan & Amortization Agreement</h3>
 
             <form onSubmit={handleAddSubmit} className="space-y-4">
@@ -360,6 +382,20 @@ export const LoansView: React.FC = () => {
                   />
                 </div>
                 <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Total Amount Paid So Far (₱)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00 (Optional)"
+                    value={amountPaid}
+                    onChange={(e) => setAmountPaid(e.target.value)}
+                    className="w-full bg-slate-800 text-emerald-300 text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
                   <label className="block text-xs font-medium text-slate-300 mb-1">Annual Interest Rate (%)</label>
                   <input
                     type="number"
@@ -371,9 +407,6 @@ export const LoansView: React.FC = () => {
                     className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
                   />
                 </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-300 mb-1">Total Monthly Amortization (₱)</label>
                   <input
@@ -386,6 +419,19 @@ export const LoansView: React.FC = () => {
                     className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Next Upcoming Payment Due Date</label>
+                <input
+                  type="date"
+                  value={nextDueDate}
+                  onChange={(e) => setNextDueDate(e.target.value)}
+                  className="w-full bg-slate-800 text-amber-300 text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-300 mb-1">First Due Day of Month</label>
                   <input
@@ -398,25 +444,21 @@ export const LoansView: React.FC = () => {
                     className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
                   />
                 </div>
+                {paymentFrequency === 'bi_monthly' && (
+                  <div>
+                    <label className="block text-xs font-medium text-slate-300 mb-1">Second Due Day of Month</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="31"
+                      required
+                      value={secondDueDay}
+                      onChange={(e) => setSecondDueDay(e.target.value)}
+                      className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                    />
+                  </div>
+                )}
               </div>
-
-              {paymentFrequency === 'bi_monthly' && (
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Second Due Day of Month (e.g. 30th or 15th)</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="31"
-                    required
-                    value={secondDueDay}
-                    onChange={(e) => setSecondDueDay(e.target.value)}
-                    className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                  />
-                  <p className="text-[10px] text-purple-300 mt-1 font-mono">
-                    Semi-Monthly Payment: ₱{((parseFloat(monthlyAmortization) || 0) / 2).toLocaleString()} per installment
-                  </p>
-                </div>
-              )}
 
               <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-800">
                 <button
@@ -441,7 +483,7 @@ export const LoansView: React.FC = () => {
       {/* Edit Loan Modal */}
       {editingLoan && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6 space-y-5 shadow-2xl">
+          <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6 space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto">
             <h3 className="text-base font-bold text-white">Edit Loan Agreement: {editingLoan.name}</h3>
 
             <form onSubmit={handleEditSubmit} className="space-y-4">
@@ -492,6 +534,25 @@ export const LoansView: React.FC = () => {
                   />
                 </div>
                 <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Total Amount Paid So Far (₱)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    value={editAmountPaid}
+                    onChange={(e) => {
+                      setEditAmountPaid(e.target.value);
+                      const paid = parseFloat(e.target.value) || 0;
+                      const princ = parseFloat(editPrincipal) || 0;
+                      setEditBalance(Math.max(0, princ - paid).toString());
+                    }}
+                    className="w-full bg-slate-800 text-emerald-300 text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
                   <label className="block text-xs font-medium text-slate-300 mb-1">Remaining Balance (₱)</label>
                   <input
                     type="number"
@@ -499,12 +560,9 @@ export const LoansView: React.FC = () => {
                     required
                     value={editBalance}
                     onChange={(e) => setEditBalance(e.target.value)}
-                    className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
+                    className="w-full bg-slate-800 text-rose-400 text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
                   />
                 </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-300 mb-1">Total Monthly Amortization (₱)</label>
                   <input
@@ -516,6 +574,19 @@ export const LoansView: React.FC = () => {
                     className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Next Upcoming Payment Due Date</label>
+                <input
+                  type="date"
+                  value={editNextDueDate}
+                  onChange={(e) => setEditNextDueDate(e.target.value)}
+                  className="w-full bg-slate-800 text-amber-300 text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-300 mb-1">First Due Day of Month</label>
                   <input
@@ -528,22 +599,21 @@ export const LoansView: React.FC = () => {
                     className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
                   />
                 </div>
+                {editFrequency === 'bi_monthly' && (
+                  <div>
+                    <label className="block text-xs font-medium text-slate-300 mb-1">Second Due Day of Month</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="31"
+                      required
+                      value={editSecondDueDay}
+                      onChange={(e) => setEditSecondDueDay(e.target.value)}
+                      className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                    />
+                  </div>
+                )}
               </div>
-
-              {editFrequency === 'bi_monthly' && (
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Second Due Day of Month</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="31"
-                    required
-                    value={editSecondDueDay}
-                    onChange={(e) => setEditSecondDueDay(e.target.value)}
-                    className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                  />
-                </div>
-              )}
 
               <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-800">
                 <button
@@ -611,7 +681,7 @@ export const LoansView: React.FC = () => {
                   <ShieldCheck className="w-3.5 h-3.5 mr-1" /> Payment Action:
                 </p>
                 <p className="text-[11px] text-slate-300">
-                  Deducts ₱{parseFloat(payAmount || '0').toLocaleString()} from selected wallet, logs an expense transaction, and reduces remaining loan principal balance.
+                  Deducts ₱{parseFloat(payAmount || '0').toLocaleString()} from selected wallet, logs an expense transaction, increases total paid to date, and automatically advances the next due date.
                 </p>
               </div>
 

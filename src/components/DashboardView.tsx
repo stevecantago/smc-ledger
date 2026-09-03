@@ -235,7 +235,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {loans.map(loan => {
-              const paidAmount = loan.total_principal - loan.remaining_balance;
+              const paidAmount = loan.amount_paid !== undefined ? loan.amount_paid : (loan.total_principal - loan.remaining_balance);
               const percentPaid = loan.total_principal > 0 
                 ? Math.min(Math.round((paidAmount / loan.total_principal) * 100), 100) 
                 : 0;
@@ -250,9 +250,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
                       <h4 className="font-semibold text-xs text-white">{loan.name}</h4>
                       <p className="text-[11px] text-slate-400">{loan.lender}</p>
                     </div>
-                    {isBiMonthly ? (
+                    {loan.next_due_date ? (
+                      <span className="text-[10px] font-bold text-amber-300 bg-amber-400/15 px-2 py-0.5 rounded border border-amber-400/25">
+                        Due: {loan.next_due_date}
+                      </span>
+                    ) : isBiMonthly ? (
                       <span className="text-[10px] font-bold text-purple-300 bg-purple-500/15 px-2 py-0.5 rounded border border-purple-500/20">
-                        Days {loan.due_day_of_month} & {loan.second_due_day_of_month || 30} Due
+                        Days {loan.due_day_of_month} & {loan.second_due_day_of_month || 30}
                       </span>
                     ) : (
                       <span className="text-[10px] font-bold text-amber-300 bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/20">
@@ -277,7 +281,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
                   {/* Progress */}
                   <div className="space-y-1">
                     <div className="flex justify-between text-[10px]">
-                      <span className="text-slate-400">Payoff Progress</span>
+                      <span className="text-slate-400">Paid: ₱{paidAmount.toLocaleString()}</span>
                       <span className="text-emerald-400 font-bold">{percentPaid}% Paid Off</span>
                     </div>
                     <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">

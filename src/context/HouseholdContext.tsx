@@ -55,8 +55,32 @@ interface HouseholdContextType {
   fundSavingsGoal: (goalId: string, amount: number, walletId: string) => { success: boolean; error?: string };
   
   // Loans CRUD
-  addLoan: (loan: { name: string; lender: string; total_principal: number; interest_rate_annual: number; monthly_amortization: number; payment_frequency?: LoanPaymentFrequency; due_day_of_month: number; second_due_day_of_month?: number | null }) => void;
-  updateLoan: (id: string, updates: { name?: string; lender?: string; total_principal?: number; remaining_balance?: number; interest_rate_annual?: number; monthly_amortization?: number; payment_frequency?: LoanPaymentFrequency; due_day_of_month?: number; second_due_day_of_month?: number | null }) => { success: boolean; error?: string };
+  addLoan: (loan: { 
+    name: string; 
+    lender: string; 
+    total_principal: number; 
+    remaining_balance?: number;
+    amount_paid?: number;
+    interest_rate_annual: number; 
+    monthly_amortization: number; 
+    payment_frequency?: LoanPaymentFrequency;
+    due_day_of_month: number;
+    second_due_day_of_month?: number | null;
+    next_due_date?: string | null;
+  }) => void;
+  updateLoan: (id: string, updates: { 
+    name?: string; 
+    lender?: string; 
+    total_principal?: number; 
+    remaining_balance?: number; 
+    amount_paid?: number;
+    interest_rate_annual?: number; 
+    monthly_amortization?: number; 
+    payment_frequency?: LoanPaymentFrequency;
+    due_day_of_month?: number;
+    second_due_day_of_month?: number | null;
+    next_due_date?: string | null;
+  }) => { success: boolean; error?: string };
   deleteLoan: (id: string) => { success: boolean; error?: string };
   payLoanAmortization: (loanId: string, amount: number, walletId: string) => { success: boolean; error?: string };
   
@@ -455,28 +479,37 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     name: string; 
     lender: string; 
     total_principal: number; 
+    remaining_balance?: number;
+    amount_paid?: number;
     interest_rate_annual: number; 
     monthly_amortization: number; 
     payment_frequency?: LoanPaymentFrequency;
     due_day_of_month: number;
     second_due_day_of_month?: number | null;
+    next_due_date?: string | null;
   }) => {
     if (!isAdmin) {
       alert("Only Household Parents/Admins can create loan records.");
       return;
     }
+
+    const paid = data.amount_paid !== undefined ? data.amount_paid : 0;
+    const remaining = data.remaining_balance !== undefined ? data.remaining_balance : Math.max(0, data.total_principal - paid);
+
     const newLoan: Loan = {
       id: `loan-${Date.now()}`,
       household_id: household.id,
       name: data.name,
       lender: data.lender,
       total_principal: data.total_principal,
-      remaining_balance: data.total_principal,
+      remaining_balance: remaining,
+      amount_paid: paid,
       interest_rate_annual: data.interest_rate_annual,
       monthly_amortization: data.monthly_amortization,
       payment_frequency: data.payment_frequency || 'monthly',
       due_day_of_month: data.due_day_of_month,
       second_due_day_of_month: data.second_due_day_of_month || null,
+      next_due_date: data.next_due_date || null,
       start_date: new Date().toISOString().split('T')[0],
       created_at: new Date().toISOString(),
     };
@@ -488,11 +521,13 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     lender?: string; 
     total_principal?: number; 
     remaining_balance?: number; 
+    amount_paid?: number;
     interest_rate_annual?: number; 
     monthly_amortization?: number; 
     payment_frequency?: LoanPaymentFrequency;
     due_day_of_month?: number;
     second_due_day_of_month?: number | null;
+    next_due_date?: string | null;
   }) => {
     if (!isAdmin) return { success: false, error: 'Only Household Parents/Admins can edit loan records.' };
     setLoans(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l));
@@ -516,8 +551,38 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       return { success: false, error: 'Insufficient wallet balance for amortization payment' };
     }
 
+    // Auto-advance next_due_date
+    let nextDueDate: string | null = targetLoan.next_due_date || null;
+    if (nextDueDate) {
+      const currentDate = new Date(nextDueDate);
+      if (targetLoan.payment_frequency === 'bi_monthly') {
+        const day1 = targetLoan.due_day_of_month;
+        const day2 = targetLoan.second_due_day_of_month || 30;
+        const currentDay = currentDate.getDate();
+
+        if (Math.abs(currentDay - day1) <= Math.abs(currentDay - day2)) {
+          currentDate.setDate(day2);
+        } else {
+          currentDate.setMonth(currentDate.getMonth() + 1);
+          currentDate.setDate(day1);
+        }
+      } else {
+        currentDate.setMonth(currentDate.getMonth() + 1);
+      }
+      nextDueDate = currentDate.toISOString().split('T')[0];
+    }
+
+    const currentPaid = targetLoan.amount_paid !== undefined ? targetLoan.amount_paid : (targetLoan.total_principal - targetLoan.remaining_balance);
+    const newPaid = currentPaid + amount;
+    const newRemaining = Math.max(0, targetLoan.remaining_balance - amount);
+
     setWallets(prev => prev.map(w => w.id === walletId ? { ...w, current_balance: w.current_balance - amount } : w));
-    setLoans(prev => prev.map(l => l.id === loanId ? { ...l, remaining_balance: Math.max(0, l.remaining_balance - amount) } : l));
+    setLoans(prev => prev.map(l => l.id === loanId ? { 
+      ...l, 
+      remaining_balance: newRemaining,
+      amount_paid: newPaid,
+      next_due_date: nextDueDate,
+    } : l));
 
     addTransaction({
       wallet_id: walletId,

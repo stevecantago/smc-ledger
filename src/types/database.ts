@@ -78,11 +78,13 @@ export interface Loan {
   lender: string;
   total_principal: number;
   remaining_balance: number;
+  amount_paid?: number; // Total principal/amortization paid to date
   interest_rate_annual: number;
   monthly_amortization: number;
   payment_frequency?: LoanPaymentFrequency;
   due_day_of_month: number;
   second_due_day_of_month?: number | null; // e.g. Day 30 for 15th & 30th bi-monthly schedule
+  next_due_date?: string | null; // Explicit upcoming due date (e.g. "2026-09-15")
   start_date: string;
   created_at: string;
 }
