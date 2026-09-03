@@ -50,12 +50,12 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col items-center justify-center p-4">
-      <div className="max-w-md w-full space-y-6">
+    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col items-center justify-center px-4 py-8">
+      <div className="max-w-md w-full mx-auto space-y-6 text-center">
         
         {/* Brand Header */}
-        <div className="text-center space-y-2">
-          <div className="inline-flex w-12 h-12 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 items-center justify-center shadow-lg shadow-sky-500/20">
+        <div className="flex flex-col items-center justify-center space-y-2 text-center">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-sky-500/20">
             <Home className="w-6 h-6 text-white" />
           </div>
           <h1 className="text-2xl font-bold text-white tracking-tight">Create Family Account</h1>
@@ -63,7 +63,7 @@ export default function RegisterPage() {
         </div>
 
         {/* Card */}
-        <div className="bg-slate-800/90 border border-slate-700/80 rounded-xl p-6 shadow-2xl space-y-5">
+        <div className="bg-slate-800/90 border border-slate-700/80 rounded-xl p-6 sm:p-8 shadow-2xl space-y-5 text-left">
           {message && (
             <div className={`p-3 rounded-lg text-xs flex items-center space-x-2 border ${
               message.type === 'success' 
