@@ -1,8 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useHousehold } from '../context/HouseholdContext';
 import { 
   ShieldCheck, UserCheck, Wallet as WalletIcon, Home, PlusCircle, Users, Landmark, Target, Plus, HeartHandshake, KeyRound, LogOut 
@@ -18,7 +16,6 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenAddTxModal }) => {
-  const router = useRouter();
   const { household, currentMember, members, switchMember, wallets, isAdmin } = useHousehold();
   const [showAuthModal, setShowAuthModal] = useState(false);
 
@@ -41,10 +38,14 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
       if (supabase) {
         await supabase.auth.signOut();
       }
-      router.push('/login');
+      if (typeof window !== 'undefined') {
+        window.localStorage.clear();
+        window.location.href = '/login';
+      }
     } catch (err) {
-      console.error(err);
-      router.push('/login');
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login';
+      }
     }
   };
 

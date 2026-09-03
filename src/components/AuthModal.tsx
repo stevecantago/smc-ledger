@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { useHousehold } from '../context/HouseholdContext';
 import { ShieldCheck, Mail, Lock, KeyRound, AlertCircle, CheckCircle2, User, ArrowRight, LogOut } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -12,7 +11,6 @@ interface AuthModalProps {
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
-  const router = useRouter();
   const { currentMember, members, switchMember } = useHousehold();
   const [email, setEmail] = useState('steve.cantago@gmail.com');
   const [password, setPassword] = useState('');
@@ -28,10 +26,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
         await supabase.auth.signOut();
       }
       onClose();
-      router.push('/login');
+      if (typeof window !== 'undefined') {
+        window.localStorage.clear();
+        window.location.href = '/login';
+      }
     } catch (err) {
       onClose();
-      router.push('/login');
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login';
+      }
     }
   };
 
