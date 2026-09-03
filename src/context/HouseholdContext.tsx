@@ -1,9 +1,9 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 import { 
   Household, HouseholdMember, Wallet, Category, Transaction, SavingsGoal, 
-  Loan, RecurringTransfer, HouseholdRole 
+  Loan, RecurringTransfer, HouseholdRole, RecurringRuleType, RecurringFrequency 
 } from '../types/database';
 import { 
   initialHousehold, 
@@ -45,8 +45,16 @@ interface HouseholdContextType {
   addLoan: (loan: { name: string; lender: string; total_principal: number; interest_rate_annual: number; monthly_amortization: number; due_day_of_month: number }) => void;
   payLoanAmortization: (loanId: string, amount: number, walletId: string) => { success: boolean; error?: string };
   
-  // Recurring Transfers Actions
-  addRecurringTransfer: (rule: { source_wallet_id: string; destination_wallet_id: string; amount: number; frequency: RecurringTransfer['frequency']; note: string }) => void;
+  // Recurring Transfers & Bills Actions
+  addRecurringTransfer: (rule: { 
+    rule_type: RecurringRuleType;
+    source_wallet_id: string; 
+    destination_wallet_id?: string | null; 
+    category_id?: string | null;
+    amount: number; 
+    frequency: RecurringFrequency; 
+    note: string 
+  }) => void;
   toggleRecurringTransfer: (id: string) => void;
 
   addMember: (displayName: string, role: HouseholdRole) => void;
@@ -298,11 +306,9 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       return { success: false, error: 'Insufficient wallet balance for amortization payment' };
     }
 
-    // Deduct from wallet & reduce loan principal balance
     setWallets(prev => prev.map(w => w.id === walletId ? { ...w, current_balance: w.current_balance - amount } : w));
     setLoans(prev => prev.map(l => l.id === loanId ? { ...l, remaining_balance: Math.max(0, l.remaining_balance - amount) } : l));
 
-    // Log as amortization expense transaction
     addTransaction({
       wallet_id: walletId,
       type: 'expense',
@@ -314,19 +320,29 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return { success: true };
   };
 
-  const addRecurringTransfer = (data: { source_wallet_id: string; destination_wallet_id: string; amount: number; frequency: RecurringTransfer['frequency']; note: string }) => {
+  const addRecurringTransfer = (data: { 
+    rule_type: RecurringRuleType;
+    source_wallet_id: string; 
+    destination_wallet_id?: string | null; 
+    category_id?: string | null;
+    amount: number; 
+    frequency: RecurringFrequency; 
+    note: string 
+  }) => {
     if (!isAdmin) {
-      alert("Only Household Admins can configure automated allowance rules.");
+      alert("Only Household Admins can configure recurring bill & transfer rules.");
       return;
     }
     const newRule: RecurringTransfer = {
       id: `recurring-${Date.now()}`,
       household_id: household.id,
+      rule_type: data.rule_type,
       source_wallet_id: data.source_wallet_id,
-      destination_wallet_id: data.destination_wallet_id,
+      destination_wallet_id: data.destination_wallet_id || null,
+      category_id: data.category_id || null,
       amount: data.amount,
       frequency: data.frequency,
-      next_run_date: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+      next_run_date: new Date(Date.now() + (data.frequency === 'weekly' ? 7 : 30) * 86400000).toISOString().split('T')[0],
       note: data.note,
       is_active: true,
       created_at: new Date().toISOString(),

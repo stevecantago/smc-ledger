@@ -105,6 +105,14 @@ export const initialWallets: Wallet[] = [
 
 export const initialCategories: Category[] = [
   {
+    id: 'cat-internet',
+    household_id: 'hh-101',
+    name: 'Internet & Broadband Bills',
+    icon_slug: 'wifi',
+    monthly_budget_limit: 3500.00,
+    created_at: new Date(Date.now() - 30 * 86400000).toISOString(),
+  },
+  {
     id: 'cat-groceries',
     household_id: 'hh-101',
     name: 'Groceries & Household Supplies',
@@ -124,7 +132,7 @@ export const initialCategories: Category[] = [
     id: 'cat-school-kid-1',
     household_id: 'hh-101',
     name: 'School Dues & Tuition - Kid 1 (Alex)',
-    icon_slug: 'book-open',
+    icon_slug: 'graduation-cap',
     monthly_budget_limit: 12000.00,
     created_at: new Date(Date.now() - 30 * 86400000).toISOString(),
   },
@@ -132,7 +140,7 @@ export const initialCategories: Category[] = [
     id: 'cat-school-kid-2',
     household_id: 'hh-101',
     name: 'School Dues & Tuition - Kid 2 (Chloe)',
-    icon_slug: 'book-open',
+    icon_slug: 'graduation-cap',
     monthly_budget_limit: 10000.00,
     created_at: new Date(Date.now() - 30 * 86400000).toISOString(),
   },
@@ -140,7 +148,7 @@ export const initialCategories: Category[] = [
     id: 'cat-school-kid-3',
     household_id: 'hh-101',
     name: 'School Dues & Tuition - Kid 3 (Ethan)',
-    icon_slug: 'book-open',
+    icon_slug: 'graduation-cap',
     monthly_budget_limit: 8000.00,
     created_at: new Date(Date.now() - 30 * 86400000).toISOString(),
   },
@@ -160,6 +168,20 @@ const yesterday = new Date(now - 48 * 3600000).toISOString();
 
 export const initialTransactions: Transaction[] = [
   {
+    id: 'tx-100',
+    household_id: 'hh-101',
+    wallet_id: 'wallet-main-bank',
+    destination_wallet_id: null,
+    category_id: 'cat-internet',
+    payer_id: 'member-parent-1',
+    type: 'expense',
+    amount: 1899.00,
+    transaction_date: new Date(now - 1 * 86400000).toISOString().split('T')[0],
+    note: 'PLDT Fiber Unli 200Mbps Monthly Internet Bill',
+    receipt_url: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=400',
+    created_at: hourAgo,
+  },
+  {
     id: 'tx-101',
     household_id: 'hh-101',
     wallet_id: 'wallet-main-bank',
@@ -170,7 +192,7 @@ export const initialTransactions: Transaction[] = [
     amount: 12000.00,
     transaction_date: new Date(now - 6 * 3600000).toISOString().split('T')[0],
     note: 'Monthly Tuition & School Dues Payment - Kid 1 (Alex)',
-    receipt_url: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=400',
+    receipt_url: null,
     created_at: hourAgo,
   },
   {
@@ -300,10 +322,26 @@ export const initialLoans: Loan[] = [
 
 export const initialRecurringTransfers: RecurringTransfer[] = [
   {
+    id: 'recurring-pldt-internet',
+    household_id: 'hh-101',
+    rule_type: 'expense',
+    source_wallet_id: 'wallet-main-bank',
+    destination_wallet_id: null,
+    category_id: 'cat-internet',
+    amount: 1899.00,
+    frequency: 'monthly',
+    next_run_date: new Date(Date.now() + 15 * 86400000).toISOString().split('T')[0],
+    note: 'PLDT Fiber Unli 200Mbps Monthly Internet Bill',
+    is_active: true,
+    created_at: new Date(Date.now() - 25 * 86400000).toISOString(),
+  },
+  {
     id: 'recurring-alex-allowance',
     household_id: 'hh-101',
+    rule_type: 'transfer',
     source_wallet_id: 'wallet-parent-ewallet',
     destination_wallet_id: 'wallet-teen-cash',
+    category_id: null,
     amount: 1000.00,
     frequency: 'weekly',
     next_run_date: new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0],

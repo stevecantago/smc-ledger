@@ -2,6 +2,7 @@ export type HouseholdRole = 'admin' | 'member';
 export type WalletType = 'bank' | 'e_wallet' | 'cash';
 export type TransactionType = 'income' | 'expense' | 'transfer';
 export type RecurringFrequency = 'weekly' | 'biweekly' | 'monthly';
+export type RecurringRuleType = 'transfer' | 'expense';
 
 export interface Household {
   id: string;
@@ -83,8 +84,10 @@ export interface Loan {
 export interface RecurringTransfer {
   id: string;
   household_id: string;
+  rule_type: RecurringRuleType;
   source_wallet_id: string;
-  destination_wallet_id: string;
+  destination_wallet_id?: string | null;
+  category_id?: string | null;
   amount: number;
   frequency: RecurringFrequency;
   next_run_date: string;
