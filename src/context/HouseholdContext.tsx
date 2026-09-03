@@ -96,7 +96,8 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [loans, setLoans] = useState<Loan[]>(initialLoans);
   const [recurringTransfers, setRecurringTransfers] = useState<RecurringTransfer[]>(initialRecurringTransfers);
 
-  const isAdmin = currentMember.role === 'admin';
+  // Both Head Admin and Member (Parent/Guardian) have parent administrative privileges
+  const isAdmin = currentMember.role === 'admin' || currentMember.role === 'parent_member';
 
   const canEditTransaction = (tx: Transaction): boolean => {
     if (isAdmin) return true;
@@ -121,7 +122,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Wallets CRUD
   const addWallet = (data: { name: string; wallet_type: Wallet['wallet_type']; is_shared: boolean; owner_id?: string | null; initial_balance: number; credit_limit?: number | null }) => {
     if (!isAdmin && data.is_shared) {
-      alert("Only Household Admins can create shared wallets.");
+      alert("Only Household Parents/Admins can create shared wallets.");
       return;
     }
     const newWallet: Wallet = {
@@ -139,13 +140,13 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const updateWallet = (id: string, updates: { name?: string; wallet_type?: Wallet['wallet_type']; current_balance?: number; credit_limit?: number | null; is_shared?: boolean }) => {
-    if (!isAdmin) return { success: false, error: 'Only Household Admins can edit wallet accounts.' };
+    if (!isAdmin) return { success: false, error: 'Only Household Parents/Admins can edit wallet accounts.' };
     setWallets(prev => prev.map(w => w.id === id ? { ...w, ...updates } : w));
     return { success: true };
   };
 
   const deleteWallet = (id: string) => {
-    if (!isAdmin) return { success: false, error: 'Only Household Admins can delete wallet accounts.' };
+    if (!isAdmin) return { success: false, error: 'Only Household Parents/Admins can delete wallet accounts.' };
     setWallets(prev => prev.filter(w => w.id !== id));
     return { success: true };
   };
@@ -153,7 +154,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Categories CRUD
   const addCategory = (data: { name: string; icon_slug: string; monthly_budget_limit: number }) => {
     if (!isAdmin) {
-      alert("Only Household Admins can create categories.");
+      alert("Only Household Parents/Admins can create categories.");
       return;
     }
     const newCat: Category = {
@@ -168,7 +169,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const updateCategory = (id: string, updates: { name?: string; icon_slug?: string; monthly_budget_limit?: number }) => {
-    if (!isAdmin) return { success: false, error: 'Only Household Admins can edit category envelopes.' };
+    if (!isAdmin) return { success: false, error: 'Only Household Parents/Admins can edit category envelopes.' };
     setCategories(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
     return { success: true };
   };
@@ -178,7 +179,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const deleteCategory = (id: string) => {
-    if (!isAdmin) return { success: false, error: 'Only Household Admins can delete category envelopes.' };
+    if (!isAdmin) return { success: false, error: 'Only Household Parents/Admins can delete category envelopes.' };
     setCategories(prev => prev.filter(c => c.id !== id));
     return { success: true };
   };
@@ -282,7 +283,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Savings Goals CRUD
   const addSavingsGoal = (data: { name: string; target_amount: number; target_date?: string }) => {
     if (!isAdmin) {
-      alert("Only Household Admins can create savings goals.");
+      alert("Only Household Parents/Admins can create savings goals.");
       return;
     }
     const newGoal: SavingsGoal = {
@@ -298,13 +299,13 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const updateSavingsGoal = (id: string, updates: { name?: string; target_amount?: number; target_date?: string | null }) => {
-    if (!isAdmin) return { success: false, error: 'Only Household Admins can edit savings goals.' };
+    if (!isAdmin) return { success: false, error: 'Only Household Parents/Admins can edit savings goals.' };
     setSavingsGoals(prev => prev.map(g => g.id === id ? { ...g, ...updates } : g));
     return { success: true };
   };
 
   const deleteSavingsGoal = (id: string) => {
-    if (!isAdmin) return { success: false, error: 'Only Household Admins can delete savings goals.' };
+    if (!isAdmin) return { success: false, error: 'Only Household Parents/Admins can delete savings goals.' };
     setSavingsGoals(prev => prev.filter(g => g.id !== id));
     return { success: true };
   };
@@ -333,7 +334,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Loans CRUD
   const addLoan = (data: { name: string; lender: string; total_principal: number; interest_rate_annual: number; monthly_amortization: number; due_day_of_month: number }) => {
     if (!isAdmin) {
-      alert("Only Household Admins can create loan records.");
+      alert("Only Household Parents/Admins can create loan records.");
       return;
     }
     const newLoan: Loan = {
@@ -353,13 +354,13 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const updateLoan = (id: string, updates: { name?: string; lender?: string; total_principal?: number; remaining_balance?: number; interest_rate_annual?: number; monthly_amortization?: number; due_day_of_month?: number }) => {
-    if (!isAdmin) return { success: false, error: 'Only Household Admins can edit loan records.' };
+    if (!isAdmin) return { success: false, error: 'Only Household Parents/Admins can edit loan records.' };
     setLoans(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l));
     return { success: true };
   };
 
   const deleteLoan = (id: string) => {
-    if (!isAdmin) return { success: false, error: 'Only Household Admins can delete loan records.' };
+    if (!isAdmin) return { success: false, error: 'Only Household Parents/Admins can delete loan records.' };
     setLoans(prev => prev.filter(l => l.id !== id));
     return { success: true };
   };
@@ -414,7 +415,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     note: string 
   }) => {
     if (!isAdmin) {
-      alert("Only Household Admins can configure recurring bill & transfer rules.");
+      alert("Only Household Parents/Admins can configure recurring bill & transfer rules.");
       return;
     }
     const daysOffset = getDaysOffset(data.frequency, data.custom_interval_days);
@@ -442,14 +443,14 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const deleteRecurringTransfer = (id: string) => {
-    if (!isAdmin) return { success: false, error: 'Only Household Admins can delete recurring schedule rules.' };
+    if (!isAdmin) return { success: false, error: 'Only Household Parents/Admins can delete recurring schedule rules.' };
     setRecurringTransfers(prev => prev.filter(r => r.id !== id));
     return { success: true };
   };
 
   const addMember = (displayName: string, role: HouseholdRole) => {
     if (!isAdmin) {
-      alert("Only Household Admins can add or invite new members.");
+      alert("Only Household Parents/Admins can add or invite new members.");
       return;
     }
     const newMember: HouseholdMember = {
@@ -465,16 +466,16 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const updateMember = (id: string, updates: { display_name?: string; role?: HouseholdRole }) => {
     if (!isAdmin) {
-      return { success: false, error: 'Only Household Admins / Parents can edit family roster members.' };
+      return { success: false, error: 'Only Household Parents/Admins can edit family roster members.' };
     }
 
     const target = members.find(m => m.id === id);
     if (!target) return { success: false, error: 'Member record not found.' };
 
-    if (updates.role && updates.role === 'member' && target.role === 'admin') {
-      const adminCount = members.filter(m => m.role === 'admin').length;
+    if (updates.role && updates.role === 'member' && (target.role === 'admin' || target.role === 'parent_member')) {
+      const adminCount = members.filter(m => m.role === 'admin' || m.role === 'parent_member').length;
       if (adminCount <= 1) {
-        return { success: false, error: 'Cannot demote the last remaining Admin in the household.' };
+        return { success: false, error: 'Cannot demote the last remaining Parent/Admin in the household.' };
       }
     }
 
@@ -489,7 +490,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const deleteMember = (id: string) => {
     if (!isAdmin) {
-      return { success: false, error: 'Only Household Admins / Parents can remove family roster members.' };
+      return { success: false, error: 'Only Household Parents/Admins can remove family roster members.' };
     }
 
     if (currentMember.id === id) {
@@ -499,10 +500,10 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const target = members.find(m => m.id === id);
     if (!target) return { success: false, error: 'Member record not found.' };
 
-    if (target.role === 'admin') {
-      const adminCount = members.filter(m => m.role === 'admin').length;
+    if (target.role === 'admin' || target.role === 'parent_member') {
+      const adminCount = members.filter(m => m.role === 'admin' || m.role === 'parent_member').length;
       if (adminCount <= 1) {
-        return { success: false, error: 'Cannot remove the last remaining Admin in the household.' };
+        return { success: false, error: 'Cannot remove the last remaining Parent/Admin in the household.' };
       }
     }
 

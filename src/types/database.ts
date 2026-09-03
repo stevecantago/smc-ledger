@@ -1,4 +1,4 @@
-export type HouseholdRole = 'admin' | 'member';
+export type HouseholdRole = 'admin' | 'parent_member' | 'member';
 export type WalletType = 'bank' | 'e_wallet' | 'cash' | 'credit_card';
 export type TransactionType = 'income' | 'expense' | 'transfer';
 export type RecurringFrequency = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'semi_annual' | 'annual' | 'custom_days';

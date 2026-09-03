@@ -23,15 +23,15 @@ export const initialMembers: HouseholdMember[] = [
     household_id: 'hh-101',
     user_id: 'usr-parent-1',
     role: 'admin',
-    display_name: 'David Miller (Parent)',
+    display_name: 'David Miller (Head Admin Parent)',
     created_at: new Date(Date.now() - 30 * 86400000).toISOString(),
   },
   {
     id: 'member-parent-2',
     household_id: 'hh-101',
     user_id: 'usr-parent-2',
-    role: 'admin',
-    display_name: 'Sarah Miller (Parent)',
+    role: 'parent_member',
+    display_name: 'Sarah Miller (Member Parent/Guardian)',
     created_at: new Date(Date.now() - 30 * 86400000).toISOString(),
   },
   {

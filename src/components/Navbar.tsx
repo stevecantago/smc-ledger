@@ -3,8 +3,9 @@
 import React, { useState } from 'react';
 import { useHousehold } from '../context/HouseholdContext';
 import { 
-  ShieldCheck, UserCheck, Wallet as WalletIcon, Home, PlusCircle, Users, Landmark, Target, Menu, X, Plus 
+  ShieldCheck, UserCheck, Wallet as WalletIcon, Home, PlusCircle, Users, Landmark, Target, Menu, X, Plus, HeartHandshake 
 } from 'lucide-react';
+import { HouseholdRole } from '../types/database';
 
 interface NavbarProps {
   activeTab: string;
@@ -28,6 +29,29 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
     { id: 'goals', label: 'Goals', icon: Target },
     { id: 'members', label: 'Roster', icon: Users },
   ];
+
+  const renderRoleBadge = (role: HouseholdRole) => {
+    switch (role) {
+      case 'admin':
+        return (
+          <span className="flex items-center text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/20">
+            <ShieldCheck className="w-3 h-3 mr-0.5 shrink-0" /> Admin
+          </span>
+        );
+      case 'parent_member':
+        return (
+          <span className="flex items-center text-purple-400 bg-purple-400/10 px-1.5 py-0.5 rounded border border-purple-400/20">
+            <HeartHandshake className="w-3 h-3 mr-0.5 shrink-0" /> Parent
+          </span>
+        );
+      case 'member':
+        return (
+          <span className="flex items-center text-sky-400 bg-sky-400/10 px-1.5 py-0.5 rounded border border-sky-400/20">
+            <UserCheck className="w-3 h-3 mr-0.5 shrink-0" /> Teen
+          </span>
+        );
+    }
+  };
 
   return (
     <>
@@ -72,15 +96,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
             <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
               <div className="bg-slate-800/90 border border-slate-700 rounded-lg p-0.5 sm:p-1 flex items-center">
                 <div className="px-1 py-0.5 flex items-center text-[10px] sm:text-xs font-semibold">
-                  {isAdmin ? (
-                    <span className="flex items-center text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/20">
-                      <ShieldCheck className="w-3 h-3 mr-0.5 shrink-0" /> Admin
-                    </span>
-                  ) : (
-                    <span className="flex items-center text-sky-400 bg-sky-400/10 px-1.5 py-0.5 rounded border border-sky-400/20">
-                      <UserCheck className="w-3 h-3 mr-0.5 shrink-0" /> Member
-                    </span>
-                  )}
+                  {renderRoleBadge(currentMember.role)}
                 </div>
 
                 <select

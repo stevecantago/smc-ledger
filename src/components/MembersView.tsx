@@ -2,42 +2,47 @@
 
 import React, { useState } from 'react';
 import { useHousehold } from '../context/HouseholdContext';
-import { Users, ShieldCheck, UserCheck, Plus, Check, X, Edit2, Trash2, AlertCircle, ShieldAlert } from 'lucide-react';
-import { HouseholdMember, HouseholdRole } from '../types/database';
+import { Users, ShieldCheck, UserCheck, Plus, CheckCircle, Clock, AlertTriangle, Edit2, Trash2, Shield, HeartHandshake } from 'lucide-react';
+import { HouseholdRole, HouseholdMember } from '../types/database';
 
 export const MembersView: React.FC = () => {
   const { 
-    members, wallets, transactions, currentMember, isAdmin, 
+    members, currentMember, isAdmin, wallets, transactions, 
     addMember, updateMember, deleteMember 
   } = useHousehold();
 
-  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
   const [editingMember, setEditingMember] = useState<HouseholdMember | null>(null);
 
-  // Add Form
-  const [displayName, setDisplayName] = useState('');
-  const [role, setRole] = useState<HouseholdRole>('member');
-
-  // Edit Form
-  const [editName, setEditName] = useState('');
-  const [editRole, setEditRole] = useState<HouseholdRole>('member');
+  // Add Member State
+  const [newDisplayName, setNewDisplayName] = useState('');
+  const [newRole, setNewRole] = useState<HouseholdRole>('member');
   const [errorMsg, setErrorMsg] = useState('');
 
-  const handleInviteSubmit = (e: React.FormEvent) => {
+  // Edit Member State
+  const [editDisplayName, setEditDisplayName] = useState('');
+  const [editRole, setEditRole] = useState<HouseholdRole>('member');
+
+  const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!displayName.trim()) return;
-    addMember(displayName.trim(), role);
-    setDisplayName('');
-    setShowInviteModal(false);
+    setErrorMsg('');
+    if (!newDisplayName.trim()) {
+      setErrorMsg('Please enter a display name for the member.');
+      return;
+    }
+
+    addMember(newDisplayName.trim(), newRole);
+    setNewDisplayName('');
+    setShowAddModal(false);
   };
 
-  const handleUpdateSubmit = (e: React.FormEvent) => {
+  const handleEditSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     if (!editingMember) return;
 
     const res = updateMember(editingMember.id, {
-      display_name: editName.trim(),
+      display_name: editDisplayName.trim(),
       role: editRole,
     });
 
@@ -57,18 +62,28 @@ export const MembersView: React.FC = () => {
     }
   };
 
-  const matrix = [
-    { capability: 'Initialize household & invite users', admin: true, member: false },
-    { capability: 'Change member roles / remove members', admin: true, member: false },
-    { capability: 'Create, edit, delete shared categories', admin: true, member: false },
-    { capability: 'Set monthly envelope budget limits', admin: true, member: false },
-    { capability: 'Create shared or private wallets', admin: 'Shared & Personal', member: 'Personal only' },
-    { capability: 'Log income, expense, and transfer', admin: true, member: true },
-    { capability: 'Edit/delete own transactions', admin: 'Unlimited', member: 'Within 24 hrs' },
-    { capability: 'Edit/delete any member\'s transaction', admin: true, member: false },
-    { capability: 'Create & fund savings goals', admin: 'Create & Fund', member: 'Read & Fund' },
-    { capability: 'View aggregated household analytics', admin: 'Full Analytics', member: 'High-level only' },
-  ];
+  const getRoleBadge = (role: HouseholdRole) => {
+    switch (role) {
+      case 'admin':
+        return (
+          <span className="flex items-center text-xs font-semibold text-amber-400 bg-amber-400/10 px-2.5 py-0.5 rounded border border-amber-400/20">
+            <ShieldCheck className="w-3.5 h-3.5 mr-1" /> Admin (Head Parent)
+          </span>
+        );
+      case 'parent_member':
+        return (
+          <span className="flex items-center text-xs font-semibold text-purple-400 bg-purple-400/10 px-2.5 py-0.5 rounded border border-purple-400/20">
+            <HeartHandshake className="w-3.5 h-3.5 mr-1" /> Member (Parent/Guardian)
+          </span>
+        );
+      case 'member':
+        return (
+          <span className="flex items-center text-xs font-semibold text-sky-400 bg-sky-400/10 px-2.5 py-0.5 rounded border border-sky-400/20">
+            <UserCheck className="w-3.5 h-3.5 mr-1" /> Member (Teen/Dependent)
+          </span>
+        );
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -77,217 +92,200 @@ export const MembersView: React.FC = () => {
         <div>
           <h2 className="text-lg font-bold text-white flex items-center space-x-2">
             <Users className="w-5 h-5 text-sky-400" />
-            <span>Household Family Roster & Role Manager</span>
+            <span>Family Roster & Role Permissions</span>
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Parent/Admin full CRUD control over family memberships, roles (Admin vs Member), and RBAC security.
+            Manage household profiles, assign Head Admin vs Member (Parent/Guardian) vs Dependent roles.
           </p>
         </div>
 
-        {isAdmin ? (
+        {isAdmin && (
           <button
-            onClick={() => setShowInviteModal(true)}
+            onClick={() => {
+              setErrorMsg('');
+              setShowAddModal(true);
+            }}
             className="flex items-center space-x-2 bg-sky-600 hover:bg-sky-500 text-white px-4 py-2 rounded-lg font-medium text-xs transition-all shadow"
           >
             <Plus className="w-4 h-4" />
             <span>+ Add Family Member</span>
           </button>
-        ) : (
-          <div className="text-xs text-slate-400 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
-            Read-only mode (Parents manage family roster)
-          </div>
         )}
       </div>
 
-      {/* Active Household Members Grid */}
+      {/* Member Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {members.map(m => {
-          const memberWallets = wallets.filter(w => w.owner_id === m.id);
+          const ownedWallets = wallets.filter(w => w.owner_id === m.id);
           const memberTxCount = transactions.filter(t => t.payer_id === m.id).length;
+          const isSelf = currentMember.id === m.id;
 
           return (
             <div 
               key={m.id} 
-              className={`bg-slate-800/90 border rounded-xl p-5 space-y-4 shadow-lg transition-all flex flex-col justify-between ${
-                m.id === currentMember.id 
-                  ? 'border-sky-500/60 ring-1 ring-sky-500/30' 
-                  : 'border-slate-700/80 hover:border-slate-600'
+              className={`bg-slate-800/90 border rounded-xl p-5 space-y-4 shadow-lg flex flex-col justify-between transition-all ${
+                isSelf ? 'border-sky-500/60 ring-1 ring-sky-500/30' : 'border-slate-700/80 hover:border-slate-600'
               }`}
             >
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center space-x-3">
-                    <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-slate-700 to-slate-600 flex items-center justify-center font-bold text-white text-base border border-slate-500 shadow">
+                    <div className="w-11 h-11 rounded-xl bg-slate-900 border border-slate-700 font-bold text-base text-sky-400 flex items-center justify-center shadow-inner">
                       {m.display_name.charAt(0)}
                     </div>
                     <div>
                       <h3 className="font-bold text-sm text-white flex items-center space-x-1.5">
                         <span>{m.display_name}</span>
-                        {m.id === currentMember.id && (
-                          <span className="text-[10px] bg-sky-400/20 text-sky-300 px-1.5 py-0.2 rounded font-medium">Active Persona</span>
+                        {isSelf && (
+                          <span className="text-[10px] bg-slate-700 text-slate-300 px-1.5 py-0.2 rounded font-mono">
+                            YOU
+                          </span>
                         )}
                       </h3>
-                      <p className="text-[11px] text-slate-400 font-mono">ID: {m.id.substring(0, 15)}...</p>
+                      <div className="mt-1">{getRoleBadge(m.role)}</div>
                     </div>
                   </div>
+                </div>
 
-                  {m.role === 'admin' ? (
-                    <span className="flex items-center text-[10px] font-semibold text-amber-400 bg-amber-400/10 px-2.5 py-1 rounded border border-amber-400/20">
-                      <ShieldCheck className="w-3.5 h-3.5 mr-1" /> Admin
-                    </span>
-                  ) : (
-                    <span className="flex items-center text-[10px] font-semibold text-sky-400 bg-sky-400/10 px-2.5 py-1 rounded border border-sky-400/20">
-                      <UserCheck className="w-3.5 h-3.5 mr-1" /> Member
-                    </span>
+                <div className="pt-2 border-t border-slate-700/60 grid grid-cols-2 gap-2 text-xs">
+                  <div className="bg-slate-900/60 p-2.5 rounded-lg border border-slate-700/50">
+                    <span className="text-slate-400 text-[10px]">Owned Wallets:</span>
+                    <p className="font-bold text-white font-mono mt-0.5">{ownedWallets.length} Accounts</p>
+                  </div>
+                  <div className="bg-slate-900/60 p-2.5 rounded-lg border border-slate-700/50">
+                    <span className="text-slate-400 text-[10px]">Transactions Logged:</span>
+                    <p className="font-bold text-emerald-400 font-mono mt-0.5">{memberTxCount} Entries</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Admin CRUD Action Buttons */}
+              {isAdmin && (
+                <div className="pt-3 border-t border-slate-700/60 flex items-center justify-end space-x-2">
+                  <button
+                    onClick={() => {
+                      setErrorMsg('');
+                      setEditingMember(m);
+                      setEditDisplayName(m.display_name);
+                      setEditRole(m.role);
+                    }}
+                    title="Edit Member Profile & Role"
+                    className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-amber-400/10 rounded transition-colors"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                  {!isSelf && (
+                    <button
+                      onClick={() => handleDeleteMember(m)}
+                      title="Remove Member from Roster"
+                      className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   )}
                 </div>
-
-                {/* Info Grid */}
-                <div className="grid grid-cols-2 gap-2 text-xs bg-slate-900/60 p-2.5 rounded-lg border border-slate-700/50">
-                  <div>
-                    <span className="text-slate-400">Assigned Accounts:</span>
-                    <p className="font-semibold text-slate-200">{memberWallets.length} Wallets</p>
-                  </div>
-                  <div>
-                    <span className="text-slate-400">Logged Tx:</span>
-                    <p className="font-semibold text-slate-200">{memberTxCount} Entries</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-3 border-t border-slate-700/60 flex items-center justify-between">
-                <span className="text-[11px] text-slate-400">
-                  Joined: <strong className="text-slate-300 font-medium">{new Date(m.created_at).toLocaleDateString()}</strong>
-                </span>
-
-                {isAdmin && (
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={() => {
-                        setErrorMsg('');
-                        setEditingMember(m);
-                        setEditName(m.display_name);
-                        setEditRole(m.role);
-                      }}
-                      title="Edit Member Role / Name"
-                      className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-amber-400/10 rounded transition-colors"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-
-                    {m.id !== currentMember.id && (
-                      <button
-                        onClick={() => handleDeleteMember(m)}
-                        title="Remove Member from Household"
-                        className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
+              )}
             </div>
           );
         })}
       </div>
 
-      {/* PRD Role & Permission Matrix (RBAC) */}
+      {/* Permissions Matrix */}
       <div className="bg-slate-800/80 border border-slate-700/70 rounded-xl p-5 space-y-4">
-        <div>
-          <h3 className="text-sm font-bold text-white">System Permission Matrix (RBAC / RLS Enforcement)</h3>
-          <p className="text-xs text-slate-400">Strict database level policy enforcement based on PRD specifications</p>
-        </div>
+        <h3 className="text-sm font-bold text-white flex items-center space-x-2">
+          <Shield className="w-4 h-4 text-amber-400" />
+          <span>Role Permissions Matrix</span>
+        </h3>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
+          <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-slate-900/80 text-slate-400 border-b border-slate-700">
-                <th className="py-3 px-4">Capability / Action</th>
-                <th className="py-3 px-4 text-center">Admin (Parent / Guardian)</th>
-                <th className="py-3 px-4 text-center">Member (Dependent / Teen)</th>
+              <tr className="bg-slate-900/80 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-700">
+                <th className="py-2.5 px-3">Permission Scope</th>
+                <th className="py-2.5 px-3 text-center text-amber-400">Admin (Head Parent)</th>
+                <th className="py-2.5 px-3 text-center text-purple-400">Member (Parent/Guardian)</th>
+                <th className="py-2.5 px-3 text-center text-sky-400">Member (Teen/Dependent)</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-700/60">
-              {matrix.map((row, idx) => (
-                <tr key={idx} className="hover:bg-slate-700/20">
-                  <td className="py-3 px-4 font-medium text-slate-200">{row.capability}</td>
-                  
-                  {/* Admin Cell */}
-                  <td className="py-3 px-4 text-center">
-                    {typeof row.admin === 'boolean' ? (
-                      row.admin ? (
-                        <span className="inline-flex items-center text-emerald-400 font-semibold">
-                          <Check className="w-4 h-4 mr-1" /> Yes
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center text-slate-500">
-                          <X className="w-4 h-4 mr-1" /> No
-                        </span>
-                      )
-                    ) : (
-                      <span className="text-amber-400 font-semibold">{row.admin}</span>
-                    )}
-                  </td>
-
-                  {/* Member Cell */}
-                  <td className="py-3 px-4 text-center">
-                    {typeof row.member === 'boolean' ? (
-                      row.member ? (
-                        <span className="inline-flex items-center text-emerald-400 font-semibold">
-                          <Check className="w-4 h-4 mr-1" /> Yes
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center text-rose-400 font-semibold">
-                          <X className="w-4 h-4 mr-1" /> No
-                        </span>
-                      )
-                    ) : (
-                      <span className="text-sky-400 font-semibold">{row.member}</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
+            <tbody className="divide-y divide-slate-700/60 text-slate-300">
+              <tr>
+                <td className="py-2.5 px-3 font-medium">Log Expense / Income / Transfer</td>
+                <td className="py-2.5 px-3 text-center text-emerald-400 font-bold">Allowed</td>
+                <td className="py-2.5 px-3 text-center text-emerald-400 font-bold">Allowed</td>
+                <td className="py-2.5 px-3 text-center text-emerald-400 font-bold">Allowed</td>
+              </tr>
+              <tr>
+                <td className="py-2.5 px-3 font-medium">24-Hour Edit Window on Own Transactions</td>
+                <td className="py-2.5 px-3 text-center text-emerald-400 font-bold">Unrestricted</td>
+                <td className="py-2.5 px-3 text-center text-emerald-400 font-bold">Unrestricted</td>
+                <td className="py-2.5 px-3 text-center text-amber-400 font-medium">24h Limit Enforced</td>
+              </tr>
+              <tr>
+                <td className="py-2.5 px-3 font-medium">Manage Envelope Budgets & Limits</td>
+                <td className="py-2.5 px-3 text-center text-emerald-400 font-bold">Allowed</td>
+                <td className="py-2.5 px-3 text-center text-emerald-400 font-bold">Allowed</td>
+                <td className="py-2.5 px-3 text-center text-slate-500">Read-Only</td>
+              </tr>
+              <tr>
+                <td className="py-2.5 px-3 font-medium">Create/Delete Wallets & Credit Lines</td>
+                <td className="py-2.5 px-3 text-center text-emerald-400 font-bold">Allowed</td>
+                <td className="py-2.5 px-3 text-center text-emerald-400 font-bold">Allowed</td>
+                <td className="py-2.5 px-3 text-center text-slate-500 font-medium">Personal Only</td>
+              </tr>
+              <tr>
+                <td className="py-2.5 px-3 font-medium">Family Roster Management (Add/Remove Members)</td>
+                <td className="py-2.5 px-3 text-center text-emerald-400 font-bold">Allowed</td>
+                <td className="py-2.5 px-3 text-center text-emerald-400 font-bold">Allowed</td>
+                <td className="py-2.5 px-3 text-center text-slate-500">Restricted</td>
+              </tr>
             </tbody>
           </table>
         </div>
       </div>
 
       {/* Add Member Modal */}
-      {showInviteModal && (
+      {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6 space-y-5 shadow-2xl">
-            <h3 className="text-base font-bold text-white">Add Household Family Member</h3>
+            <h3 className="text-base font-bold text-white">Add New Family Member</h3>
 
-            <form onSubmit={handleInviteSubmit} className="space-y-4">
+            {errorMsg && (
+              <div className="p-3 bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs rounded-lg flex items-center space-x-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleAddSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">Display Name</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Jordan Miller, Chloe, Ethan"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="e.g. Grandma Betty, Chloe Miller"
+                  value={newDisplayName}
+                  onChange={(e) => setNewDisplayName(e.target.value)}
                   className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Household Role</label>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Assigned Household Role</label>
                 <select
-                  value={role}
-                  onChange={(e) => setRole(e.target.value as HouseholdRole)}
+                  value={newRole}
+                  onChange={(e) => setNewRole(e.target.value as HouseholdRole)}
                   className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
                 >
-                  <option value="member">Member (Dependent / Teen / Child)</option>
-                  <option value="admin">Admin (Parent / Guardian)</option>
+                  <option value="parent_member">Member (Parent/Guardian)</option>
+                  <option value="admin">Admin (Head Parent)</option>
+                  <option value="member">Member (Teen/Dependent)</option>
                 </select>
               </div>
 
               <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-800">
                 <button
                   type="button"
-                  onClick={() => setShowInviteModal(false)}
+                  onClick={() => setShowAddModal(false)}
                   className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
                 >
                   Cancel
@@ -308,36 +306,37 @@ export const MembersView: React.FC = () => {
       {editingMember && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6 space-y-5 shadow-2xl">
-            <h3 className="text-base font-bold text-white">Edit Family Member: {editingMember.display_name}</h3>
+            <h3 className="text-base font-bold text-white">Edit Member: {editingMember.display_name}</h3>
 
             {errorMsg && (
               <div className="p-3 bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs rounded-lg flex items-center space-x-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
+                <AlertTriangle className="w-4 h-4 shrink-0" />
                 <span>{errorMsg}</span>
               </div>
             )}
 
-            <form onSubmit={handleUpdateSubmit} className="space-y-4">
+            <form onSubmit={handleEditSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">Display Name</label>
                 <input
                   type="text"
                   required
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
+                  value={editDisplayName}
+                  onChange={(e) => setEditDisplayName(e.target.value)}
                   className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Household Role</label>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Assigned Household Role</label>
                 <select
                   value={editRole}
                   onChange={(e) => setEditRole(e.target.value as HouseholdRole)}
                   className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
                 >
-                  <option value="admin">Admin (Parent / Guardian)</option>
-                  <option value="member">Member (Dependent / Teen)</option>
+                  <option value="parent_member">Member (Parent/Guardian)</option>
+                  <option value="admin">Admin (Head Parent)</option>
+                  <option value="member">Member (Teen/Dependent)</option>
                 </select>
               </div>
 
