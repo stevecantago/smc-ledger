@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { 
   Household, HouseholdMember, Wallet, Category, Transaction, SavingsGoal, 
   Loan, RecurringTransfer, HouseholdRole, RecurringRuleType, RecurringFrequency 
@@ -13,7 +13,8 @@ import {
   initialTransactions, 
   initialSavingsGoals,
   initialLoans,
-  initialRecurringTransfers
+  initialRecurringTransfers,
+  supabase
 } from '../lib/supabase';
 
 interface HouseholdContextType {
@@ -74,8 +75,8 @@ interface HouseholdContextType {
   deleteRecurringTransfer: (id: string) => { success: boolean; error?: string };
 
   // Family Roster CRUD Actions
-  addMember: (displayName: string, role: HouseholdRole) => void;
-  updateMember: (id: string, updates: { display_name?: string; role?: HouseholdRole }) => { success: boolean; error?: string };
+  addMember: (displayName: string, role: HouseholdRole, email?: string) => void;
+  updateMember: (id: string, updates: { display_name?: string; role?: HouseholdRole; email?: string }) => { success: boolean; error?: string };
   deleteMember: (id: string) => { success: boolean; error?: string };
   
   // Security Checks
@@ -88,6 +89,7 @@ const HouseholdContext = createContext<HouseholdContextType | undefined>(undefin
 export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [household] = useState<Household>(initialHousehold);
   const [members, setMembers] = useState<HouseholdMember[]>(initialMembers);
+  // Default active profile: Steve Cantago (steve.cantago@gmail.com)
   const [currentMember, setCurrentMember] = useState<HouseholdMember>(initialMembers[0]);
   const [wallets, setWallets] = useState<Wallet[]>(initialWallets);
   const [categories, setCategories] = useState<Category[]>(initialCategories);
@@ -96,7 +98,30 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [loans, setLoans] = useState<Loan[]>(initialLoans);
   const [recurringTransfers, setRecurringTransfers] = useState<RecurringTransfer[]>(initialRecurringTransfers);
 
-  // Both Head Admin and Member (Parent/Guardian) have parent administrative privileges
+  // Bind Supabase Auth listener if available
+  useEffect(() => {
+    if (supabase) {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user?.email) {
+          const userEmail = session.user.email;
+          const found = members.find(m => m.email?.toLowerCase() === userEmail.toLowerCase());
+          if (found) setCurrentMember(found);
+        }
+      });
+
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (session?.user?.email) {
+          const userEmail = session.user.email;
+          const found = members.find(m => m.email?.toLowerCase() === userEmail.toLowerCase());
+          if (found) setCurrentMember(found);
+        }
+      });
+
+      return () => subscription.unsubscribe();
+    }
+  }, [members]);
+
+  // Head Admin and Member (Parent/Guardian) have parent administrative privileges
   const isAdmin = currentMember.role === 'admin' || currentMember.role === 'parent_member';
 
   const canEditTransaction = (tx: Transaction): boolean => {
@@ -448,7 +473,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return { success: true };
   };
 
-  const addMember = (displayName: string, role: HouseholdRole) => {
+  const addMember = (displayName: string, role: HouseholdRole, email?: string) => {
     if (!isAdmin) {
       alert("Only Household Parents/Admins can add or invite new members.");
       return;
@@ -459,12 +484,13 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       user_id: `usr-${Date.now()}`,
       role: role,
       display_name: displayName,
+      email: email || undefined,
       created_at: new Date().toISOString(),
     };
     setMembers(prev => [...prev, newMember]);
   };
 
-  const updateMember = (id: string, updates: { display_name?: string; role?: HouseholdRole }) => {
+  const updateMember = (id: string, updates: { display_name?: string; role?: HouseholdRole; email?: string }) => {
     if (!isAdmin) {
       return { success: false, error: 'Only Household Parents/Admins can edit family roster members.' };
     }

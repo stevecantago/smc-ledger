@@ -1,11 +1,12 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useHousehold } from '../context/HouseholdContext';
 import { 
-  ShieldCheck, UserCheck, Wallet as WalletIcon, Home, PlusCircle, Users, Landmark, Target, Plus, HeartHandshake 
+  ShieldCheck, UserCheck, Wallet as WalletIcon, Home, PlusCircle, Users, Landmark, Target, Plus, HeartHandshake, KeyRound 
 } from 'lucide-react';
 import { HouseholdRole } from '../types/database';
+import { AuthModal } from './AuthModal';
 
 interface NavbarProps {
   activeTab: string;
@@ -15,6 +16,7 @@ interface NavbarProps {
 
 export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenAddTxModal }) => {
   const { household, currentMember, members, switchMember, wallets, isAdmin } = useHousehold();
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   const visibleWallets = wallets.filter(w => isAdmin || w.is_shared || w.owner_id === currentMember.id);
   const totalNetWorth = visibleWallets.reduce((acc, w) => acc + w.current_balance, 0);
@@ -91,8 +93,19 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
               </button>
             </div>
 
-            {/* Persona Switcher (Clean & Uncluttered on Mobile) */}
-            <div className="flex items-center shrink-0">
+            {/* Persona Switcher & Auth Trigger */}
+            <div className="flex items-center space-x-2 shrink-0">
+              <button
+                onClick={() => setShowAuthModal(true)}
+                className="p-1.5 text-slate-400 hover:text-amber-400 bg-slate-800 border border-slate-700 rounded-lg transition-colors flex items-center space-x-1"
+                title="App Authentication & Account Management"
+              >
+                <KeyRound className="w-4 h-4 text-amber-400" />
+                <span className="hidden sm:inline text-[11px] font-mono text-slate-300">
+                  {currentMember.email || 'Auth'}
+                </span>
+              </button>
+
               <div className="bg-slate-800/90 border border-slate-700 rounded-lg p-1 flex items-center">
                 <div className="px-1.5 py-0.5 flex items-center text-[10px] sm:text-xs font-semibold">
                   {renderRoleBadge(currentMember.role)}
@@ -168,6 +181,9 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
       >
         <Plus className="w-6 h-6 text-white" />
       </button>
+
+      {/* Auth Modal */}
+      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
     </>
   );
 };

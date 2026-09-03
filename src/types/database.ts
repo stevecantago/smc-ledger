@@ -18,6 +18,7 @@ export interface HouseholdMember {
   user_id: string;
   role: HouseholdRole;
   display_name: string;
+  email?: string;
   avatar_url?: string;
   created_at: string;
 }

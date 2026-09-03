@@ -19,11 +19,12 @@ export const initialHousehold: Household = {
 
 export const initialMembers: HouseholdMember[] = [
   {
-    id: 'member-parent-1',
+    id: 'member-steve-admin',
     household_id: 'hh-101',
-    user_id: 'usr-parent-1',
+    user_id: 'usr-steve-admin',
     role: 'admin',
-    display_name: 'David Miller (Head Admin Parent)',
+    display_name: 'Steve Cantago (Head Admin Parent)',
+    email: 'steve.cantago@gmail.com',
     created_at: new Date(Date.now() - 30 * 86400000).toISOString(),
   },
   {
@@ -32,6 +33,7 @@ export const initialMembers: HouseholdMember[] = [
     user_id: 'usr-parent-2',
     role: 'parent_member',
     display_name: 'Sarah Miller (Member Parent/Guardian)',
+    email: 'sarah.miller@example.com',
     created_at: new Date(Date.now() - 30 * 86400000).toISOString(),
   },
   {
@@ -40,6 +42,7 @@ export const initialMembers: HouseholdMember[] = [
     user_id: 'usr-teen-1',
     role: 'member',
     display_name: 'Alex Miller (Kid 1 - High School)',
+    email: 'alex.miller@example.com',
     created_at: new Date(Date.now() - 20 * 86400000).toISOString(),
   },
   {
@@ -48,6 +51,7 @@ export const initialMembers: HouseholdMember[] = [
     user_id: 'usr-kid-2',
     role: 'member',
     display_name: 'Chloe Miller (Kid 2 - Middle School)',
+    email: 'chloe.miller@example.com',
     created_at: new Date(Date.now() - 20 * 86400000).toISOString(),
   },
   {
@@ -56,6 +60,7 @@ export const initialMembers: HouseholdMember[] = [
     user_id: 'usr-kid-3',
     role: 'member',
     display_name: 'Ethan Miller (Kid 3 - Elementary)',
+    email: 'ethan.miller@example.com',
     created_at: new Date(Date.now() - 20 * 86400000).toISOString(),
   },
 ];
@@ -64,7 +69,7 @@ export const initialWallets: Wallet[] = [
   {
     id: 'wallet-main-bank',
     household_id: 'hh-101',
-    owner_id: 'member-parent-1',
+    owner_id: 'member-steve-admin',
     name: 'BDO / BPI Checking (Shared Family)',
     wallet_type: 'bank',
     is_shared: true,
@@ -74,7 +79,7 @@ export const initialWallets: Wallet[] = [
   {
     id: 'wallet-bdo-credit-line',
     household_id: 'hh-101',
-    owner_id: 'member-parent-1',
+    owner_id: 'member-steve-admin',
     name: 'BDO Visa Platinum Credit Line',
     wallet_type: 'credit_card',
     is_shared: true,
@@ -96,7 +101,7 @@ export const initialWallets: Wallet[] = [
   {
     id: 'wallet-savings-bank',
     household_id: 'hh-101',
-    owner_id: 'member-parent-1',
+    owner_id: 'member-steve-admin',
     name: 'High-Yield Reserve & Tuition Sinking Fund',
     wallet_type: 'bank',
     is_shared: true,
@@ -195,7 +200,7 @@ export const initialTransactions: Transaction[] = [
     wallet_id: 'wallet-bdo-credit-line',
     destination_wallet_id: null,
     category_id: 'cat-internet',
-    payer_id: 'member-parent-1',
+    payer_id: 'member-steve-admin',
     type: 'expense',
     amount: 1899.00,
     transaction_date: new Date(now - 1 * 86400000).toISOString().split('T')[0],
@@ -209,7 +214,7 @@ export const initialTransactions: Transaction[] = [
     wallet_id: 'wallet-main-bank',
     destination_wallet_id: null,
     category_id: 'cat-school-kid-1',
-    payer_id: 'member-parent-1',
+    payer_id: 'member-steve-admin',
     type: 'expense',
     amount: 12000.00,
     transaction_date: new Date(now - 6 * 3600000).toISOString().split('T')[0],
@@ -251,7 +256,7 @@ export const initialTransactions: Transaction[] = [
     wallet_id: 'wallet-parent-ewallet',
     destination_wallet_id: 'wallet-teen-cash',
     category_id: null,
-    payer_id: 'member-parent-1',
+    payer_id: 'member-steve-admin',
     type: 'transfer',
     amount: 1000.00,
     transaction_date: new Date(now - 2 * 3600000).toISOString().split('T')[0],
