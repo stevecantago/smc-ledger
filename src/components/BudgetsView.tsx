@@ -2,13 +2,13 @@
 
 import React, { useState } from 'react';
 import { useHousehold } from '../context/HouseholdContext';
-import { ShieldCheck, Plus, Edit2, AlertTriangle, AlertCircle, Download } from 'lucide-react';
+import { ShieldCheck, Plus, Edit2, Trash2, AlertTriangle, AlertCircle, Download } from 'lucide-react';
 import { Category } from '../types/database';
 import { exportBudgetSummaryToCsv } from '../lib/exportCsv';
 import { CategoryIcon, IconPickerGrid } from './CategoryIcon';
 
 export const BudgetsView: React.FC = () => {
-  const { categories, transactions, isAdmin, addCategory, updateCategoryLimit } = useHousehold();
+  const { categories, transactions, isAdmin, addCategory, updateCategory, deleteCategory } = useHousehold();
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
 
@@ -17,8 +17,10 @@ export const BudgetsView: React.FC = () => {
   const [iconSlug, setIconSlug] = useState('graduation-cap');
   const [budgetLimit, setBudgetLimit] = useState('');
 
-  // Limit Edit Form
-  const [newLimit, setNewLimit] = useState('');
+  // Edit Category Form
+  const [editName, setEditName] = useState('');
+  const [editIconSlug, setEditIconSlug] = useState('');
+  const [editLimit, setEditLimit] = useState('');
 
   const now = new Date();
   const currentMonthTx = transactions.filter(t => {
@@ -59,11 +61,21 @@ export const BudgetsView: React.FC = () => {
     setShowAddModal(false);
   };
 
-  const handleUpdateLimitSubmit = (e: React.FormEvent) => {
+  const handleUpdateCategorySubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingCategory) return;
-    updateCategoryLimit(editingCategory.id, parseFloat(newLimit) || 0);
+    updateCategory(editingCategory.id, {
+      name: editName.trim(),
+      icon_slug: editIconSlug,
+      monthly_budget_limit: parseFloat(editLimit) || 0,
+    });
     setEditingCategory(null);
+  };
+
+  const handleDeleteCategory = (cat: Category) => {
+    if (!window.confirm(`Are you sure you want to delete envelope category "${cat.name}"?`)) return;
+    const res = deleteCategory(cat.id);
+    if (!res.success) alert(res.error);
   };
 
   return (
@@ -140,7 +152,7 @@ export const BudgetsView: React.FC = () => {
         {categoriesWithAlerts.map(cat => (
           <div 
             key={cat.id} 
-            className={`bg-slate-800/90 border rounded-xl p-5 space-y-4 shadow-lg transition-all ${
+            className={`bg-slate-800/90 border rounded-xl p-5 space-y-4 shadow-lg transition-all flex flex-col justify-between ${
               cat.isOver 
                 ? 'border-rose-500/60 ring-1 ring-rose-500/30' 
                 : cat.isWarning 
@@ -148,67 +160,81 @@ export const BudgetsView: React.FC = () => {
                   : 'border-slate-700/80'
             }`}
           >
-            <div className="flex items-start justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="p-3 rounded-xl bg-slate-900 border border-slate-700/60 flex items-center justify-center">
-                  <CategoryIcon slug={cat.icon_slug} className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-sm text-white">{cat.name}</h3>
-                  <div className="flex items-center space-x-2 mt-0.5">
-                    <span className="text-[11px] text-slate-400">Monthly Envelope</span>
-                    {cat.isOver ? (
-                      <span className="text-[10px] bg-rose-500/20 text-rose-300 font-bold px-1.5 py-0.2 rounded border border-rose-500/40">
-                        OVER BUDGET
-                      </span>
-                    ) : cat.isWarning ? (
-                      <span className="text-[10px] bg-amber-500/20 text-amber-300 font-bold px-1.5 py-0.2 rounded border border-amber-500/40">
-                        &gt;85% SPENT
-                      </span>
-                    ) : null}
+            <div className="space-y-4">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="p-3 rounded-xl bg-slate-900 border border-slate-700/60 flex items-center justify-center">
+                    <CategoryIcon slug={cat.icon_slug} className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm text-white">{cat.name}</h3>
+                    <div className="flex items-center space-x-2 mt-0.5">
+                      <span className="text-[11px] text-slate-400">Monthly Envelope</span>
+                      {cat.isOver ? (
+                        <span className="text-[10px] bg-rose-500/20 text-rose-300 font-bold px-1.5 py-0.2 rounded border border-rose-500/40">
+                          OVER BUDGET
+                        </span>
+                      ) : cat.isWarning ? (
+                        <span className="text-[10px] bg-amber-500/20 text-amber-300 font-bold px-1.5 py-0.2 rounded border border-amber-500/40">
+                          &gt;85% SPENT
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {isAdmin && (
+              {/* Meter */}
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-400">Spent this month</span>
+                  <span className={`font-mono font-bold ${cat.isOver ? 'text-rose-400' : 'text-slate-200'}`}>
+                    ₱{cat.catSpend.toFixed(2)} / ₱{cat.monthly_budget_limit.toFixed(2)}
+                  </span>
+                </div>
+
+                <div className="w-full h-2.5 rounded-full bg-slate-900 overflow-hidden">
+                  <div 
+                    className={`h-full rounded-full transition-all ${
+                      cat.isOver ? 'bg-rose-500' : cat.isWarning ? 'bg-amber-500' : 'bg-emerald-500'
+                    }`}
+                    style={{ width: `${cat.percent}%` }}
+                  />
+                </div>
+
+                <div className="flex justify-between text-[11px] font-medium pt-1">
+                  <span className={cat.isOver ? 'text-rose-400 font-bold' : 'text-emerald-400'}>
+                    {cat.isOver ? `Over budget by ₱${Math.abs(cat.remaining).toFixed(2)}` : `₱${cat.remaining.toFixed(2)} remaining`}
+                  </span>
+                  <span className="text-slate-400">{cat.percent}% used</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Admin Actions */}
+            {isAdmin && (
+              <div className="pt-3 border-t border-slate-700/60 flex items-center justify-end space-x-2">
                 <button
                   onClick={() => {
                     setEditingCategory(cat);
-                    setNewLimit(cat.monthly_budget_limit.toString());
+                    setEditName(cat.name);
+                    setEditIconSlug(cat.icon_slug);
+                    setEditLimit(cat.monthly_budget_limit.toString());
                   }}
-                  title="Edit Monthly Limit"
+                  title="Edit Envelope Category"
                   className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-amber-400/10 rounded transition-colors"
                 >
                   <Edit2 className="w-4 h-4" />
                 </button>
-              )}
-            </div>
-
-            {/* Meter */}
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs">
-                <span className="text-slate-400">Spent this month</span>
-                <span className={`font-mono font-bold ${cat.isOver ? 'text-rose-400' : 'text-slate-200'}`}>
-                  ₱{cat.catSpend.toFixed(2)} / ₱{cat.monthly_budget_limit.toFixed(2)}
-                </span>
+                <button
+                  onClick={() => handleDeleteCategory(cat)}
+                  title="Delete Envelope Category"
+                  className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
-
-              <div className="w-full h-2.5 rounded-full bg-slate-900 overflow-hidden">
-                <div 
-                  className={`h-full rounded-full transition-all ${
-                    cat.isOver ? 'bg-rose-500' : cat.isWarning ? 'bg-amber-500' : 'bg-emerald-500'
-                  }`}
-                  style={{ width: `${cat.percent}%` }}
-                />
-              </div>
-
-              <div className="flex justify-between text-[11px] font-medium pt-1">
-                <span className={cat.isOver ? 'text-rose-400 font-bold' : 'text-emerald-400'}>
-                  {cat.isOver ? `Over budget by ₱${Math.abs(cat.remaining).toFixed(2)}` : `₱${cat.remaining.toFixed(2)} remaining`}
-                </span>
-                <span className="text-slate-400">{cat.percent}% used</span>
-              </div>
-            </div>
+            )}
           </div>
         ))}
       </div>
@@ -245,7 +271,6 @@ export const BudgetsView: React.FC = () => {
                 />
               </div>
 
-              {/* Interactive Visual Icon Picker */}
               <IconPickerGrid 
                 selectedSlug={iconSlug} 
                 onSelectSlug={setIconSlug} 
@@ -271,27 +296,43 @@ export const BudgetsView: React.FC = () => {
         </div>
       )}
 
-      {/* Edit Limit Modal */}
+      {/* Edit Category Modal */}
       {editingCategory && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6 space-y-5 shadow-2xl">
+          <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-lg w-full p-6 space-y-5 shadow-2xl">
             <h3 className="text-base font-bold text-white flex items-center space-x-2">
-              <CategoryIcon slug={editingCategory.icon_slug} className="w-5 h-5" />
-              <span>Edit Limit: {editingCategory.name}</span>
+              <CategoryIcon slug={editIconSlug} className="w-5 h-5" />
+              <span>Edit Category Envelope: {editingCategory.name}</span>
             </h3>
 
-            <form onSubmit={handleUpdateLimitSubmit} className="space-y-4">
+            <form onSubmit={handleUpdateCategorySubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Category Name</label>
+                <input
+                  type="text"
+                  required
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                />
+              </div>
+
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">Monthly Budget Limit (₱ PHP)</label>
                 <input
                   type="number"
                   step="0.01"
                   required
-                  value={newLimit}
-                  onChange={(e) => setNewLimit(e.target.value)}
+                  value={editLimit}
+                  onChange={(e) => setEditLimit(e.target.value)}
                   className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
                 />
               </div>
+
+              <IconPickerGrid 
+                selectedSlug={editIconSlug} 
+                onSelectSlug={setEditIconSlug} 
+              />
 
               <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-800">
                 <button
@@ -305,7 +346,7 @@ export const BudgetsView: React.FC = () => {
                   type="submit"
                   className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg transition-all shadow"
                 >
-                  Save Budget Limit
+                  Save Category Changes
                 </button>
               </div>
             </form>

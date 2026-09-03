@@ -2,13 +2,14 @@
 
 import React, { useState } from 'react';
 import { useHousehold } from '../context/HouseholdContext';
-import { Landmark, Plus, DollarSign, Calendar, AlertCircle, Percent, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { Landmark, Plus, DollarSign, Calendar, AlertCircle, Percent, Edit2, Trash2, ShieldCheck } from 'lucide-react';
 import { Loan } from '../types/database';
 
 export const LoansView: React.FC = () => {
-  const { loans, wallets, currentMember, isAdmin, addLoan, payLoanAmortization } = useHousehold();
+  const { loans, wallets, currentMember, isAdmin, addLoan, updateLoan, deleteLoan, payLoanAmortization } = useHousehold();
 
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingLoan, setEditingLoan] = useState<Loan | null>(null);
   const [payingLoan, setPayingLoan] = useState<Loan | null>(null);
 
   // Add Loan Form
@@ -18,6 +19,15 @@ export const LoansView: React.FC = () => {
   const [interestRate, setInterestRate] = useState('');
   const [monthlyAmortization, setMonthlyAmortization] = useState('');
   const [dueDay, setDueDay] = useState('15');
+
+  // Edit Loan Form
+  const [editName, setEditName] = useState('');
+  const [editLender, setEditLender] = useState('');
+  const [editPrincipal, setEditPrincipal] = useState('');
+  const [editBalance, setEditBalance] = useState('');
+  const [editInterest, setEditInterest] = useState('');
+  const [editMonthly, setEditMonthly] = useState('');
+  const [editDueDay, setEditDueDay] = useState('15');
 
   // Pay Amortization Form
   const [payAmount, setPayAmount] = useState('');
@@ -50,6 +60,29 @@ export const LoansView: React.FC = () => {
     setInterestRate('');
     setMonthlyAmortization('');
     setShowAddModal(false);
+  };
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingLoan) return;
+
+    updateLoan(editingLoan.id, {
+      name: editName.trim(),
+      lender: editLender.trim(),
+      total_principal: parseFloat(editPrincipal) || 0,
+      remaining_balance: parseFloat(editBalance) || 0,
+      interest_rate_annual: parseFloat(editInterest) || 0,
+      monthly_amortization: parseFloat(editMonthly) || 0,
+      due_day_of_month: parseInt(editDueDay) || 1,
+    });
+
+    setEditingLoan(null);
+  };
+
+  const handleDeleteLoan = (l: Loan) => {
+    if (!window.confirm(`Are you sure you want to delete loan record "${l.name}"?`)) return;
+    const res = deleteLoan(l.id);
+    if (!res.success) alert(res.error);
   };
 
   const handlePaySubmit = (e: React.FormEvent) => {
@@ -144,9 +177,39 @@ export const LoansView: React.FC = () => {
                     </p>
                   </div>
 
-                  <span className="text-xs font-bold text-amber-300 bg-amber-400/15 px-2.5 py-1 rounded border border-amber-400/30 flex items-center">
-                    <Percent className="w-3 h-3 mr-0.5" /> {loan.interest_rate_annual}% APR
-                  </span>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs font-bold text-amber-300 bg-amber-400/15 px-2.5 py-1 rounded border border-amber-400/30 flex items-center">
+                      <Percent className="w-3 h-3 mr-0.5" /> {loan.interest_rate_annual}% APR
+                    </span>
+
+                    {isAdmin && (
+                      <div className="flex items-center space-x-1">
+                        <button
+                          onClick={() => {
+                            setEditingLoan(loan);
+                            setEditName(loan.name);
+                            setEditLender(loan.lender);
+                            setEditPrincipal(loan.total_principal.toString());
+                            setEditBalance(loan.remaining_balance.toString());
+                            setEditInterest(loan.interest_rate_annual.toString());
+                            setEditMonthly(loan.monthly_amortization.toString());
+                            setEditDueDay(loan.due_day_of_month.toString());
+                          }}
+                          title="Edit Loan Agreement"
+                          className="p-1 text-slate-400 hover:text-amber-400 hover:bg-amber-400/10 rounded transition-colors"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteLoan(loan)}
+                          title="Delete Loan Agreement"
+                          className="p-1 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Key Loan Info Grid */}
@@ -204,7 +267,7 @@ export const LoansView: React.FC = () => {
         })}
       </div>
 
-      {/* Add Loan Modal (Admin only) */}
+      {/* Add Loan Modal */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6 space-y-5 shadow-2xl">
@@ -302,6 +365,106 @@ export const LoansView: React.FC = () => {
                   className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold rounded-lg transition-all shadow"
                 >
                   Create Loan Record
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Loan Modal */}
+      {editingLoan && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6 space-y-5 shadow-2xl">
+            <h3 className="text-base font-bold text-white">Edit Loan Agreement: {editingLoan.name}</h3>
+
+            <form onSubmit={handleEditSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Loan Title / Description</label>
+                <input
+                  type="text"
+                  required
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Lender / Financial Institution</label>
+                <input
+                  type="text"
+                  required
+                  value={editLender}
+                  onChange={(e) => setEditLender(e.target.value)}
+                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Total Principal (₱)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    value={editPrincipal}
+                    onChange={(e) => setEditPrincipal(e.target.value)}
+                    className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Remaining Balance (₱)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    value={editBalance}
+                    onChange={(e) => setEditBalance(e.target.value)}
+                    className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Monthly Amortization (₱)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    value={editMonthly}
+                    onChange={(e) => setEditMonthly(e.target.value)}
+                    className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Due Day of Month</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="31"
+                    required
+                    value={editDueDay}
+                    onChange={(e) => setEditDueDay(e.target.value)}
+                    className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setEditingLoan(null)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg transition-all shadow"
+                >
+                  Save Loan Changes
                 </button>
               </div>
             </form>

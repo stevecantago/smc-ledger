@@ -31,21 +31,35 @@ interface HouseholdContextType {
   // Role & User Switching
   switchMember: (memberId: string) => void;
   
-  // Actions
+  // Wallets CRUD
   addWallet: (wallet: { name: string; wallet_type: Wallet['wallet_type']; is_shared: boolean; owner_id?: string | null; initial_balance: number }) => void;
+  updateWallet: (id: string, updates: { name?: string; wallet_type?: Wallet['wallet_type']; current_balance?: number; is_shared?: boolean }) => { success: boolean; error?: string };
+  deleteWallet: (id: string) => { success: boolean; error?: string };
+
+  // Categories CRUD
   addCategory: (category: { name: string; icon_slug: string; monthly_budget_limit: number }) => void;
+  updateCategory: (id: string, updates: { name?: string; icon_slug?: string; monthly_budget_limit?: number }) => { success: boolean; error?: string };
   updateCategoryLimit: (id: string, limit: number) => void;
+  deleteCategory: (id: string) => { success: boolean; error?: string };
+
+  // Transactions CRUD
   addTransaction: (tx: { wallet_id: string; destination_wallet_id?: string | null; category_id?: string | null; type: Transaction['type']; amount: number; transaction_date: string; note?: string; receipt_url?: string }) => { success: boolean; error?: string };
   updateTransaction: (id: string, updates: Partial<Transaction>) => { success: boolean; error?: string };
   deleteTransaction: (id: string) => { success: boolean; error?: string };
+
+  // Savings Goals CRUD
   addSavingsGoal: (goal: { name: string; target_amount: number; target_date?: string }) => void;
+  updateSavingsGoal: (id: string, updates: { name?: string; target_amount?: number; target_date?: string | null }) => { success: boolean; error?: string };
+  deleteSavingsGoal: (id: string) => { success: boolean; error?: string };
   fundSavingsGoal: (goalId: string, amount: number, walletId: string) => { success: boolean; error?: string };
   
-  // Loans Actions
+  // Loans CRUD
   addLoan: (loan: { name: string; lender: string; total_principal: number; interest_rate_annual: number; monthly_amortization: number; due_day_of_month: number }) => void;
+  updateLoan: (id: string, updates: { name?: string; lender?: string; total_principal?: number; remaining_balance?: number; interest_rate_annual?: number; monthly_amortization?: number; due_day_of_month?: number }) => { success: boolean; error?: string };
+  deleteLoan: (id: string) => { success: boolean; error?: string };
   payLoanAmortization: (loanId: string, amount: number, walletId: string) => { success: boolean; error?: string };
   
-  // Recurring Transfers & Bills Actions
+  // Recurring Transfers & Bills CRUD
   addRecurringTransfer: (rule: { 
     rule_type: RecurringRuleType;
     source_wallet_id: string; 
@@ -57,6 +71,7 @@ interface HouseholdContextType {
     note: string 
   }) => void;
   toggleRecurringTransfer: (id: string) => void;
+  deleteRecurringTransfer: (id: string) => { success: boolean; error?: string };
 
   // Family Roster CRUD Actions
   addMember: (displayName: string, role: HouseholdRole) => void;
@@ -103,6 +118,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
 
+  // Wallets CRUD
   const addWallet = (data: { name: string; wallet_type: Wallet['wallet_type']; is_shared: boolean; owner_id?: string | null; initial_balance: number }) => {
     if (!isAdmin && data.is_shared) {
       alert("Only Household Admins can create shared wallets.");
@@ -121,6 +137,19 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setWallets(prev => [...prev, newWallet]);
   };
 
+  const updateWallet = (id: string, updates: { name?: string; wallet_type?: Wallet['wallet_type']; current_balance?: number; is_shared?: boolean }) => {
+    if (!isAdmin) return { success: false, error: 'Only Household Admins can edit wallet accounts.' };
+    setWallets(prev => prev.map(w => w.id === id ? { ...w, ...updates } : w));
+    return { success: true };
+  };
+
+  const deleteWallet = (id: string) => {
+    if (!isAdmin) return { success: false, error: 'Only Household Admins can delete wallet accounts.' };
+    setWallets(prev => prev.filter(w => w.id !== id));
+    return { success: true };
+  };
+
+  // Categories CRUD
   const addCategory = (data: { name: string; icon_slug: string; monthly_budget_limit: number }) => {
     if (!isAdmin) {
       alert("Only Household Admins can create categories.");
@@ -137,14 +166,23 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setCategories(prev => [...prev, newCat]);
   };
 
-  const updateCategoryLimit = (id: string, limit: number) => {
-    if (!isAdmin) {
-      alert("Only Household Admins can edit monthly budget limits.");
-      return;
-    }
-    setCategories(prev => prev.map(c => c.id === id ? { ...c, monthly_budget_limit: limit } : c));
+  const updateCategory = (id: string, updates: { name?: string; icon_slug?: string; monthly_budget_limit?: number }) => {
+    if (!isAdmin) return { success: false, error: 'Only Household Admins can edit category envelopes.' };
+    setCategories(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+    return { success: true };
   };
 
+  const updateCategoryLimit = (id: string, limit: number) => {
+    updateCategory(id, { monthly_budget_limit: limit });
+  };
+
+  const deleteCategory = (id: string) => {
+    if (!isAdmin) return { success: false, error: 'Only Household Admins can delete category envelopes.' };
+    setCategories(prev => prev.filter(c => c.id !== id));
+    return { success: true };
+  };
+
+  // Transactions CRUD
   const addTransaction = (data: { 
     wallet_id: string; 
     destination_wallet_id?: string | null; 
@@ -240,6 +278,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return { success: true };
   };
 
+  // Savings Goals CRUD
   const addSavingsGoal = (data: { name: string; target_amount: number; target_date?: string }) => {
     if (!isAdmin) {
       alert("Only Household Admins can create savings goals.");
@@ -255,6 +294,18 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       created_at: new Date().toISOString(),
     };
     setSavingsGoals(prev => [...prev, newGoal]);
+  };
+
+  const updateSavingsGoal = (id: string, updates: { name?: string; target_amount?: number; target_date?: string | null }) => {
+    if (!isAdmin) return { success: false, error: 'Only Household Admins can edit savings goals.' };
+    setSavingsGoals(prev => prev.map(g => g.id === id ? { ...g, ...updates } : g));
+    return { success: true };
+  };
+
+  const deleteSavingsGoal = (id: string) => {
+    if (!isAdmin) return { success: false, error: 'Only Household Admins can delete savings goals.' };
+    setSavingsGoals(prev => prev.filter(g => g.id !== id));
+    return { success: true };
   };
 
   const fundSavingsGoal = (goalId: string, amount: number, walletId: string) => {
@@ -278,6 +329,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return { success: true };
   };
 
+  // Loans CRUD
   const addLoan = (data: { name: string; lender: string; total_principal: number; interest_rate_annual: number; monthly_amortization: number; due_day_of_month: number }) => {
     if (!isAdmin) {
       alert("Only Household Admins can create loan records.");
@@ -297,6 +349,18 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       created_at: new Date().toISOString(),
     };
     setLoans(prev => [...prev, newLoan]);
+  };
+
+  const updateLoan = (id: string, updates: { name?: string; lender?: string; total_principal?: number; remaining_balance?: number; interest_rate_annual?: number; monthly_amortization?: number; due_day_of_month?: number }) => {
+    if (!isAdmin) return { success: false, error: 'Only Household Admins can edit loan records.' };
+    setLoans(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l));
+    return { success: true };
+  };
+
+  const deleteLoan = (id: string) => {
+    if (!isAdmin) return { success: false, error: 'Only Household Admins can delete loan records.' };
+    setLoans(prev => prev.filter(l => l.id !== id));
+    return { success: true };
   };
 
   const payLoanAmortization = (loanId: string, amount: number, walletId: string) => {
@@ -376,6 +440,12 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setRecurringTransfers(prev => prev.map(r => r.id === id ? { ...r, is_active: !r.is_active } : r));
   };
 
+  const deleteRecurringTransfer = (id: string) => {
+    if (!isAdmin) return { success: false, error: 'Only Household Admins can delete recurring schedule rules.' };
+    setRecurringTransfers(prev => prev.filter(r => r.id !== id));
+    return { success: true };
+  };
+
   const addMember = (displayName: string, role: HouseholdRole) => {
     if (!isAdmin) {
       alert("Only Household Admins can add or invite new members.");
@@ -400,7 +470,6 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const target = members.find(m => m.id === id);
     if (!target) return { success: false, error: 'Member record not found.' };
 
-    // Prevent demoting the last Admin
     if (updates.role && updates.role === 'member' && target.role === 'admin') {
       const adminCount = members.filter(m => m.role === 'admin').length;
       if (adminCount <= 1) {
@@ -410,7 +479,6 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     setMembers(prev => prev.map(m => m.id === id ? { ...m, ...updates } : m));
     
-    // Also update active logged-in persona if current active user is edited
     if (currentMember.id === id) {
       setCurrentMember(prev => ({ ...prev, ...updates }));
     }
@@ -455,17 +523,26 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       isAdmin,
       switchMember,
       addWallet,
+      updateWallet,
+      deleteWallet,
       addCategory,
+      updateCategory,
       updateCategoryLimit,
+      deleteCategory,
       addTransaction,
       updateTransaction,
       deleteTransaction,
       addSavingsGoal,
+      updateSavingsGoal,
+      deleteSavingsGoal,
       fundSavingsGoal,
       addLoan,
+      updateLoan,
+      deleteLoan,
       payLoanAmortization,
       addRecurringTransfer,
       toggleRecurringTransfer,
+      deleteRecurringTransfer,
       addMember,
       updateMember,
       deleteMember,

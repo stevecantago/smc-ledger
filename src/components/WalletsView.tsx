@@ -2,17 +2,19 @@
 
 import React, { useState } from 'react';
 import { useHousehold } from '../context/HouseholdContext';
-import { Wallet as WalletIcon, Landmark, Smartphone, Banknote, Shield, Lock, Plus, ArrowRightLeft, Calendar, Power, Wifi, Clock } from 'lucide-react';
-import { WalletType, RecurringFrequency, RecurringRuleType } from '../types/database';
+import { Wallet as WalletIcon, Landmark, Smartphone, Banknote, Shield, Lock, Plus, ArrowRightLeft, Calendar, Power, Wifi, Clock, Edit2, Trash2, AlertCircle } from 'lucide-react';
+import { Wallet, WalletType, RecurringFrequency, RecurringRuleType } from '../types/database';
 import { CategoryIcon } from './CategoryIcon';
 
 export const WalletsView: React.FC = () => {
   const { 
-    wallets, categories, members, currentMember, isAdmin, addWallet, 
-    recurringTransfers, addRecurringTransfer, toggleRecurringTransfer 
+    wallets, categories, members, currentMember, isAdmin, 
+    addWallet, updateWallet, deleteWallet,
+    recurringTransfers, addRecurringTransfer, toggleRecurringTransfer, deleteRecurringTransfer 
   } = useHousehold();
 
   const [showWalletModal, setShowWalletModal] = useState(false);
+  const [editingWallet, setEditingWallet] = useState<Wallet | null>(null);
   const [showRecurringModal, setShowRecurringModal] = useState(false);
 
   // Add Wallet Form State
@@ -20,6 +22,12 @@ export const WalletsView: React.FC = () => {
   const [walletType, setWalletType] = useState<WalletType>('bank');
   const [isShared, setIsShared] = useState(isAdmin);
   const [initialBalance, setInitialBalance] = useState('');
+
+  // Edit Wallet Form State
+  const [editName, setEditName] = useState('');
+  const [editType, setEditType] = useState<WalletType>('bank');
+  const [editBalance, setEditBalance] = useState('');
+  const [editIsShared, setEditIsShared] = useState(true);
 
   // Add Recurring Bill / Transfer Form State
   const [ruleType, setRuleType] = useState<RecurringRuleType>('expense');
@@ -48,6 +56,31 @@ export const WalletsView: React.FC = () => {
     setName('');
     setInitialBalance('');
     setShowWalletModal(false);
+  };
+
+  const handleEditWalletSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingWallet) return;
+
+    updateWallet(editingWallet.id, {
+      name: editName.trim(),
+      wallet_type: editType,
+      current_balance: parseFloat(editBalance) || 0,
+      is_shared: editIsShared,
+    });
+
+    setEditingWallet(null);
+  };
+
+  const handleDeleteWallet = (w: Wallet) => {
+    if (!window.confirm(`Are you sure you want to delete account "${w.name}"?`)) return;
+    const res = deleteWallet(w.id);
+    if (!res.success) alert(res.error);
+  };
+
+  const handleDeleteRecurring = (ruleId: string) => {
+    if (!window.confirm('Are you sure you want to delete this recurring schedule rule?')) return;
+    deleteRecurringTransfer(ruleId);
   };
 
   const handleRecurringSubmit = (e: React.FormEvent) => {
@@ -99,10 +132,10 @@ export const WalletsView: React.FC = () => {
         <div>
           <h2 className="text-lg font-bold text-white flex items-center space-x-2">
             <WalletIcon className="w-5 h-5 text-sky-400" />
-            <span>Wallets & Recurring Schedules</span>
+            <span>Wallets & Accounts Management</span>
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Track bank accounts, e-wallets, personal cash funds, and scheduled bills (Daily, Weekly, Monthly, Quarterly, Semi-Annual, Annual).
+            Parent/Admin full CRUD control over household bank accounts, balances, and recurring bills.
           </p>
         </div>
 
@@ -117,7 +150,7 @@ export const WalletsView: React.FC = () => {
               className="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-2 rounded-lg font-medium text-xs transition-all shadow"
             >
               <Clock className="w-4 h-4" />
-              <span>+ Schedule Recurring Bill / Transfer</span>
+              <span>+ Schedule Recurring Bill</span>
             </button>
           )}
 
@@ -138,47 +171,75 @@ export const WalletsView: React.FC = () => {
           return (
             <div 
               key={w.id} 
-              className="bg-slate-800/90 border border-slate-700/80 rounded-xl p-5 space-y-4 hover:border-slate-600 transition-all shadow-lg"
+              className="bg-slate-800/90 border border-slate-700/80 rounded-xl p-5 space-y-4 hover:border-slate-600 transition-all shadow-lg flex flex-col justify-between"
             >
-              <div className="flex items-start justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="p-3 rounded-xl bg-slate-900 border border-slate-700/60">
-                    {getWalletIcon(w.wallet_type)}
+              <div className="space-y-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="p-3 rounded-xl bg-slate-900 border border-slate-700/60">
+                      {getWalletIcon(w.wallet_type)}
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-sm text-white">{w.name}</h3>
+                      <span className="text-[11px] text-slate-400 uppercase font-semibold tracking-wider">
+                        {w.wallet_type.replace('_', ' ')}
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-bold text-sm text-white">{w.name}</h3>
-                    <span className="text-[11px] text-slate-400 uppercase font-semibold tracking-wider">
-                      {w.wallet_type.replace('_', ' ')}
+
+                  {w.is_shared ? (
+                    <span className="flex items-center text-[10px] font-semibold text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded border border-emerald-400/20">
+                      <Shield className="w-3 h-3 mr-1" /> Shared
                     </span>
+                  ) : (
+                    <span className="flex items-center text-[10px] font-semibold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/20">
+                      <Lock className="w-3 h-3 mr-1" /> Personal
+                    </span>
+                  )}
+                </div>
+
+                <div className="pt-2 border-t border-slate-700/60 flex items-end justify-between">
+                  <div>
+                    <span className="text-[11px] text-slate-400">Current Balance</span>
+                    <div className="text-xl font-bold font-mono text-emerald-400">
+                      ₱{w.current_balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <span className="text-[10px] text-slate-400">Account Owner</span>
+                    <p className="text-xs font-semibold text-slate-300">
+                      {owner?.display_name || 'Household'}
+                    </p>
                   </div>
                 </div>
-
-                {w.is_shared ? (
-                  <span className="flex items-center text-[10px] font-semibold text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded border border-emerald-400/20">
-                    <Shield className="w-3 h-3 mr-1" /> Shared
-                  </span>
-                ) : (
-                  <span className="flex items-center text-[10px] font-semibold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/20">
-                    <Lock className="w-3 h-3 mr-1" /> Personal
-                  </span>
-                )}
               </div>
 
-              <div className="pt-2 border-t border-slate-700/60 flex items-end justify-between">
-                <div>
-                  <span className="text-[11px] text-slate-400">Current Balance</span>
-                  <div className="text-xl font-bold font-mono text-emerald-400">
-                    ₱{w.current_balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                  </div>
+              {/* Admin Actions */}
+              {isAdmin && (
+                <div className="pt-3 border-t border-slate-700/60 flex items-center justify-end space-x-2">
+                  <button
+                    onClick={() => {
+                      setEditingWallet(w);
+                      setEditName(w.name);
+                      setEditType(w.wallet_type);
+                      setEditBalance(w.current_balance.toString());
+                      setEditIsShared(w.is_shared);
+                    }}
+                    title="Edit Wallet Details"
+                    className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-amber-400/10 rounded transition-colors"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteWallet(w)}
+                    title="Delete Wallet Account"
+                    className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
-
-                <div className="text-right">
-                  <span className="text-[10px] text-slate-400">Account Owner</span>
-                  <p className="text-xs font-semibold text-slate-300">
-                    {owner?.display_name || 'Household'}
-                  </p>
-                </div>
-              </div>
+              )}
             </div>
           );
         })}
@@ -257,14 +318,23 @@ export const WalletsView: React.FC = () => {
                   </div>
 
                   {isAdmin && (
-                    <button
-                      onClick={() => toggleRecurringTransfer(rule.id)}
-                      className="p-1 text-slate-400 hover:text-indigo-400 transition-colors flex items-center space-x-1"
-                      title="Toggle active state"
-                    >
-                      <Power className="w-3.5 h-3.5" />
-                      <span className="text-[11px]">{rule.is_active ? 'Pause' : 'Activate'}</span>
-                    </button>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => toggleRecurringTransfer(rule.id)}
+                        className="p-1 text-slate-400 hover:text-indigo-400 transition-colors flex items-center space-x-1"
+                        title="Toggle active state"
+                      >
+                        <Power className="w-3.5 h-3.5" />
+                        <span className="text-[11px]">{rule.is_active ? 'Pause' : 'Activate'}</span>
+                      </button>
+                      <button
+                        onClick={() => handleDeleteRecurring(rule.id)}
+                        className="p-1 text-slate-400 hover:text-rose-400 transition-colors"
+                        title="Delete Recurring Schedule Rule"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -320,7 +390,7 @@ export const WalletsView: React.FC = () => {
                 />
               </div>
 
-              {isAdmin ? (
+              {isAdmin && (
                 <div className="flex items-center space-x-2 pt-2">
                   <input
                     type="checkbox"
@@ -333,10 +403,6 @@ export const WalletsView: React.FC = () => {
                     Share with all household members (Shared Wallet)
                   </label>
                 </div>
-              ) : (
-                <p className="text-[11px] text-amber-400 bg-amber-400/10 p-2 rounded border border-amber-400/20">
-                  Note: As a Household Member, created wallets are private to your profile.
-                </p>
               )}
 
               <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-800">
@@ -359,6 +425,82 @@ export const WalletsView: React.FC = () => {
         </div>
       )}
 
+      {/* Edit Wallet Modal */}
+      {editingWallet && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6 space-y-5 shadow-2xl">
+            <h3 className="text-base font-bold text-white">Edit Wallet Account: {editingWallet.name}</h3>
+
+            <form onSubmit={handleEditWalletSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Account Name</label>
+                <input
+                  type="text"
+                  required
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Account Type</label>
+                <select
+                  value={editType}
+                  onChange={(e) => setEditType(e.target.value as WalletType)}
+                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                >
+                  <option value="bank">Bank Account</option>
+                  <option value="e_wallet">E-Wallet</option>
+                  <option value="cash">Physical Cash</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Current Balance (₱ PHP)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  value={editBalance}
+                  onChange={(e) => setEditBalance(e.target.value)}
+                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
+                />
+              </div>
+
+              <div className="flex items-center space-x-2 pt-2">
+                <input
+                  type="checkbox"
+                  id="editSharedCheck"
+                  checked={editIsShared}
+                  onChange={(e) => setEditIsShared(e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-700 text-sky-600 focus:ring-sky-500 bg-slate-800 cursor-pointer"
+                />
+                <label htmlFor="editSharedCheck" className="text-xs text-slate-300 cursor-pointer">
+                  Shared Household Wallet
+                </label>
+              </div>
+
+              <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setEditingWallet(null)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg transition-all shadow"
+                >
+                  Save Wallet Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Add Recurring Bill / Transfer Schedule Modal */}
       {showRecurringModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
@@ -369,7 +511,6 @@ export const WalletsView: React.FC = () => {
             </h3>
 
             <form onSubmit={handleRecurringSubmit} className="space-y-4">
-              {/* Type Switcher: Expense Bill vs Allowance Transfer */}
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1.5">Schedule Type</label>
                 <div className="grid grid-cols-2 gap-2">
@@ -485,7 +626,6 @@ export const WalletsView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Custom Interval Days Input */}
               {frequency === 'custom_days' && (
                 <div>
                   <label className="block text-xs font-medium text-slate-300 mb-1">Repeat Every (N Days)</label>
