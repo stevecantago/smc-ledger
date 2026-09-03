@@ -4,9 +4,10 @@ import React, { useState } from 'react';
 import { useHousehold } from '../context/HouseholdContext';
 import { 
   TrendingDown, TrendingUp, ArrowRightLeft, Search, Filter, Trash2, Edit3, Clock, 
-  ExternalLink, Plus, AlertCircle, CheckCircle2, ShieldAlert
+  ExternalLink, Plus, AlertCircle, CheckCircle2, ShieldAlert, Download, Image, Upload
 } from 'lucide-react';
 import { Transaction, TransactionType } from '../types/database';
+import { exportTransactionsToCsv } from '../lib/exportCsv';
 
 interface TransactionsViewProps {
   showModal: boolean;
@@ -33,13 +34,12 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
   const [categoryId, setCategoryId] = useState('');
   const [note, setNote] = useState('');
   const [receiptUrl, setReceiptUrl] = useState('');
+  const [receiptFileName, setReceiptFileName] = useState('');
   const [txDate, setTxDate] = useState(new Date().toISOString().split('T')[0]);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // RLS-aware wallets list
   const visibleWallets = wallets.filter(w => isAdmin || w.is_shared || w.owner_id === currentMember.id);
 
-  // Filtered transactions
   const filteredTx = transactions.filter(t => {
     const matchesSearch = !searchTerm || (t.note && t.note.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesType = typeFilter === 'all' || t.type === typeFilter;
@@ -47,6 +47,20 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
     const matchesCategory = categoryFilter === 'all' || t.category_id === categoryFilter;
     return matchesSearch && matchesType && matchesPayer && matchesCategory;
   });
+
+  const handleReceiptFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setReceiptFileName(file.name);
+      // Create local object URL for instant preview
+      const previewUrl = URL.createObjectURL(file);
+      setReceiptUrl(previewUrl);
+    }
+  };
+
+  const handleExportCsv = () => {
+    exportTransactionsToCsv(filteredTx, wallets, categories, members);
+  };
 
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,10 +103,10 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
       return;
     }
 
-    // Reset and close
     setAmount('');
     setNote('');
     setReceiptUrl('');
+    setReceiptFileName('');
     setShowModal(false);
   };
 
@@ -117,17 +131,28 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
           </p>
         </div>
 
-        <button
-          onClick={() => {
-            setErrorMsg('');
-            if (visibleWallets.length > 0) setWalletId(visibleWallets[0].id);
-            setShowModal(true);
-          }}
-          className="flex items-center space-x-2 bg-sky-600 hover:bg-sky-500 text-white px-4 py-2 rounded-lg font-medium text-xs transition-all shadow"
-        >
-          <Plus className="w-4 h-4" />
-          <span>+ Log Transaction</span>
-        </button>
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={handleExportCsv}
+            className="flex items-center space-x-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3.5 py-2 rounded-lg font-medium text-xs transition-all shadow"
+            title="Export filtered transaction ledger to CSV file"
+          >
+            <Download className="w-4 h-4 text-emerald-400" />
+            <span>Export CSV</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setErrorMsg('');
+              if (visibleWallets.length > 0) setWalletId(visibleWallets[0].id);
+              setShowModal(true);
+            }}
+            className="flex items-center space-x-2 bg-sky-600 hover:bg-sky-500 text-white px-4 py-2 rounded-lg font-medium text-xs transition-all shadow"
+          >
+            <Plus className="w-4 h-4" />
+            <span>+ Log Transaction</span>
+          </button>
+        </div>
       </div>
 
       {/* Filter Controls Bar */}
@@ -272,7 +297,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                             rel="noopener noreferrer"
                             className="inline-flex items-center text-[10px] text-sky-400 hover:underline"
                           >
-                            <ExternalLink className="w-3 h-3 mr-1" /> Receipt
+                            <Image className="w-3 h-3 mr-1 text-sky-400" /> Receipt
                           </a>
                         ) : (
                           <span className="text-slate-600 text-[10px]">-</span>
@@ -437,7 +462,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                 </div>
               )}
 
-              {/* Date & Note */}
+              {/* Date & Receipt Upload Picker */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-300 mb-1">Date</label>
@@ -449,22 +474,36 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Receipt URL (Optional)</label>
-                  <input
-                    type="url"
-                    placeholder="https://..."
-                    value={receiptUrl}
-                    onChange={(e) => setReceiptUrl(e.target.value)}
-                    className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                  />
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Attach Receipt Photo</label>
+                  <label className="flex items-center space-x-2 bg-slate-800 hover:bg-slate-700/80 text-slate-300 border border-slate-700 rounded-lg p-2 cursor-pointer transition-colors text-xs">
+                    <Upload className="w-4 h-4 text-sky-400 shrink-0" />
+                    <span className="truncate">{receiptFileName || 'Select Image File'}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleReceiptFileChange}
+                      className="hidden"
+                    />
+                  </label>
                 </div>
               </div>
+
+              {/* Receipt Preview Thumbnail */}
+              {receiptUrl && (
+                <div className="p-2.5 bg-slate-800/80 border border-slate-700 rounded-lg flex items-center space-x-3">
+                  <img src={receiptUrl} alt="Receipt preview" className="w-12 h-12 object-cover rounded border border-slate-700" />
+                  <div className="text-xs">
+                    <p className="font-semibold text-white">Receipt Attached</p>
+                    <p className="text-[11px] text-slate-400">{receiptFileName || 'Preview ready'}</p>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">Description / Note</label>
                 <input
                   type="text"
-                  placeholder="e.g. Costco groceries, Electric bill, Movie tickets"
+                  placeholder="e.g. Supermarket groceries, Electric bill, Movie tickets"
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                   className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useHousehold } from '../context/HouseholdContext';
-import { ShieldCheck, UserCheck, Wallet as WalletIcon, Home, PlusCircle, Users } from 'lucide-react';
+import { ShieldCheck, UserCheck, Wallet as WalletIcon, Home, PlusCircle, Users, Landmark } from 'lucide-react';
 
 interface NavbarProps {
   activeTab: string;
@@ -13,7 +13,6 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenAddTxModal }) => {
   const { household, currentMember, members, switchMember, wallets, isAdmin } = useHousehold();
 
-  // Visible wallets filter based on RLS (Admin sees all; Member sees shared + owned)
   const visibleWallets = wallets.filter(w => isAdmin || w.is_shared || w.owner_id === currentMember.id);
   const totalNetWorth = visibleWallets.reduce((acc, w) => acc + w.current_balance, 0);
 
@@ -94,6 +93,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
             { id: 'wallets', label: 'Wallets & Accounts', icon: WalletIcon },
             { id: 'transactions', label: 'Transactions Ledger', icon: PlusCircle },
             { id: 'budgets', label: 'Envelope Budgets', icon: ShieldCheck },
+            { id: 'loans', label: 'Loans & Amortization', icon: Landmark },
             { id: 'goals', label: 'Savings Goals', icon: UserCheck },
             { id: 'members', label: 'Family Roster (RBAC)', icon: Users },
           ].map(tab => {

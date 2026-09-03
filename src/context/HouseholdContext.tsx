@@ -1,14 +1,19 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Household, HouseholdMember, Wallet, Category, Transaction, SavingsGoal, HouseholdRole } from '../types/database';
+import { 
+  Household, HouseholdMember, Wallet, Category, Transaction, SavingsGoal, 
+  Loan, RecurringTransfer, HouseholdRole 
+} from '../types/database';
 import { 
   initialHousehold, 
   initialMembers, 
   initialWallets, 
   initialCategories, 
   initialTransactions, 
-  initialSavingsGoals 
+  initialSavingsGoals,
+  initialLoans,
+  initialRecurringTransfers
 } from '../lib/supabase';
 
 interface HouseholdContextType {
@@ -19,9 +24,11 @@ interface HouseholdContextType {
   categories: Category[];
   transactions: Transaction[];
   savingsGoals: SavingsGoal[];
+  loans: Loan[];
+  recurringTransfers: RecurringTransfer[];
   isAdmin: boolean;
   
-  // Role & User Switching for live testing
+  // Role & User Switching
   switchMember: (memberId: string) => void;
   
   // Actions
@@ -33,6 +40,15 @@ interface HouseholdContextType {
   deleteTransaction: (id: string) => { success: boolean; error?: string };
   addSavingsGoal: (goal: { name: string; target_amount: number; target_date?: string }) => void;
   fundSavingsGoal: (goalId: string, amount: number, walletId: string) => { success: boolean; error?: string };
+  
+  // Loans Actions
+  addLoan: (loan: { name: string; lender: string; total_principal: number; interest_rate_annual: number; monthly_amortization: number; due_day_of_month: number }) => void;
+  payLoanAmortization: (loanId: string, amount: number, walletId: string) => { success: boolean; error?: string };
+  
+  // Recurring Transfers Actions
+  addRecurringTransfer: (rule: { source_wallet_id: string; destination_wallet_id: string; amount: number; frequency: RecurringTransfer['frequency']; note: string }) => void;
+  toggleRecurringTransfer: (id: string) => void;
+
   addMember: (displayName: string, role: HouseholdRole) => void;
   
   // Security Checks
@@ -45,15 +61,16 @@ const HouseholdContext = createContext<HouseholdContextType | undefined>(undefin
 export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [household] = useState<Household>(initialHousehold);
   const [members, setMembers] = useState<HouseholdMember[]>(initialMembers);
-  const [currentMember, setCurrentMember] = useState<HouseholdMember>(initialMembers[0]); // Default: Parent (Admin)
+  const [currentMember, setCurrentMember] = useState<HouseholdMember>(initialMembers[0]);
   const [wallets, setWallets] = useState<Wallet[]>(initialWallets);
   const [categories, setCategories] = useState<Category[]>(initialCategories);
   const [transactions, setTransactions] = useState<Transaction[]>(initialTransactions);
   const [savingsGoals, setSavingsGoals] = useState<SavingsGoal[]>(initialSavingsGoals);
+  const [loans, setLoans] = useState<Loan[]>(initialLoans);
+  const [recurringTransfers, setRecurringTransfers] = useState<RecurringTransfer[]>(initialRecurringTransfers);
 
   const isAdmin = currentMember.role === 'admin';
 
-  // Helper check: 24-hour edit limit for members, unlimited for admins
   const canEditTransaction = (tx: Transaction): boolean => {
     if (isAdmin) return true;
     if (tx.payer_id !== currentMember.id) return false;
@@ -126,17 +143,12 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     note?: string; 
     receipt_url?: string 
   }) => {
-    // Validate wallet ownership/access
     const sourceWallet = wallets.find(w => w.id === data.wallet_id);
     if (!sourceWallet) return { success: false, error: 'Source wallet not found' };
 
-    // Automatic Balance Updates
     let updatedWallets = [...wallets];
 
     if (data.type === 'expense') {
-      if (sourceWallet.current_balance < data.amount) {
-        // Warning allowed, but update balance
-      }
       updatedWallets = updatedWallets.map(w => w.id === data.wallet_id ? { ...w, current_balance: w.current_balance - data.amount } : w);
     } else if (data.type === 'income') {
       updatedWallets = updatedWallets.map(w => w.id === data.wallet_id ? { ...w, current_balance: w.current_balance + data.amount } : w);
@@ -198,7 +210,6 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       };
     }
 
-    // Reverse balance effect
     let updatedWallets = [...wallets];
     if (target.type === 'expense') {
       updatedWallets = updatedWallets.map(w => w.id === target.wallet_id ? { ...w, current_balance: w.current_balance + target.amount } : w);
@@ -241,11 +252,9 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       return { success: false, error: 'Insufficient funds in selected wallet' };
     }
 
-    // Deduct from wallet and add to goal
     setWallets(prev => prev.map(w => w.id === walletId ? { ...w, current_balance: w.current_balance - amount } : w));
     setSavingsGoals(prev => prev.map(g => g.id === goalId ? { ...g, current_amount: g.current_amount + amount } : g));
 
-    // Log as a goal funding transaction
     addTransaction({
       wallet_id: walletId,
       type: 'expense',
@@ -255,6 +264,79 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
 
     return { success: true };
+  };
+
+  const addLoan = (data: { name: string; lender: string; total_principal: number; interest_rate_annual: number; monthly_amortization: number; due_day_of_month: number }) => {
+    if (!isAdmin) {
+      alert("Only Household Admins can create loan records.");
+      return;
+    }
+    const newLoan: Loan = {
+      id: `loan-${Date.now()}`,
+      household_id: household.id,
+      name: data.name,
+      lender: data.lender,
+      total_principal: data.total_principal,
+      remaining_balance: data.total_principal,
+      interest_rate_annual: data.interest_rate_annual,
+      monthly_amortization: data.monthly_amortization,
+      due_day_of_month: data.due_day_of_month,
+      start_date: new Date().toISOString().split('T')[0],
+      created_at: new Date().toISOString(),
+    };
+    setLoans(prev => [...prev, newLoan]);
+  };
+
+  const payLoanAmortization = (loanId: string, amount: number, walletId: string) => {
+    const targetLoan = loans.find(l => l.id === loanId);
+    if (!targetLoan) return { success: false, error: 'Loan record not found' };
+
+    const sourceWallet = wallets.find(w => w.id === walletId);
+    if (!sourceWallet) return { success: false, error: 'Source wallet account not found' };
+
+    if (sourceWallet.current_balance < amount) {
+      return { success: false, error: 'Insufficient wallet balance for amortization payment' };
+    }
+
+    // Deduct from wallet & reduce loan principal balance
+    setWallets(prev => prev.map(w => w.id === walletId ? { ...w, current_balance: w.current_balance - amount } : w));
+    setLoans(prev => prev.map(l => l.id === loanId ? { ...l, remaining_balance: Math.max(0, l.remaining_balance - amount) } : l));
+
+    // Log as amortization expense transaction
+    addTransaction({
+      wallet_id: walletId,
+      type: 'expense',
+      amount: amount,
+      transaction_date: new Date().toISOString().split('T')[0],
+      note: `Amortization payment for: ${targetLoan.name} (${targetLoan.lender})`,
+    });
+
+    return { success: true };
+  };
+
+  const addRecurringTransfer = (data: { source_wallet_id: string; destination_wallet_id: string; amount: number; frequency: RecurringTransfer['frequency']; note: string }) => {
+    if (!isAdmin) {
+      alert("Only Household Admins can configure automated allowance rules.");
+      return;
+    }
+    const newRule: RecurringTransfer = {
+      id: `recurring-${Date.now()}`,
+      household_id: household.id,
+      source_wallet_id: data.source_wallet_id,
+      destination_wallet_id: data.destination_wallet_id,
+      amount: data.amount,
+      frequency: data.frequency,
+      next_run_date: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+      note: data.note,
+      is_active: true,
+      created_at: new Date().toISOString(),
+    };
+    setRecurringTransfers(prev => [...prev, newRule]);
+  };
+
+  const toggleRecurringTransfer = (id: string) => {
+    if (!isAdmin) return;
+    setRecurringTransfers(prev => prev.map(r => r.id === id ? { ...r, is_active: !r.is_active } : r));
   };
 
   const addMember = (displayName: string, role: HouseholdRole) => {
@@ -282,6 +364,8 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       categories,
       transactions,
       savingsGoals,
+      loans,
+      recurringTransfers,
       isAdmin,
       switchMember,
       addWallet,
@@ -292,6 +376,10 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       deleteTransaction,
       addSavingsGoal,
       fundSavingsGoal,
+      addLoan,
+      payLoanAmortization,
+      addRecurringTransfer,
+      toggleRecurringTransfer,
       addMember,
       canEditTransaction,
       canDeleteTransaction,

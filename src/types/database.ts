@@ -1,6 +1,7 @@
 export type HouseholdRole = 'admin' | 'member';
 export type WalletType = 'bank' | 'e_wallet' | 'cash';
 export type TransactionType = 'income' | 'expense' | 'transfer';
+export type RecurringFrequency = 'weekly' | 'biweekly' | 'monthly';
 
 export interface Household {
   id: string;
@@ -62,5 +63,32 @@ export interface SavingsGoal {
   target_amount: number;
   current_amount: number;
   target_date?: string | null;
+  created_at: string;
+}
+
+export interface Loan {
+  id: string;
+  household_id: string;
+  name: string;
+  lender: string;
+  total_principal: number;
+  remaining_balance: number;
+  interest_rate_annual: number;
+  monthly_amortization: number;
+  due_day_of_month: number;
+  start_date: string;
+  created_at: string;
+}
+
+export interface RecurringTransfer {
+  id: string;
+  household_id: string;
+  source_wallet_id: string;
+  destination_wallet_id: string;
+  amount: number;
+  frequency: RecurringFrequency;
+  next_run_date: string;
+  note: string;
+  is_active: boolean;
   created_at: string;
 }

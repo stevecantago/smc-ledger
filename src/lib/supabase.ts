@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { Household, HouseholdMember, Wallet, Category, Transaction, SavingsGoal } from '../types/database';
+import { Household, HouseholdMember, Wallet, Category, Transaction, SavingsGoal, Loan, RecurringTransfer } from '../types/database';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -81,7 +81,7 @@ export const initialWallets: Wallet[] = [
     owner_id: 'member-teen-1',
     name: 'Alex Allowance & Cash',
     wallet_type: 'cash',
-    is_shared: false, // Private to Alex / Admin view
+    is_shared: false,
     current_balance: 1450.00,
     created_at: new Date(Date.now() - 15 * 86400000).toISOString(),
   },
@@ -234,5 +234,49 @@ export const initialSavingsGoals: SavingsGoal[] = [
     current_amount: 37500.00,
     target_date: '2026-09-01',
     created_at: new Date(Date.now() - 15 * 86400000).toISOString(),
+  },
+];
+
+export const initialLoans: Loan[] = [
+  {
+    id: 'loan-housing',
+    household_id: 'hh-101',
+    name: 'BDO Housing Mortgage Loan',
+    lender: 'BDO Unibank',
+    total_principal: 2500000.00,
+    remaining_balance: 1850000.00,
+    interest_rate_annual: 6.5,
+    monthly_amortization: 22500.00,
+    due_day_of_month: 15,
+    start_date: '2022-01-15',
+    created_at: new Date(Date.now() - 30 * 86400000).toISOString(),
+  },
+  {
+    id: 'loan-car',
+    household_id: 'hh-101',
+    name: 'Toyota SUV Auto Financing',
+    lender: 'Toyota Financial Services',
+    total_principal: 950000.00,
+    remaining_balance: 420000.00,
+    interest_rate_annual: 7.2,
+    monthly_amortization: 16800.00,
+    due_day_of_month: 5,
+    start_date: '2023-06-05',
+    created_at: new Date(Date.now() - 30 * 86400000).toISOString(),
+  },
+];
+
+export const initialRecurringTransfers: RecurringTransfer[] = [
+  {
+    id: 'recurring-alex-allowance',
+    household_id: 'hh-101',
+    source_wallet_id: 'wallet-parent-ewallet',
+    destination_wallet_id: 'wallet-teen-cash',
+    amount: 1000.00,
+    frequency: 'weekly',
+    next_run_date: new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0],
+    note: 'Automated Weekly Allowance to Alex',
+    is_active: true,
+    created_at: new Date(Date.now() - 20 * 86400000).toISOString(),
   },
 ];

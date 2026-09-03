@@ -6,6 +6,7 @@ import { DashboardView } from '../src/components/DashboardView';
 import { WalletsView } from '../src/components/WalletsView';
 import { TransactionsView } from '../src/components/TransactionsView';
 import { BudgetsView } from '../src/components/BudgetsView';
+import { LoansView } from '../src/components/LoansView';
 import { SavingsGoalsView } from '../src/components/SavingsGoalsView';
 import { MembersView } from '../src/components/MembersView';
 
@@ -36,6 +37,7 @@ export default function Home() {
           />
         )}
         {activeTab === 'budgets' && <BudgetsView />}
+        {activeTab === 'loans' && <LoansView />}
         {activeTab === 'goals' && <SavingsGoalsView />}
         {activeTab === 'members' && <MembersView />}
       </main>
