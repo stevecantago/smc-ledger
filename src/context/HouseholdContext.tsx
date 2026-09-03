@@ -123,30 +123,51 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [loans, setLoans] = useState<Loan[]>(initialLoans);
   const [recurringTransfers, setRecurringTransfers] = useState<RecurringTransfer[]>(initialRecurringTransfers);
 
-  // 1. Initial Local Storage Hydration
+  // 1. Initial Local Storage Hydration with Non-Empty Guard
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
         const savedMembers = localStorage.getItem('smc_members');
-        if (savedMembers) setMembers(JSON.parse(savedMembers));
+        if (savedMembers) {
+          const parsed = JSON.parse(savedMembers);
+          if (Array.isArray(parsed) && parsed.length > 0) setMembers(parsed);
+        }
 
         const savedWallets = localStorage.getItem('smc_wallets');
-        if (savedWallets) setWallets(JSON.parse(savedWallets));
+        if (savedWallets) {
+          const parsed = JSON.parse(savedWallets);
+          if (Array.isArray(parsed) && parsed.length > 0) setWallets(parsed);
+        }
 
         const savedCategories = localStorage.getItem('smc_categories');
-        if (savedCategories) setCategories(JSON.parse(savedCategories));
+        if (savedCategories) {
+          const parsed = JSON.parse(savedCategories);
+          if (Array.isArray(parsed) && parsed.length > 0) setCategories(parsed);
+        }
 
         const savedTransactions = localStorage.getItem('smc_transactions');
-        if (savedTransactions) setTransactions(JSON.parse(savedTransactions));
+        if (savedTransactions) {
+          const parsed = JSON.parse(savedTransactions);
+          if (Array.isArray(parsed) && parsed.length > 0) setTransactions(parsed);
+        }
 
         const savedGoals = localStorage.getItem('smc_goals');
-        if (savedGoals) setSavingsGoals(JSON.parse(savedGoals));
+        if (savedGoals) {
+          const parsed = JSON.parse(savedGoals);
+          if (Array.isArray(parsed) && parsed.length > 0) setSavingsGoals(parsed);
+        }
 
         const savedLoans = localStorage.getItem('smc_loans');
-        if (savedLoans) setLoans(JSON.parse(savedLoans));
+        if (savedLoans) {
+          const parsed = JSON.parse(savedLoans);
+          if (Array.isArray(parsed) && parsed.length > 0) setLoans(parsed);
+        }
 
         const savedRecurring = localStorage.getItem('smc_recurring');
-        if (savedRecurring) setRecurringTransfers(JSON.parse(savedRecurring));
+        if (savedRecurring) {
+          const parsed = JSON.parse(savedRecurring);
+          if (Array.isArray(parsed) && parsed.length > 0) setRecurringTransfers(parsed);
+        }
 
         const storedEmail = localStorage.getItem('smc_authenticated_email');
         if (storedEmail) {
@@ -162,21 +183,21 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   }, []);
 
-  // 2. Persist State Changes to Local Storage
+  // 2. Persist State Changes to Local Storage Safely
   useEffect(() => {
-    if (isHydrated && typeof window !== 'undefined') {
+    if (isHydrated && typeof window !== 'undefined' && members.length > 0) {
       localStorage.setItem('smc_members', JSON.stringify(members));
     }
   }, [members, isHydrated]);
 
   useEffect(() => {
-    if (isHydrated && typeof window !== 'undefined') {
+    if (isHydrated && typeof window !== 'undefined' && wallets.length > 0) {
       localStorage.setItem('smc_wallets', JSON.stringify(wallets));
     }
   }, [wallets, isHydrated]);
 
   useEffect(() => {
-    if (isHydrated && typeof window !== 'undefined') {
+    if (isHydrated && typeof window !== 'undefined' && categories.length > 0) {
       localStorage.setItem('smc_categories', JSON.stringify(categories));
     }
   }, [categories, isHydrated]);
@@ -194,7 +215,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, [savingsGoals, isHydrated]);
 
   useEffect(() => {
-    if (isHydrated && typeof window !== 'undefined') {
+    if (isHydrated && typeof window !== 'undefined' && loans.length > 0) {
       localStorage.setItem('smc_loans', JSON.stringify(loans));
     }
   }, [loans, isHydrated]);
