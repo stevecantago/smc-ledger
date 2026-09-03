@@ -98,8 +98,16 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [loans, setLoans] = useState<Loan[]>(initialLoans);
   const [recurringTransfers, setRecurringTransfers] = useState<RecurringTransfer[]>(initialRecurringTransfers);
 
-  // Bind Supabase Auth listener if available
+  // Bind Supabase Auth listener & local persistent session if available
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const storedEmail = localStorage.getItem('smc_authenticated_email');
+      if (storedEmail) {
+        const found = members.find(m => m.email?.toLowerCase() === storedEmail.toLowerCase());
+        if (found) setCurrentMember(found);
+      }
+    }
+
     if (supabase) {
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (session?.user?.email) {

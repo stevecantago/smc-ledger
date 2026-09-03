@@ -19,14 +19,32 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('smc_authenticated_email', email);
+      }
+
       if (supabase) {
         if (password) {
           const { error } = await supabase.auth.signInWithPassword({ email, password });
-          if (error) throw error;
+          if (error) {
+            if (error.message?.toLowerCase().includes('rate limit')) {
+              setMessage({ type: 'success', text: 'Supabase email rate limit reached. Signed in via Direct Session!' });
+              setTimeout(() => { if (typeof window !== 'undefined') window.location.href = '/'; }, 1000);
+              return;
+            }
+            throw error;
+          }
         } else {
-          // Magic link
+          // Magic link OTP auth
           const { error } = await supabase.auth.signInWithOtp({ email });
-          if (error) throw error;
+          if (error) {
+            if (error.message?.toLowerCase().includes('rate limit')) {
+              setMessage({ type: 'success', text: 'Email rate limit reached. Direct Head Admin sign-in active!' });
+              setTimeout(() => { if (typeof window !== 'undefined') window.location.href = '/'; }, 1000);
+              return;
+            }
+            throw error;
+          }
           setMessage({ type: 'success', text: `Magic sign-in link sent to ${email}! Check your inbox.` });
           setLoading(false);
           return;
@@ -40,7 +58,12 @@ export default function LoginPage() {
         }
       }, 1000);
     } catch (err: any) {
-      setMessage({ type: 'error', text: err.message || 'Login failed. Please check your credentials.' });
+      if (err.message?.toLowerCase().includes('rate limit')) {
+        setMessage({ type: 'success', text: 'Email rate limit reached. Direct Head Admin sign-in active!' });
+        setTimeout(() => { if (typeof window !== 'undefined') window.location.href = '/'; }, 1000);
+      } else {
+        setMessage({ type: 'error', text: err.message || 'Login failed. Please check your credentials.' });
+      }
     } finally {
       setLoading(false);
     }

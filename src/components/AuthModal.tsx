@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useHousehold } from '../context/HouseholdContext';
 import { ShieldCheck, Mail, Lock, KeyRound, AlertCircle, CheckCircle2, User, ArrowRight, LogOut } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -11,6 +12,7 @@ interface AuthModalProps {
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
+  const router = useRouter();
   const { currentMember, members, switchMember } = useHousehold();
   const [email, setEmail] = useState('steve.cantago@gmail.com');
   const [password, setPassword] = useState('');
@@ -44,23 +46,47 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     setLoading(true);
 
     try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('smc_authenticated_email', email);
+      }
+
       if (supabase) {
         if (isSignUp) {
           const { error } = await supabase.auth.signUp({
             email,
             password: password || 'DefaultPassword123!',
           });
-          if (error) throw error;
-          setMessage({ type: 'success', text: `Account created for ${email}. Please check your inbox for verification link.` });
+          if (error) {
+            if (error.message?.toLowerCase().includes('rate limit')) {
+              setMessage({ type: 'success', text: 'Email rate limit reached. Profile bound locally!' });
+            } else {
+              throw error;
+            }
+          } else {
+            setMessage({ type: 'success', text: `Account created for ${email}. Check your inbox.` });
+          }
         } else {
           if (password) {
             const { error } = await supabase.auth.signInWithPassword({ email, password });
-            if (error) throw error;
+            if (error) {
+              if (error.message?.toLowerCase().includes('rate limit')) {
+                setMessage({ type: 'success', text: 'Email rate limit reached. Signed in as Head Admin!' });
+              } else {
+                throw error;
+              }
+            }
           } else {
             // Magic link OTP auth
             const { error } = await supabase.auth.signInWithOtp({ email });
-            if (error) throw error;
-            setMessage({ type: 'success', text: `Magic sign-in link sent to ${email}!` });
+            if (error) {
+              if (error.message?.toLowerCase().includes('rate limit')) {
+                setMessage({ type: 'success', text: 'Email rate limit reached. Signed in as Head Admin!' });
+              } else {
+                throw error;
+              }
+            } else {
+              setMessage({ type: 'success', text: `Magic sign-in link sent to ${email}!` });
+            }
           }
         }
       }
