@@ -32,8 +32,8 @@ interface HouseholdContextType {
   switchMember: (memberId: string) => void;
   
   // Wallets CRUD
-  addWallet: (wallet: { name: string; wallet_type: Wallet['wallet_type']; is_shared: boolean; owner_id?: string | null; initial_balance: number }) => void;
-  updateWallet: (id: string, updates: { name?: string; wallet_type?: Wallet['wallet_type']; current_balance?: number; is_shared?: boolean }) => { success: boolean; error?: string };
+  addWallet: (wallet: { name: string; wallet_type: Wallet['wallet_type']; is_shared: boolean; owner_id?: string | null; initial_balance: number; credit_limit?: number | null }) => void;
+  updateWallet: (id: string, updates: { name?: string; wallet_type?: Wallet['wallet_type']; current_balance?: number; credit_limit?: number | null; is_shared?: boolean }) => { success: boolean; error?: string };
   deleteWallet: (id: string) => { success: boolean; error?: string };
 
   // Categories CRUD
@@ -119,7 +119,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   // Wallets CRUD
-  const addWallet = (data: { name: string; wallet_type: Wallet['wallet_type']; is_shared: boolean; owner_id?: string | null; initial_balance: number }) => {
+  const addWallet = (data: { name: string; wallet_type: Wallet['wallet_type']; is_shared: boolean; owner_id?: string | null; initial_balance: number; credit_limit?: number | null }) => {
     if (!isAdmin && data.is_shared) {
       alert("Only Household Admins can create shared wallets.");
       return;
@@ -132,12 +132,13 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       wallet_type: data.wallet_type,
       is_shared: data.is_shared,
       current_balance: data.initial_balance,
+      credit_limit: data.credit_limit || null,
       created_at: new Date().toISOString(),
     };
     setWallets(prev => [...prev, newWallet]);
   };
 
-  const updateWallet = (id: string, updates: { name?: string; wallet_type?: Wallet['wallet_type']; current_balance?: number; is_shared?: boolean }) => {
+  const updateWallet = (id: string, updates: { name?: string; wallet_type?: Wallet['wallet_type']; current_balance?: number; credit_limit?: number | null; is_shared?: boolean }) => {
     if (!isAdmin) return { success: false, error: 'Only Household Admins can edit wallet accounts.' };
     setWallets(prev => prev.map(w => w.id === id ? { ...w, ...updates } : w));
     return { success: true };

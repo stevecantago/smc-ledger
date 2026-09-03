@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useHousehold } from '../context/HouseholdContext';
-import { Wallet as WalletIcon, Landmark, Smartphone, Banknote, Shield, Lock, Plus, ArrowRightLeft, Calendar, Power, Wifi, Clock, Edit2, Trash2, AlertCircle } from 'lucide-react';
+import { Wallet as WalletIcon, Landmark, Smartphone, Banknote, Shield, Lock, Plus, ArrowRightLeft, Calendar, Power, Wifi, Clock, Edit2, Trash2, CreditCard } from 'lucide-react';
 import { Wallet, WalletType, RecurringFrequency, RecurringRuleType } from '../types/database';
 import { CategoryIcon } from './CategoryIcon';
 
@@ -22,11 +22,13 @@ export const WalletsView: React.FC = () => {
   const [walletType, setWalletType] = useState<WalletType>('bank');
   const [isShared, setIsShared] = useState(isAdmin);
   const [initialBalance, setInitialBalance] = useState('');
+  const [creditLimit, setCreditLimit] = useState('');
 
   // Edit Wallet Form State
   const [editName, setEditName] = useState('');
   const [editType, setEditType] = useState<WalletType>('bank');
   const [editBalance, setEditBalance] = useState('');
+  const [editCreditLimit, setEditCreditLimit] = useState('');
   const [editIsShared, setEditIsShared] = useState(true);
 
   // Add Recurring Bill / Transfer Form State
@@ -51,10 +53,12 @@ export const WalletsView: React.FC = () => {
       is_shared: isAdmin ? isShared : false,
       owner_id: currentMember.id,
       initial_balance: parseFloat(initialBalance) || 0,
+      credit_limit: walletType === 'credit_card' ? (parseFloat(creditLimit) || 0) : null,
     });
 
     setName('');
     setInitialBalance('');
+    setCreditLimit('');
     setShowWalletModal(false);
   };
 
@@ -66,6 +70,7 @@ export const WalletsView: React.FC = () => {
       name: editName.trim(),
       wallet_type: editType,
       current_balance: parseFloat(editBalance) || 0,
+      credit_limit: editType === 'credit_card' ? (parseFloat(editCreditLimit) || 0) : null,
       is_shared: editIsShared,
     });
 
@@ -108,6 +113,7 @@ export const WalletsView: React.FC = () => {
       case 'bank': return <Landmark className="w-5 h-5 text-sky-400" />;
       case 'e_wallet': return <Smartphone className="w-5 h-5 text-indigo-400" />;
       case 'cash': return <Banknote className="w-5 h-5 text-emerald-400" />;
+      case 'credit_card': return <CreditCard className="w-5 h-5 text-purple-400" />;
     }
   };
 
@@ -132,10 +138,10 @@ export const WalletsView: React.FC = () => {
         <div>
           <h2 className="text-lg font-bold text-white flex items-center space-x-2">
             <WalletIcon className="w-5 h-5 text-sky-400" />
-            <span>Wallets & Accounts Management</span>
+            <span>Wallets, Accounts & Credit Lines</span>
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Parent/Admin full CRUD control over household bank accounts, balances, and recurring bills.
+            Track bank accounts, e-wallets, credit card credit lines (available credit vs used balance), and scheduled bills.
           </p>
         </div>
 
@@ -159,7 +165,7 @@ export const WalletsView: React.FC = () => {
             className="flex items-center space-x-2 bg-sky-600 hover:bg-sky-500 text-white px-4 py-2 rounded-lg font-medium text-xs transition-all shadow"
           >
             <Plus className="w-4 h-4" />
-            <span>+ Add Wallet Account</span>
+            <span>+ Add Account / Credit Line</span>
           </button>
         </div>
       </div>
@@ -168,10 +174,18 @@ export const WalletsView: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {visibleWallets.map(w => {
           const owner = members.find(m => m.id === w.owner_id);
+          const isCreditCard = w.wallet_type === 'credit_card';
+          const creditLimitVal = w.credit_limit || 0;
+          const usedBalance = w.current_balance;
+          const availableCredit = isCreditCard ? (creditLimitVal - usedBalance) : w.current_balance;
+          const utilPercent = (isCreditCard && creditLimitVal > 0) ? Math.min(Math.round((usedBalance / creditLimitVal) * 100), 100) : 0;
+
           return (
             <div 
               key={w.id} 
-              className="bg-slate-800/90 border border-slate-700/80 rounded-xl p-5 space-y-4 hover:border-slate-600 transition-all shadow-lg flex flex-col justify-between"
+              className={`bg-slate-800/90 border rounded-xl p-5 space-y-4 transition-all shadow-lg flex flex-col justify-between ${
+                isCreditCard ? 'border-purple-500/50 hover:border-purple-400' : 'border-slate-700/80 hover:border-slate-600'
+              }`}
             >
               <div className="space-y-4">
                 <div className="flex items-start justify-between">
@@ -198,21 +212,63 @@ export const WalletsView: React.FC = () => {
                   )}
                 </div>
 
-                <div className="pt-2 border-t border-slate-700/60 flex items-end justify-between">
-                  <div>
-                    <span className="text-[11px] text-slate-400">Current Balance</span>
-                    <div className="text-xl font-bold font-mono text-emerald-400">
-                      ₱{w.current_balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                {isCreditCard ? (
+                  /* Credit Card Credit Line Card Details */
+                  <div className="space-y-2 pt-2 border-t border-slate-700/60 font-mono">
+                    <div className="flex justify-between items-baseline text-xs">
+                      <span className="text-slate-400">Available Credit Line:</span>
+                      <span className="font-bold text-emerald-400 text-base">
+                        ₱{availableCredit.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[11px] bg-slate-900/60 p-2.5 rounded-lg border border-slate-700/50">
+                      <div>
+                        <span className="text-slate-400">Total Credit Line:</span>
+                        <p className="font-semibold text-white">₱{creditLimitVal.toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">Used Statement Balance:</span>
+                        <p className="font-bold text-rose-400">₱{usedBalance.toLocaleString()}</p>
+                      </div>
+                    </div>
+
+                    {/* Credit Line Meter */}
+                    <div className="space-y-1 pt-1">
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-slate-400">Credit Line Utilization</span>
+                        <span className={utilPercent > 80 ? 'text-rose-400 font-bold' : 'text-purple-300 font-medium'}>
+                          {utilPercent}% Used
+                        </span>
+                      </div>
+                      <div className="w-full h-2 rounded-full bg-slate-900 overflow-hidden">
+                        <div 
+                          className={`h-full rounded-full transition-all ${
+                            utilPercent > 80 ? 'bg-rose-500' : 'bg-gradient-to-r from-purple-500 to-indigo-400'
+                          }`}
+                          style={{ width: `${utilPercent}%` }}
+                        />
+                      </div>
                     </div>
                   </div>
+                ) : (
+                  /* Standard Bank / Cash / E-Wallet Balance Card */
+                  <div className="pt-2 border-t border-slate-700/60 flex items-end justify-between">
+                    <div>
+                      <span className="text-[11px] text-slate-400">Current Balance</span>
+                      <div className="text-xl font-bold font-mono text-emerald-400">
+                        ₱{w.current_balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </div>
+                    </div>
 
-                  <div className="text-right">
-                    <span className="text-[10px] text-slate-400">Account Owner</span>
-                    <p className="text-xs font-semibold text-slate-300">
-                      {owner?.display_name || 'Household'}
-                    </p>
+                    <div className="text-right">
+                      <span className="text-[10px] text-slate-400">Account Owner</span>
+                      <p className="text-xs font-semibold text-slate-300">
+                        {owner?.display_name || 'Household'}
+                      </p>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Admin Actions */}
@@ -224,6 +280,7 @@ export const WalletsView: React.FC = () => {
                       setEditName(w.name);
                       setEditType(w.wallet_type);
                       setEditBalance(w.current_balance.toString());
+                      setEditCreditLimit((w.credit_limit || 0).toString());
                       setEditIsShared(w.is_shared);
                     }}
                     title="Edit Wallet Details"
@@ -343,13 +400,13 @@ export const WalletsView: React.FC = () => {
         </div>
       </div>
 
-      {/* Add Wallet Modal */}
+      {/* Add Wallet / Credit Line Modal */}
       {showWalletModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6 space-y-5 shadow-2xl">
             <h3 className="text-base font-bold text-white flex items-center space-x-2">
               <WalletIcon className="w-5 h-5 text-sky-400" />
-              <span>Create New Wallet Account</span>
+              <span>Create New Wallet Account or Credit Line</span>
             </h3>
 
             <form onSubmit={handleWalletSubmit} className="space-y-4">
@@ -358,7 +415,7 @@ export const WalletsView: React.FC = () => {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. BDO Checking, GCash, Maya, Cash Pocket"
+                  placeholder="e.g. BDO Platinum Visa, BPI Checking, GCash"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
@@ -373,22 +430,52 @@ export const WalletsView: React.FC = () => {
                   className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
                 >
                   <option value="bank">Bank Account (BDO / BPI / Metrobank / UnionBank)</option>
+                  <option value="credit_card">Credit Card / Credit Line (Visa / Mastercard / Amex)</option>
                   <option value="e_wallet">E-Wallet (GCash / Maya / GrabPay)</option>
                   <option value="cash">Physical Cash / Allowance</option>
                 </select>
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Initial Opening Balance (₱ PHP)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={initialBalance}
-                  onChange={(e) => setInitialBalance(e.target.value)}
-                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
-                />
-              </div>
+              {walletType === 'credit_card' ? (
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-300 mb-1">Approved Credit Line Limit (₱ PHP)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      required
+                      placeholder="150000.00"
+                      value={creditLimit}
+                      onChange={(e) => setCreditLimit(e.target.value)}
+                      className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold text-emerald-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-300 mb-1">Currently Used Statement Balance (₱ PHP)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={initialBalance}
+                      onChange={(e) => setInitialBalance(e.target.value)}
+                      className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold text-rose-400"
+                    />
+                  </div>
+                </>
+              ) : (
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Initial Opening Balance (₱ PHP)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={initialBalance}
+                    onChange={(e) => setInitialBalance(e.target.value)}
+                    className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
+                  />
+                </div>
+              )}
 
               {isAdmin && (
                 <div className="flex items-center space-x-2 pt-2">
@@ -400,7 +487,7 @@ export const WalletsView: React.FC = () => {
                     className="w-4 h-4 rounded border-slate-700 text-sky-600 focus:ring-sky-500 bg-slate-800 cursor-pointer"
                   />
                   <label htmlFor="isSharedCheck" className="text-xs text-slate-300 cursor-pointer">
-                    Share with all household members (Shared Wallet)
+                    Share with all household members (Shared Account)
                   </label>
                 </div>
               )}
@@ -417,7 +504,7 @@ export const WalletsView: React.FC = () => {
                   type="submit"
                   className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold rounded-lg transition-all shadow"
                 >
-                  Create Wallet
+                  Create Account
                 </button>
               </div>
             </form>
@@ -425,11 +512,11 @@ export const WalletsView: React.FC = () => {
         </div>
       )}
 
-      {/* Edit Wallet Modal */}
+      {/* Edit Wallet / Credit Line Modal */}
       {editingWallet && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6 space-y-5 shadow-2xl">
-            <h3 className="text-base font-bold text-white">Edit Wallet Account: {editingWallet.name}</h3>
+            <h3 className="text-base font-bold text-white">Edit Account: {editingWallet.name}</h3>
 
             <form onSubmit={handleEditWalletSubmit} className="space-y-4">
               <div>
@@ -451,22 +538,51 @@ export const WalletsView: React.FC = () => {
                   className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
                 >
                   <option value="bank">Bank Account</option>
+                  <option value="credit_card">Credit Card / Credit Line</option>
                   <option value="e_wallet">E-Wallet</option>
                   <option value="cash">Physical Cash</option>
                 </select>
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Current Balance (₱ PHP)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  required
-                  value={editBalance}
-                  onChange={(e) => setEditBalance(e.target.value)}
-                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
-                />
-              </div>
+              {editType === 'credit_card' ? (
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-300 mb-1">Approved Credit Limit Line (₱ PHP)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      required
+                      value={editCreditLimit}
+                      onChange={(e) => setEditCreditLimit(e.target.value)}
+                      className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold text-emerald-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-300 mb-1">Used Statement Balance (₱ PHP)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      required
+                      value={editBalance}
+                      onChange={(e) => setEditBalance(e.target.value)}
+                      className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold text-rose-400"
+                    />
+                  </div>
+                </>
+              ) : (
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Current Balance (₱ PHP)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    value={editBalance}
+                    onChange={(e) => setEditBalance(e.target.value)}
+                    className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
+                  />
+                </div>
+              )}
 
               <div className="flex items-center space-x-2 pt-2">
                 <input
@@ -493,7 +609,7 @@ export const WalletsView: React.FC = () => {
                   type="submit"
                   className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg transition-all shadow"
                 >
-                  Save Wallet Changes
+                  Save Account Changes
                 </button>
               </div>
             </form>

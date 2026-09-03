@@ -1,5 +1,5 @@
 export type HouseholdRole = 'admin' | 'member';
-export type WalletType = 'bank' | 'e_wallet' | 'cash';
+export type WalletType = 'bank' | 'e_wallet' | 'cash' | 'credit_card';
 export type TransactionType = 'income' | 'expense' | 'transfer';
 export type RecurringFrequency = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'semi_annual' | 'annual' | 'custom_days';
 export type RecurringRuleType = 'transfer' | 'expense';
@@ -29,7 +29,8 @@ export interface Wallet {
   name: string;
   wallet_type: WalletType;
   is_shared: boolean;
-  current_balance: number;
+  current_balance: number; // For credit_card, this is used/outstanding balance
+  credit_limit?: number | null; // Approved credit limit line (e.g. 150000.00)
   created_at: string;
 }
 
