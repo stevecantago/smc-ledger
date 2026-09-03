@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { 
   Household, HouseholdMember, Wallet, Category, Transaction, SavingsGoal, 
-  Loan, RecurringTransfer, HouseholdRole, RecurringRuleType, RecurringFrequency 
+  Loan, RecurringTransfer, HouseholdRole, RecurringRuleType, RecurringFrequency, LoanPaymentFrequency 
 } from '../types/database';
 import { 
   initialHousehold, 
@@ -55,8 +55,8 @@ interface HouseholdContextType {
   fundSavingsGoal: (goalId: string, amount: number, walletId: string) => { success: boolean; error?: string };
   
   // Loans CRUD
-  addLoan: (loan: { name: string; lender: string; total_principal: number; interest_rate_annual: number; monthly_amortization: number; due_day_of_month: number }) => void;
-  updateLoan: (id: string, updates: { name?: string; lender?: string; total_principal?: number; remaining_balance?: number; interest_rate_annual?: number; monthly_amortization?: number; due_day_of_month?: number }) => { success: boolean; error?: string };
+  addLoan: (loan: { name: string; lender: string; total_principal: number; interest_rate_annual: number; monthly_amortization: number; payment_frequency?: LoanPaymentFrequency; due_day_of_month: number; second_due_day_of_month?: number | null }) => void;
+  updateLoan: (id: string, updates: { name?: string; lender?: string; total_principal?: number; remaining_balance?: number; interest_rate_annual?: number; monthly_amortization?: number; payment_frequency?: LoanPaymentFrequency; due_day_of_month?: number; second_due_day_of_month?: number | null }) => { success: boolean; error?: string };
   deleteLoan: (id: string) => { success: boolean; error?: string };
   payLoanAmortization: (loanId: string, amount: number, walletId: string) => { success: boolean; error?: string };
   
@@ -451,7 +451,16 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   // Loans CRUD
-  const addLoan = (data: { name: string; lender: string; total_principal: number; interest_rate_annual: number; monthly_amortization: number; due_day_of_month: number }) => {
+  const addLoan = (data: { 
+    name: string; 
+    lender: string; 
+    total_principal: number; 
+    interest_rate_annual: number; 
+    monthly_amortization: number; 
+    payment_frequency?: LoanPaymentFrequency;
+    due_day_of_month: number;
+    second_due_day_of_month?: number | null;
+  }) => {
     if (!isAdmin) {
       alert("Only Household Parents/Admins can create loan records.");
       return;
@@ -465,14 +474,26 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       remaining_balance: data.total_principal,
       interest_rate_annual: data.interest_rate_annual,
       monthly_amortization: data.monthly_amortization,
+      payment_frequency: data.payment_frequency || 'monthly',
       due_day_of_month: data.due_day_of_month,
+      second_due_day_of_month: data.second_due_day_of_month || null,
       start_date: new Date().toISOString().split('T')[0],
       created_at: new Date().toISOString(),
     };
     setLoans(prev => [...prev, newLoan]);
   };
 
-  const updateLoan = (id: string, updates: { name?: string; lender?: string; total_principal?: number; remaining_balance?: number; interest_rate_annual?: number; monthly_amortization?: number; due_day_of_month?: number }) => {
+  const updateLoan = (id: string, updates: { 
+    name?: string; 
+    lender?: string; 
+    total_principal?: number; 
+    remaining_balance?: number; 
+    interest_rate_annual?: number; 
+    monthly_amortization?: number; 
+    payment_frequency?: LoanPaymentFrequency;
+    due_day_of_month?: number;
+    second_due_day_of_month?: number | null;
+  }) => {
     if (!isAdmin) return { success: false, error: 'Only Household Parents/Admins can edit loan records.' };
     setLoans(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l));
     return { success: true };

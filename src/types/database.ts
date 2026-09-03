@@ -3,6 +3,7 @@ export type WalletType = 'bank' | 'e_wallet' | 'cash' | 'credit_card';
 export type TransactionType = 'income' | 'expense' | 'transfer';
 export type RecurringFrequency = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'semi_annual' | 'annual' | 'custom_days';
 export type RecurringRuleType = 'transfer' | 'expense';
+export type LoanPaymentFrequency = 'monthly' | 'bi_monthly';
 
 export interface Household {
   id: string;
@@ -79,7 +80,9 @@ export interface Loan {
   remaining_balance: number;
   interest_rate_annual: number;
   monthly_amortization: number;
+  payment_frequency?: LoanPaymentFrequency;
   due_day_of_month: number;
+  second_due_day_of_month?: number | null; // e.g. Day 30 for 15th & 30th bi-monthly schedule
   start_date: string;
   created_at: string;
 }
