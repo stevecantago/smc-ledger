@@ -53,6 +53,7 @@ interface HouseholdContextType {
     category_id?: string | null;
     amount: number; 
     frequency: RecurringFrequency; 
+    custom_interval_days?: number | null;
     note: string 
   }) => void;
   toggleRecurringTransfer: (id: string) => void;
@@ -320,6 +321,20 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return { success: true };
   };
 
+  const getDaysOffset = (freq: RecurringFrequency, customDays?: number | null): number => {
+    switch (freq) {
+      case 'daily': return 1;
+      case 'weekly': return 7;
+      case 'biweekly': return 14;
+      case 'monthly': return 30;
+      case 'quarterly': return 90;
+      case 'semi_annual': return 180;
+      case 'annual': return 365;
+      case 'custom_days': return customDays || 1;
+      default: return 30;
+    }
+  };
+
   const addRecurringTransfer = (data: { 
     rule_type: RecurringRuleType;
     source_wallet_id: string; 
@@ -327,12 +342,14 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     category_id?: string | null;
     amount: number; 
     frequency: RecurringFrequency; 
+    custom_interval_days?: number | null;
     note: string 
   }) => {
     if (!isAdmin) {
       alert("Only Household Admins can configure recurring bill & transfer rules.");
       return;
     }
+    const daysOffset = getDaysOffset(data.frequency, data.custom_interval_days);
     const newRule: RecurringTransfer = {
       id: `recurring-${Date.now()}`,
       household_id: household.id,
@@ -342,7 +359,8 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       category_id: data.category_id || null,
       amount: data.amount,
       frequency: data.frequency,
-      next_run_date: new Date(Date.now() + (data.frequency === 'weekly' ? 7 : 30) * 86400000).toISOString().split('T')[0],
+      custom_interval_days: data.custom_interval_days || null,
+      next_run_date: new Date(Date.now() + daysOffset * 86400000).toISOString().split('T')[0],
       note: data.note,
       is_active: true,
       created_at: new Date().toISOString(),

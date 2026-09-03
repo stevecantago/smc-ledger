@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useHousehold } from '../context/HouseholdContext';
-import { Wallet as WalletIcon, Landmark, Smartphone, Banknote, Shield, Lock, Plus, ArrowRightLeft, Calendar, Power, Wifi, Receipt } from 'lucide-react';
+import { Wallet as WalletIcon, Landmark, Smartphone, Banknote, Shield, Lock, Plus, ArrowRightLeft, Calendar, Power, Wifi, Clock } from 'lucide-react';
 import { WalletType, RecurringFrequency, RecurringRuleType } from '../types/database';
 import { CategoryIcon } from './CategoryIcon';
 
@@ -28,6 +28,7 @@ export const WalletsView: React.FC = () => {
   const [categoryId, setCategoryId] = useState(categories[0]?.id || '');
   const [transferAmount, setTransferAmount] = useState('');
   const [frequency, setFrequency] = useState<RecurringFrequency>('monthly');
+  const [customDays, setCustomDays] = useState('10');
   const [transferNote, setTransferNote] = useState('');
 
   const visibleWallets = wallets.filter(w => isAdmin || w.is_shared || w.owner_id === currentMember.id);
@@ -60,6 +61,7 @@ export const WalletsView: React.FC = () => {
       category_id: ruleType === 'expense' ? categoryId : null,
       amount: parseFloat(transferAmount) || 0,
       frequency: frequency,
+      custom_interval_days: frequency === 'custom_days' ? (parseInt(customDays) || 1) : null,
       note: transferNote.trim() || (ruleType === 'expense' ? 'Recurring Bill Payment' : 'Automated Allowance Transfer'),
     });
 
@@ -76,6 +78,20 @@ export const WalletsView: React.FC = () => {
     }
   };
 
+  const formatFrequencyLabel = (freq: RecurringFrequency, customInterval?: number | null) => {
+    switch (freq) {
+      case 'daily': return 'Daily';
+      case 'weekly': return 'Weekly';
+      case 'biweekly': return 'Bi-Weekly';
+      case 'monthly': return 'Monthly';
+      case 'quarterly': return 'Quarterly (Every 3 mos)';
+      case 'semi_annual': return 'Semi-Annual (Every 6 mos)';
+      case 'annual': return 'Annually (Every 1 yr)';
+      case 'custom_days': return `Every ${customInterval || 1} Days`;
+      default: return freq;
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header Bar */}
@@ -83,10 +99,10 @@ export const WalletsView: React.FC = () => {
         <div>
           <h2 className="text-lg font-bold text-white flex items-center space-x-2">
             <WalletIcon className="w-5 h-5 text-sky-400" />
-            <span>Wallets & Recurring Bills Management</span>
+            <span>Wallets & Recurring Schedules</span>
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Track bank accounts, e-wallets, personal cash funds, and scheduled recurring bills (Internet, Utilities, Allowance).
+            Track bank accounts, e-wallets, personal cash funds, and scheduled bills (Daily, Weekly, Monthly, Quarterly, Semi-Annual, Annual).
           </p>
         </div>
 
@@ -100,8 +116,8 @@ export const WalletsView: React.FC = () => {
               }}
               className="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-2 rounded-lg font-medium text-xs transition-all shadow"
             >
-              <Wifi className="w-4 h-4" />
-              <span>+ Schedule Recurring Bill / Allowance</span>
+              <Clock className="w-4 h-4" />
+              <span>+ Schedule Recurring Bill / Transfer</span>
             </button>
           )}
 
@@ -173,10 +189,10 @@ export const WalletsView: React.FC = () => {
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-sm font-bold text-white flex items-center space-x-2">
-              <Wifi className="w-4 h-4 text-indigo-400" />
+              <Clock className="w-4 h-4 text-indigo-400" />
               <span>Automated Recurring Bills & Transfers Schedule</span>
             </h3>
-            <p className="text-xs text-slate-400">Manage recurring Internet broadband bills, subscriptions, water, electric, and automated allowance transfers</p>
+            <p className="text-xs text-slate-400">Manage recurring Internet bills, School Dues, Water, Electric, Subscriptions, and Allowance rules</p>
           </div>
           {isAdmin && (
             <button
@@ -211,7 +227,7 @@ export const WalletsView: React.FC = () => {
                       <h4 className="font-semibold text-sm text-white">{rule.note}</h4>
                       <p className="text-xs text-slate-400 flex items-center mt-0.5">
                         {rule.rule_type === 'expense' ? (
-                          <span>Payer Wallet: <strong className="text-slate-200">{src?.name}</strong> ➔ Envelope: <strong className="text-sky-400">{cat?.name || 'General'}</strong></span>
+                          <span>Payer: <strong className="text-slate-200">{src?.name}</strong> ➔ Envelope: <strong className="text-sky-400">{cat?.name || 'General'}</strong></span>
                         ) : (
                           <span>{src?.name} <strong className="text-indigo-400">➔</strong> {dst?.name}</span>
                         )}
@@ -232,7 +248,9 @@ export const WalletsView: React.FC = () => {
                   <div>
                     <span className="text-slate-400">Amount: </span>
                     <span className="font-bold text-emerald-400 font-mono">₱{rule.amount.toFixed(2)}</span>
-                    <span className="text-slate-500"> ({rule.frequency})</span>
+                    <span className="text-sky-300 font-medium ml-1 font-mono">
+                      ({formatFrequencyLabel(rule.frequency, rule.custom_interval_days)})
+                    </span>
                     <p className="text-[10px] text-slate-500 flex items-center mt-0.5">
                       <Calendar className="w-3 h-3 mr-1 text-amber-400" /> Next Due: {rule.next_run_date}
                     </p>
@@ -346,7 +364,7 @@ export const WalletsView: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6 space-y-5 shadow-2xl">
             <h3 className="text-base font-bold text-white flex items-center space-x-2">
-              <Wifi className="w-5 h-5 text-indigo-400" />
+              <Clock className="w-5 h-5 text-indigo-400" />
               <span>Schedule Recurring Bill or Allowance</span>
             </h3>
 
@@ -364,7 +382,7 @@ export const WalletsView: React.FC = () => {
                         : 'bg-slate-800 text-slate-400 border-slate-700'
                     }`}
                   >
-                    Recurring Bill (Internet / Utilities)
+                    Recurring Bill (Internet / School Dues)
                   </button>
                   <button
                     type="button"
@@ -447,6 +465,7 @@ export const WalletsView: React.FC = () => {
                     className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
                   />
                 </div>
+
                 <div>
                   <label className="block text-xs font-medium text-slate-300 mb-1">Frequency</label>
                   <select
@@ -454,12 +473,34 @@ export const WalletsView: React.FC = () => {
                     onChange={(e) => setFrequency(e.target.value as RecurringFrequency)}
                     className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
                   >
-                    <option value="monthly">Monthly</option>
+                    <option value="daily">Daily</option>
                     <option value="weekly">Weekly</option>
                     <option value="biweekly">Bi-Weekly</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="quarterly">Quarterly (Every 3 Mos)</option>
+                    <option value="semi_annual">Semi-Annual (Every 6 Mos)</option>
+                    <option value="annual">Annually (Every 1 Year)</option>
+                    <option value="custom_days">Custom (Every N Days)</option>
                   </select>
                 </div>
               </div>
+
+              {/* Custom Interval Days Input */}
+              {frequency === 'custom_days' && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Repeat Every (N Days)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="365"
+                    required
+                    placeholder="10"
+                    value={customDays}
+                    onChange={(e) => setCustomDays(e.target.value)}
+                    className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
+                  />
+                </div>
+              )}
 
               <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-800">
                 <button
