@@ -88,8 +88,9 @@ const HouseholdContext = createContext<HouseholdContextType | undefined>(undefin
 
 export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [household] = useState<Household>(initialHousehold);
+  const [isHydrated, setIsHydrated] = useState(false);
+
   const [members, setMembers] = useState<HouseholdMember[]>(initialMembers);
-  // Default active profile: Steve Cantago (steve.cantago@gmail.com)
   const [currentMember, setCurrentMember] = useState<HouseholdMember>(initialMembers[0]);
   const [wallets, setWallets] = useState<Wallet[]>(initialWallets);
   const [categories, setCategories] = useState<Category[]>(initialCategories);
@@ -98,16 +99,90 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [loans, setLoans] = useState<Loan[]>(initialLoans);
   const [recurringTransfers, setRecurringTransfers] = useState<RecurringTransfer[]>(initialRecurringTransfers);
 
-  // Bind Supabase Auth listener & local persistent session if available
+  // 1. Initial Local Storage Hydration
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const storedEmail = localStorage.getItem('smc_authenticated_email');
-      if (storedEmail) {
-        const found = members.find(m => m.email?.toLowerCase() === storedEmail.toLowerCase());
-        if (found) setCurrentMember(found);
+      try {
+        const savedMembers = localStorage.getItem('smc_members');
+        if (savedMembers) setMembers(JSON.parse(savedMembers));
+
+        const savedWallets = localStorage.getItem('smc_wallets');
+        if (savedWallets) setWallets(JSON.parse(savedWallets));
+
+        const savedCategories = localStorage.getItem('smc_categories');
+        if (savedCategories) setCategories(JSON.parse(savedCategories));
+
+        const savedTransactions = localStorage.getItem('smc_transactions');
+        if (savedTransactions) setTransactions(JSON.parse(savedTransactions));
+
+        const savedGoals = localStorage.getItem('smc_goals');
+        if (savedGoals) setSavingsGoals(JSON.parse(savedGoals));
+
+        const savedLoans = localStorage.getItem('smc_loans');
+        if (savedLoans) setLoans(JSON.parse(savedLoans));
+
+        const savedRecurring = localStorage.getItem('smc_recurring');
+        if (savedRecurring) setRecurringTransfers(JSON.parse(savedRecurring));
+
+        const storedEmail = localStorage.getItem('smc_authenticated_email');
+        if (storedEmail) {
+          const mList = savedMembers ? JSON.parse(savedMembers) : initialMembers;
+          const found = mList.find((m: HouseholdMember) => m.email?.toLowerCase() === storedEmail.toLowerCase());
+          if (found) setCurrentMember(found);
+        }
+      } catch (err) {
+        console.error('Error loading persistent local storage state:', err);
+      } finally {
+        setIsHydrated(true);
       }
     }
+  }, []);
 
+  // 2. Persist State Changes to Local Storage
+  useEffect(() => {
+    if (isHydrated && typeof window !== 'undefined') {
+      localStorage.setItem('smc_members', JSON.stringify(members));
+    }
+  }, [members, isHydrated]);
+
+  useEffect(() => {
+    if (isHydrated && typeof window !== 'undefined') {
+      localStorage.setItem('smc_wallets', JSON.stringify(wallets));
+    }
+  }, [wallets, isHydrated]);
+
+  useEffect(() => {
+    if (isHydrated && typeof window !== 'undefined') {
+      localStorage.setItem('smc_categories', JSON.stringify(categories));
+    }
+  }, [categories, isHydrated]);
+
+  useEffect(() => {
+    if (isHydrated && typeof window !== 'undefined') {
+      localStorage.setItem('smc_transactions', JSON.stringify(transactions));
+    }
+  }, [transactions, isHydrated]);
+
+  useEffect(() => {
+    if (isHydrated && typeof window !== 'undefined') {
+      localStorage.setItem('smc_goals', JSON.stringify(savingsGoals));
+    }
+  }, [savingsGoals, isHydrated]);
+
+  useEffect(() => {
+    if (isHydrated && typeof window !== 'undefined') {
+      localStorage.setItem('smc_loans', JSON.stringify(loans));
+    }
+  }, [loans, isHydrated]);
+
+  useEffect(() => {
+    if (isHydrated && typeof window !== 'undefined') {
+      localStorage.setItem('smc_recurring', JSON.stringify(recurringTransfers));
+    }
+  }, [recurringTransfers, isHydrated]);
+
+  // Bind Supabase Auth listener
+  useEffect(() => {
     if (supabase) {
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (session?.user?.email) {

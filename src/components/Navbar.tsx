@@ -46,11 +46,12 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
         await supabase.auth.signOut();
       }
       if (typeof window !== 'undefined') {
-        window.localStorage.clear();
+        localStorage.removeItem('smc_authenticated_email');
         window.location.href = '/login';
       }
     } catch (err) {
       if (typeof window !== 'undefined') {
+        localStorage.removeItem('smc_authenticated_email');
         window.location.href = '/login';
       }
     }
