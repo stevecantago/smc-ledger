@@ -52,7 +52,6 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
     const file = e.target.files?.[0];
     if (file) {
       setReceiptFileName(file.name);
-      // Create local object URL for instant preview
       const previewUrl = URL.createObjectURL(file);
       setReceiptUrl(previewUrl);
     }
@@ -119,22 +118,22 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-800/80 border border-slate-700/70 p-5 rounded-xl">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 bg-slate-800/80 border border-slate-700/70 p-4 sm:p-5 rounded-xl">
         <div>
-          <h2 className="text-lg font-bold text-white flex items-center space-x-2">
-            <span>Household Transactions Ledger</span>
+          <h2 className="text-base sm:text-lg font-bold text-white flex items-center space-x-2">
+            <span>Transactions Ledger</span>
           </h2>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-slate-400 mt-0.5">
             Real-time multi-account audit log with payer attribution and RBAC 24-hour edit window enforcement.
           </p>
         </div>
 
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2 sm:space-x-3 w-full sm:w-auto justify-end">
           <button
             onClick={handleExportCsv}
-            className="flex items-center space-x-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3.5 py-2 rounded-lg font-medium text-xs transition-all shadow"
+            className="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-2 rounded-lg font-medium text-xs transition-all shadow"
             title="Export filtered transaction ledger to CSV file"
           >
             <Download className="w-4 h-4 text-emerald-400" />
@@ -147,7 +146,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
               if (visibleWallets.length > 0) setWalletId(visibleWallets[0].id);
               setShowModal(true);
             }}
-            className="flex items-center space-x-2 bg-sky-600 hover:bg-sky-500 text-white px-4 py-2 rounded-lg font-medium text-xs transition-all shadow"
+            className="flex items-center space-x-1.5 bg-sky-600 hover:bg-sky-500 text-white px-3.5 py-2 rounded-lg font-medium text-xs transition-all shadow shrink-0"
           >
             <Plus className="w-4 h-4" />
             <span>+ Log Transaction</span>
@@ -156,13 +155,13 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
       </div>
 
       {/* Filter Controls Bar */}
-      <div className="bg-slate-800/60 border border-slate-700/60 p-4 rounded-xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="bg-slate-800/60 border border-slate-700/60 p-3 sm:p-4 rounded-xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
         {/* Search */}
         <div className="relative">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
           <input
             type="text"
-            placeholder="Search note or description..."
+            placeholder="Search note..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full bg-slate-900 text-xs text-white pl-9 pr-3 py-2.5 rounded-lg border border-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500"
@@ -175,7 +174,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
           onChange={(e) => setTypeFilter(e.target.value)}
           className="bg-slate-900 text-xs text-white px-3 py-2.5 rounded-lg border border-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500"
         >
-          <option value="all">All Transaction Types</option>
+          <option value="all">All Types</option>
           <option value="expense">Expenses Only (-)</option>
           <option value="income">Incomes Only (+)</option>
           <option value="transfer">Transfers Only (➔)</option>
@@ -187,7 +186,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
           onChange={(e) => setPayerFilter(e.target.value)}
           className="bg-slate-900 text-xs text-white px-3 py-2.5 rounded-lg border border-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500"
         >
-          <option value="all">All Household Payers</option>
+          <option value="all">All Payers</option>
           {members.map(m => (
             <option key={m.id} value={m.id}>{m.display_name}</option>
           ))}
@@ -199,15 +198,98 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
           onChange={(e) => setCategoryFilter(e.target.value)}
           className="bg-slate-900 text-xs text-white px-3 py-2.5 rounded-lg border border-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500"
         >
-          <option value="all">All Budget Categories</option>
+          <option value="all">All Categories</option>
           {categories.map(c => (
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
         </select>
       </div>
 
-      {/* Ledger Table */}
-      <div className="bg-slate-800/80 border border-slate-700/70 rounded-xl overflow-hidden shadow-lg">
+      {/* Mobile Touch Cards View (visible on < md screens) */}
+      <div className="md:hidden space-y-3">
+        {filteredTx.length === 0 ? (
+          <div className="bg-slate-800/80 border border-slate-700 p-6 text-center text-slate-400 text-xs rounded-xl">
+            No transactions match your search filters.
+          </div>
+        ) : (
+          filteredTx.map(tx => {
+            const payer = members.find(m => m.id === tx.payer_id);
+            const wallet = wallets.find(w => w.id === tx.wallet_id);
+            const destWallet = tx.destination_wallet_id ? wallets.find(w => w.id === tx.destination_wallet_id) : null;
+            const category = categories.find(c => c.id === tx.category_id);
+            const editable = canEditTransaction(tx);
+
+            return (
+              <div key={tx.id} className="bg-slate-800/90 border border-slate-700/80 p-4 rounded-xl space-y-3 shadow">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center space-x-2">
+                    <span className={`p-2 rounded-lg text-xs font-bold ${
+                      tx.type === 'expense' ? 'bg-rose-500/10 text-rose-400' :
+                      tx.type === 'income' ? 'bg-emerald-500/10 text-emerald-400' :
+                      'bg-indigo-500/10 text-indigo-400'
+                    }`}>
+                      {tx.type === 'expense' ? <TrendingDown className="w-4 h-4" /> :
+                       tx.type === 'income' ? <TrendingUp className="w-4 h-4" /> :
+                       <ArrowRightLeft className="w-4 h-4" />}
+                    </span>
+                    <div>
+                      <h4 className="font-bold text-sm text-white">{tx.note || 'Transaction'}</h4>
+                      <p className="text-[11px] text-slate-400">{payer?.display_name} • {tx.transaction_date}</p>
+                    </div>
+                  </div>
+
+                  <span className={`font-mono font-bold text-base ${
+                    tx.type === 'expense' ? 'text-rose-400' :
+                    tx.type === 'income' ? 'text-emerald-400' :
+                    'text-indigo-300'
+                  }`}>
+                    {tx.type === 'expense' ? '-' : tx.type === 'income' ? '+' : ''}
+                    ₱{tx.amount.toFixed(2)}
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between text-xs pt-2 border-t border-slate-700/60 gap-2">
+                  <div className="text-slate-300">
+                    {tx.type === 'transfer' ? (
+                      <span>{wallet?.name} ➔ {destWallet?.name}</span>
+                    ) : (
+                      <span>Account: <strong>{wallet?.name}</strong></span>
+                    )}
+                  </div>
+
+                  {category && (
+                    <span className="text-[10px] text-sky-400 bg-sky-400/10 px-2 py-0.5 rounded font-medium">
+                      {category.name}
+                    </span>
+                  )}
+                </div>
+
+                {/* Mobile Bottom Row Actions */}
+                <div className="flex items-center justify-between pt-2 text-xs">
+                  {tx.receipt_url ? (
+                    <a href={tx.receipt_url} target="_blank" rel="noopener noreferrer" className="text-sky-400 inline-flex items-center text-[11px]">
+                      <Image className="w-3.5 h-3.5 mr-1" /> View Receipt
+                    </a>
+                  ) : <span className="text-slate-600 text-[11px]">No receipt</span>}
+
+                  {editable && (
+                    <button
+                      onClick={() => handleDelete(tx)}
+                      className="text-rose-400 hover:bg-rose-500/10 px-2 py-1 rounded text-[11px] font-medium flex items-center space-x-1"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Delete</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Desktop Ledger Table (visible on >= md screens) */}
+      <div className="hidden md:block bg-slate-800/80 border border-slate-700/70 rounded-xl overflow-hidden shadow-lg">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -348,14 +430,14 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
 
       {/* Log Transaction Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-lg w-full p-6 space-y-5 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-3 sm:p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-lg w-full p-4 sm:p-6 space-y-4 sm:space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-base font-bold text-white flex items-center space-x-2">
-                <span>Log New Household Transaction</span>
+              <h3 className="text-sm sm:text-base font-bold text-white flex items-center space-x-2">
+                <span>Log Household Transaction</span>
               </h3>
-              <span className="text-xs text-sky-400 bg-sky-400/10 px-2 py-0.5 rounded font-mono">
-                Payer: {currentMember.display_name}
+              <span className="text-[11px] sm:text-xs text-sky-400 bg-sky-400/10 px-2 py-0.5 rounded font-mono truncate max-w-[150px]">
+                {currentMember.display_name}
               </span>
             </div>
 
@@ -463,7 +545,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
               )}
 
               {/* Date & Receipt Upload Picker */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-300 mb-1">Date</label>
                   <input
