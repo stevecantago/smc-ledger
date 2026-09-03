@@ -64,7 +64,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-28 md:pb-6">
       
       {/* KPI Stats Overview Bar */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

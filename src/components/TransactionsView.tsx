@@ -118,7 +118,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-4 sm:space-y-6 pb-28 md:pb-6">
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 bg-slate-800/80 border border-slate-700/70 p-4 sm:p-5 rounded-xl">
         <div>
@@ -205,8 +205,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
         </select>
       </div>
 
-      {/* Mobile Touch Cards View (visible on < md screens) */}
-      <div className="md:hidden space-y-3">
+      {/* Mobile Touch Cards View (visible on < md screens) with explicit bottom padding */}
+      <div className="md:hidden space-y-3 pb-24">
         {filteredTx.length === 0 ? (
           <div className="bg-slate-800/80 border border-slate-700 p-6 text-center text-slate-400 text-xs rounded-xl">
             No transactions match your search filters.
