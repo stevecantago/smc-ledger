@@ -47,8 +47,8 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col items-center justify-center px-4 py-8">
-      <div className="max-w-md w-full mx-auto space-y-6 text-center">
+    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col items-center justify-center p-4">
+      <div className="w-full max-w-md space-y-6">
         
         {/* Brand Header */}
         <div className="flex flex-col items-center justify-center space-y-2 text-center">
@@ -60,7 +60,7 @@ export default function LoginPage() {
         </div>
 
         {/* Card */}
-        <div className="bg-slate-800/90 border border-slate-700/80 rounded-xl p-6 sm:p-8 shadow-2xl space-y-5 text-left">
+        <div className="bg-slate-800/90 border border-slate-700/80 rounded-xl p-6 sm:p-8 shadow-2xl space-y-5">
           {message && (
             <div className={`p-3 rounded-lg text-xs flex items-center space-x-2 border ${
               message.type === 'success' 
@@ -72,7 +72,7 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={handleLogin} className="space-y-4 text-left">
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1">Email Address</label>
               <div className="relative">
