@@ -131,70 +131,90 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [recurringTransfers, setRecurringTransfers] = useState<RecurringTransfer[]>(initialRecurringTransfers);
   const [activityLogs, setActivityLogs] = useState<ActivityLogEntry[]>([]);
 
-  // 1. Initial Local Storage Hydration with Safeguards
+  // 1. Initial Local Storage & Remote Supabase Hydration
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const savedMembers = localStorage.getItem('smc_members');
-        if (savedMembers) {
-          const parsed = JSON.parse(savedMembers);
-          if (Array.isArray(parsed) && parsed.length > 0) setMembers(parsed);
-        }
+    async function hydrate() {
+      if (typeof window !== 'undefined') {
+        try {
+          // Local storage hydration
+          const savedMembers = localStorage.getItem('smc_members');
+          if (savedMembers) {
+            const parsed = JSON.parse(savedMembers);
+            if (Array.isArray(parsed) && parsed.length > 0) setMembers(parsed);
+          }
 
-        const savedWallets = localStorage.getItem('smc_wallets');
-        if (savedWallets) {
-          const parsed = JSON.parse(savedWallets);
-          if (Array.isArray(parsed) && parsed.length > 0) setWallets(parsed);
-        }
+          const savedWallets = localStorage.getItem('smc_wallets');
+          if (savedWallets) {
+            const parsed = JSON.parse(savedWallets);
+            if (Array.isArray(parsed) && parsed.length > 0) setWallets(parsed);
+          }
 
-        const savedCategories = localStorage.getItem('smc_categories');
-        if (savedCategories) {
-          const parsed = JSON.parse(savedCategories);
-          if (Array.isArray(parsed) && parsed.length > 0) setCategories(parsed);
-        }
+          const savedCategories = localStorage.getItem('smc_categories');
+          if (savedCategories) {
+            const parsed = JSON.parse(savedCategories);
+            if (Array.isArray(parsed) && parsed.length > 0) setCategories(parsed);
+          }
 
-        const savedTransactions = localStorage.getItem('smc_transactions');
-        if (savedTransactions) {
-          const parsed = JSON.parse(savedTransactions);
-          if (Array.isArray(parsed) && parsed.length > 0) setTransactions(parsed);
-        }
+          const savedTransactions = localStorage.getItem('smc_transactions');
+          if (savedTransactions) {
+            const parsed = JSON.parse(savedTransactions);
+            if (Array.isArray(parsed) && parsed.length > 0) setTransactions(parsed);
+          }
 
-        const savedGoals = localStorage.getItem('smc_goals');
-        if (savedGoals) {
-          const parsed = JSON.parse(savedGoals);
-          if (Array.isArray(parsed) && parsed.length > 0) setSavingsGoals(parsed);
-        }
+          const savedGoals = localStorage.getItem('smc_goals');
+          if (savedGoals) {
+            const parsed = JSON.parse(savedGoals);
+            if (Array.isArray(parsed) && parsed.length > 0) setSavingsGoals(parsed);
+          }
 
-        const savedLoans = localStorage.getItem('smc_loans');
-        if (savedLoans) {
-          const parsed = JSON.parse(savedLoans);
-          if (Array.isArray(parsed) && parsed.length > 0) setLoans(parsed);
-        }
+          const savedLoans = localStorage.getItem('smc_loans');
+          if (savedLoans) {
+            const parsed = JSON.parse(savedLoans);
+            if (Array.isArray(parsed) && parsed.length > 0) setLoans(parsed);
+          }
 
-        const savedRecurring = localStorage.getItem('smc_recurring');
-        if (savedRecurring) {
-          const parsed = JSON.parse(savedRecurring);
-          if (Array.isArray(parsed) && parsed.length > 0) setRecurringTransfers(parsed);
-        }
+          const savedRecurring = localStorage.getItem('smc_recurring');
+          if (savedRecurring) {
+            const parsed = JSON.parse(savedRecurring);
+            if (Array.isArray(parsed) && parsed.length > 0) setRecurringTransfers(parsed);
+          }
 
-        const savedLogs = localStorage.getItem('smc_activity_logs');
-        if (savedLogs) {
-          const parsed = JSON.parse(savedLogs);
-          if (Array.isArray(parsed) && parsed.length > 0) setActivityLogs(parsed);
-        }
+          const savedLogs = localStorage.getItem('smc_activity_logs');
+          if (savedLogs) {
+            const parsed = JSON.parse(savedLogs);
+            if (Array.isArray(parsed) && parsed.length > 0) setActivityLogs(parsed);
+          }
 
-        const storedEmail = localStorage.getItem('smc_authenticated_email');
-        if (storedEmail) {
-          const mList = savedMembers ? JSON.parse(savedMembers) : initialMembers;
-          const found = mList.find((m: HouseholdMember) => m.email?.toLowerCase() === storedEmail.toLowerCase());
-          if (found) setCurrentMember(found);
+          const storedEmail = localStorage.getItem('smc_authenticated_email');
+          if (storedEmail) {
+            const mList = savedMembers ? JSON.parse(savedMembers) : initialMembers;
+            const found = mList.find((m: HouseholdMember) => m.email?.toLowerCase() === storedEmail.toLowerCase());
+            if (found) setCurrentMember(found);
+          }
+
+          // Supabase Remote Sync if tables exist
+          if (supabase) {
+            try {
+              const { data: remoteWallets } = await supabase.from('wallets').select('*');
+              if (remoteWallets && remoteWallets.length > 0) setWallets(remoteWallets);
+
+              const { data: remoteLoans } = await supabase.from('loans').select('*');
+              if (remoteLoans && remoteLoans.length > 0) setLoans(remoteLoans);
+
+              const { data: remoteTx } = await supabase.from('transactions').select('*');
+              if (remoteTx && remoteTx.length > 0) setTransactions(remoteTx);
+            } catch (sErr) {
+              console.log('Supabase remote table sync fallback active:', sErr);
+            }
+          }
+        } catch (err) {
+          console.error('Error loading persistent storage state:', err);
+        } finally {
+          setIsHydrated(true);
         }
-      } catch (err) {
-        console.error('Error loading persistent local storage state:', err);
-      } finally {
-        setIsHydrated(true);
       }
     }
+    hydrate();
   }, []);
 
   // 2. Persist State Changes to Local Storage
@@ -259,6 +279,10 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       created_at: new Date().toISOString(),
     };
     setActivityLogs(prev => [entry, ...prev]);
+
+    if (supabase) {
+      Promise.resolve(supabase.from('activity_logs').insert([entry])).catch(() => {});
+    }
   };
 
   // Full Data Export Helper
@@ -377,6 +401,10 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
     setWallets(prev => [...prev, newWallet]);
     logActivity('create_wallet', `Created account/wallet "${data.name}" (${data.wallet_type.toUpperCase()}) with initial balance ₱${data.initial_balance}`);
+
+    if (supabase) {
+      Promise.resolve(supabase.from('wallets').insert([newWallet])).catch(() => {});
+    }
   };
 
   const updateWallet = (id: string, updates: { name?: string; wallet_type?: Wallet['wallet_type']; current_balance?: number; credit_limit?: number | null; is_shared?: boolean }) => {
@@ -384,6 +412,10 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const target = wallets.find(w => w.id === id);
     setWallets(prev => prev.map(w => w.id === id ? { ...w, ...updates } : w));
     logActivity('update_wallet', `Updated account "${updates.name || target?.name || id}"`);
+
+    if (supabase) {
+      Promise.resolve(supabase.from('wallets').update(updates).eq('id', id)).catch(() => {});
+    }
     return { success: true };
   };
 
@@ -392,6 +424,10 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const target = wallets.find(w => w.id === id);
     setWallets(prev => prev.filter(w => w.id !== id));
     logActivity('delete_wallet', `Deleted account "${target?.name || id}"`);
+
+    if (supabase) {
+      Promise.resolve(supabase.from('wallets').delete().eq('id', id)).catch(() => {});
+    }
     return { success: true };
   };
 
@@ -488,6 +524,10 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setWallets(updatedWallets);
     setTransactions(prev => [newTx, ...prev]);
     logActivity('create_tx', `Logged ${data.type.toUpperCase()} transaction of ₱${data.amount} (${data.note || 'No note'})`);
+
+    if (supabase) {
+      Promise.resolve(supabase.from('transactions').insert([newTx])).catch(() => {});
+    }
     return { success: true };
   };
 
@@ -504,6 +544,10 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
     logActivity('update_tx', `Updated transaction "${target.note || id}"`);
+
+    if (supabase) {
+      Promise.resolve(supabase.from('transactions').update(updates).eq('id', id)).catch(() => {});
+    }
     return { success: true };
   };
 
@@ -539,6 +583,10 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setWallets(updatedWallets);
     setTransactions(prev => prev.filter(t => t.id !== id));
     logActivity('delete_tx', `Deleted transaction "${target.note || id}" of ₱${target.amount}`);
+
+    if (supabase) {
+      Promise.resolve(supabase.from('transactions').delete().eq('id', id)).catch(() => {});
+    }
     return { success: true };
   };
 
@@ -638,6 +686,10 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
     setLoans(prev => [...prev, newLoan]);
     logActivity('create_loan', `Created loan record "${data.name}" (${data.lender}) with principal ₱${data.total_principal}`);
+
+    if (supabase) {
+      Promise.resolve(supabase.from('loans').insert([newLoan])).catch(() => {});
+    }
   };
 
   const updateLoan = (id: string, updates: { 
@@ -656,6 +708,10 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (!isAdmin) return { success: false, error: 'Only Household Parents/Admins can edit loan records.' };
     setLoans(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l));
     logActivity('update_loan', `Updated loan record "${updates.name || id}"`);
+
+    if (supabase) {
+      Promise.resolve(supabase.from('loans').update(updates).eq('id', id)).catch(() => {});
+    }
     return { success: true };
   };
 
@@ -664,6 +720,10 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const target = loans.find(l => l.id === id);
     setLoans(prev => prev.filter(l => l.id !== id));
     logActivity('delete_loan', `Deleted loan record "${target?.name || id}"`);
+
+    if (supabase) {
+      Promise.resolve(supabase.from('loans').delete().eq('id', id)).catch(() => {});
+    }
     return { success: true };
   };
 
