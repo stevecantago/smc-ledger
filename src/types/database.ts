@@ -5,6 +5,15 @@ export type RecurringFrequency = 'daily' | 'weekly' | 'biweekly' | 'monthly' | '
 export type RecurringRuleType = 'transfer' | 'expense';
 export type LoanPaymentFrequency = 'monthly' | 'bi_monthly';
 
+export type ActivityLogAction = 
+  | 'create_wallet' | 'update_wallet' | 'delete_wallet'
+  | 'create_loan' | 'update_loan' | 'delete_loan' | 'pay_loan'
+  | 'create_tx' | 'update_tx' | 'delete_tx'
+  | 'create_category' | 'update_category' | 'delete_category'
+  | 'create_goal' | 'fund_goal' | 'delete_goal'
+  | 'create_member' | 'update_member' | 'delete_member'
+  | 'auth_login' | 'auth_logout' | 'backup_export' | 'backup_restore';
+
 export interface Household {
   id: string;
   name: string;
@@ -102,5 +111,16 @@ export interface RecurringTransfer {
   next_run_date: string;
   note: string;
   is_active: boolean;
+  created_at: string;
+}
+
+export interface ActivityLogEntry {
+  id: string;
+  household_id: string;
+  member_id: string;
+  member_name: string;
+  action: ActivityLogAction;
+  description: string;
+  details?: any;
   created_at: string;
 }

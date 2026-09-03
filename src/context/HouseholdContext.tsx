@@ -3,7 +3,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { 
   Household, HouseholdMember, Wallet, Category, Transaction, SavingsGoal, 
-  Loan, RecurringTransfer, HouseholdRole, RecurringRuleType, RecurringFrequency, LoanPaymentFrequency 
+  Loan, RecurringTransfer, HouseholdRole, RecurringRuleType, RecurringFrequency, LoanPaymentFrequency,
+  ActivityLogEntry, ActivityLogAction
 } from '../types/database';
 import { 
   initialHousehold, 
@@ -27,11 +28,17 @@ interface HouseholdContextType {
   savingsGoals: SavingsGoal[];
   loans: Loan[];
   recurringTransfers: RecurringTransfer[];
+  activityLogs: ActivityLogEntry[];
   isAdmin: boolean;
   
   // Role & User Switching
   switchMember: (memberId: string) => void;
   
+  // Activity Logging & Backup/Restoration
+  logActivity: (action: ActivityLogAction, description: string, details?: any) => void;
+  exportFullHouseholdBackup: () => void;
+  restoreFullHouseholdBackup: (jsonContent: string) => { success: boolean; error?: string };
+
   // Wallets CRUD
   addWallet: (wallet: { name: string; wallet_type: Wallet['wallet_type']; is_shared: boolean; owner_id?: string | null; initial_balance: number; credit_limit?: number | null }) => void;
   updateWallet: (id: string, updates: { name?: string; wallet_type?: Wallet['wallet_type']; current_balance?: number; credit_limit?: number | null; is_shared?: boolean }) => { success: boolean; error?: string };
@@ -122,8 +129,9 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [savingsGoals, setSavingsGoals] = useState<SavingsGoal[]>(initialSavingsGoals);
   const [loans, setLoans] = useState<Loan[]>(initialLoans);
   const [recurringTransfers, setRecurringTransfers] = useState<RecurringTransfer[]>(initialRecurringTransfers);
+  const [activityLogs, setActivityLogs] = useState<ActivityLogEntry[]>([]);
 
-  // 1. Initial Local Storage Hydration with Non-Empty Guard
+  // 1. Initial Local Storage Hydration with Safeguards
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -169,6 +177,12 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           if (Array.isArray(parsed) && parsed.length > 0) setRecurringTransfers(parsed);
         }
 
+        const savedLogs = localStorage.getItem('smc_activity_logs');
+        if (savedLogs) {
+          const parsed = JSON.parse(savedLogs);
+          if (Array.isArray(parsed) && parsed.length > 0) setActivityLogs(parsed);
+        }
+
         const storedEmail = localStorage.getItem('smc_authenticated_email');
         if (storedEmail) {
           const mList = savedMembers ? JSON.parse(savedMembers) : initialMembers;
@@ -183,7 +197,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   }, []);
 
-  // 2. Persist State Changes to Local Storage Safely
+  // 2. Persist State Changes to Local Storage
   useEffect(() => {
     if (isHydrated && typeof window !== 'undefined' && members.length > 0) {
       localStorage.setItem('smc_members', JSON.stringify(members));
@@ -225,6 +239,78 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       localStorage.setItem('smc_recurring', JSON.stringify(recurringTransfers));
     }
   }, [recurringTransfers, isHydrated]);
+
+  useEffect(() => {
+    if (isHydrated && typeof window !== 'undefined' && activityLogs.length > 0) {
+      localStorage.setItem('smc_activity_logs', JSON.stringify(activityLogs));
+    }
+  }, [activityLogs, isHydrated]);
+
+  // Activity Logger Helper
+  const logActivity = (action: ActivityLogAction, description: string, details?: any) => {
+    const entry: ActivityLogEntry = {
+      id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      household_id: household.id,
+      member_id: currentMember.id,
+      member_name: currentMember.display_name,
+      action: action,
+      description: description,
+      details: details || null,
+      created_at: new Date().toISOString(),
+    };
+    setActivityLogs(prev => [entry, ...prev]);
+  };
+
+  // Full Data Export Helper
+  const exportFullHouseholdBackup = () => {
+    const data = {
+      version: '1.0.0',
+      exported_at: new Date().toISOString(),
+      household,
+      members,
+      wallets,
+      categories,
+      transactions,
+      savingsGoals,
+      loans,
+      recurringTransfers,
+      activityLogs,
+    };
+
+    const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(data, null, 2))}`;
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute('href', jsonString);
+    downloadAnchor.setAttribute('download', `smc-ledger-backup-${new Date().toISOString().split('T')[0]}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+
+    logActivity('backup_export', `Exported full household backup JSON file.`);
+  };
+
+  // Full Data Restoration Helper
+  const restoreFullHouseholdBackup = (jsonContent: string): { success: boolean; error?: string } => {
+    try {
+      const parsed = JSON.parse(jsonContent);
+      if (!parsed || typeof parsed !== 'object') {
+        return { success: false, error: 'Invalid JSON backup format.' };
+      }
+
+      if (parsed.members && Array.isArray(parsed.members)) setMembers(parsed.members);
+      if (parsed.wallets && Array.isArray(parsed.wallets)) setWallets(parsed.wallets);
+      if (parsed.categories && Array.isArray(parsed.categories)) setCategories(parsed.categories);
+      if (parsed.transactions && Array.isArray(parsed.transactions)) setTransactions(parsed.transactions);
+      if (parsed.savingsGoals && Array.isArray(parsed.savingsGoals)) setSavingsGoals(parsed.savingsGoals);
+      if (parsed.loans && Array.isArray(parsed.loans)) setLoans(parsed.loans);
+      if (parsed.recurringTransfers && Array.isArray(parsed.recurringTransfers)) setRecurringTransfers(parsed.recurringTransfers);
+      if (parsed.activityLogs && Array.isArray(parsed.activityLogs)) setActivityLogs(parsed.activityLogs);
+
+      logActivity('backup_restore', `Restored full household dataset from uploaded backup file.`);
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Failed to parse JSON backup file.' };
+    }
+  };
 
   // Bind Supabase Auth listener
   useEffect(() => {
@@ -290,17 +376,22 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       created_at: new Date().toISOString(),
     };
     setWallets(prev => [...prev, newWallet]);
+    logActivity('create_wallet', `Created account/wallet "${data.name}" (${data.wallet_type.toUpperCase()}) with initial balance ₱${data.initial_balance}`);
   };
 
   const updateWallet = (id: string, updates: { name?: string; wallet_type?: Wallet['wallet_type']; current_balance?: number; credit_limit?: number | null; is_shared?: boolean }) => {
     if (!isAdmin) return { success: false, error: 'Only Household Parents/Admins can edit wallet accounts.' };
+    const target = wallets.find(w => w.id === id);
     setWallets(prev => prev.map(w => w.id === id ? { ...w, ...updates } : w));
+    logActivity('update_wallet', `Updated account "${updates.name || target?.name || id}"`);
     return { success: true };
   };
 
   const deleteWallet = (id: string) => {
     if (!isAdmin) return { success: false, error: 'Only Household Parents/Admins can delete wallet accounts.' };
+    const target = wallets.find(w => w.id === id);
     setWallets(prev => prev.filter(w => w.id !== id));
+    logActivity('delete_wallet', `Deleted account "${target?.name || id}"`);
     return { success: true };
   };
 
@@ -319,11 +410,13 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       created_at: new Date().toISOString(),
     };
     setCategories(prev => [...prev, newCat]);
+    logActivity('create_category', `Created envelope category "${data.name}" with monthly budget ₱${data.monthly_budget_limit}`);
   };
 
   const updateCategory = (id: string, updates: { name?: string; icon_slug?: string; monthly_budget_limit?: number }) => {
     if (!isAdmin) return { success: false, error: 'Only Household Parents/Admins can edit category envelopes.' };
     setCategories(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+    logActivity('update_category', `Updated category envelope "${updates.name || id}"`);
     return { success: true };
   };
 
@@ -333,7 +426,9 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const deleteCategory = (id: string) => {
     if (!isAdmin) return { success: false, error: 'Only Household Parents/Admins can delete category envelopes.' };
+    const target = categories.find(c => c.id === id);
     setCategories(prev => prev.filter(c => c.id !== id));
+    logActivity('delete_category', `Deleted envelope category "${target?.name || id}"`);
     return { success: true };
   };
 
@@ -392,6 +487,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     setWallets(updatedWallets);
     setTransactions(prev => [newTx, ...prev]);
+    logActivity('create_tx', `Logged ${data.type.toUpperCase()} transaction of ₱${data.amount} (${data.note || 'No note'})`);
     return { success: true };
   };
 
@@ -407,6 +503,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
 
     setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
+    logActivity('update_tx', `Updated transaction "${target.note || id}"`);
     return { success: true };
   };
 
@@ -441,6 +538,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     setWallets(updatedWallets);
     setTransactions(prev => prev.filter(t => t.id !== id));
+    logActivity('delete_tx', `Deleted transaction "${target.note || id}" of ₱${target.amount}`);
     return { success: true };
   };
 
@@ -460,6 +558,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       created_at: new Date().toISOString(),
     };
     setSavingsGoals(prev => [...prev, newGoal]);
+    logActivity('create_goal', `Created savings goal "${data.name}" with target ₱${data.target_amount}`);
   };
 
   const updateSavingsGoal = (id: string, updates: { name?: string; target_amount?: number; target_date?: string | null }) => {
@@ -470,7 +569,9 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const deleteSavingsGoal = (id: string) => {
     if (!isAdmin) return { success: false, error: 'Only Household Parents/Admins can delete savings goals.' };
+    const target = savingsGoals.find(g => g.id === id);
     setSavingsGoals(prev => prev.filter(g => g.id !== id));
+    logActivity('delete_goal', `Deleted savings goal "${target?.name || id}"`);
     return { success: true };
   };
 
@@ -492,6 +593,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       note: `Contribution to goal: ${savingsGoals.find(g => g.id === goalId)?.name}`,
     });
 
+    logActivity('fund_goal', `Funded ₱${amount} into savings goal "${savingsGoals.find(g => g.id === goalId)?.name}"`);
     return { success: true };
   };
 
@@ -535,6 +637,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       created_at: new Date().toISOString(),
     };
     setLoans(prev => [...prev, newLoan]);
+    logActivity('create_loan', `Created loan record "${data.name}" (${data.lender}) with principal ₱${data.total_principal}`);
   };
 
   const updateLoan = (id: string, updates: { 
@@ -552,12 +655,15 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }) => {
     if (!isAdmin) return { success: false, error: 'Only Household Parents/Admins can edit loan records.' };
     setLoans(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l));
+    logActivity('update_loan', `Updated loan record "${updates.name || id}"`);
     return { success: true };
   };
 
   const deleteLoan = (id: string) => {
     if (!isAdmin) return { success: false, error: 'Only Household Parents/Admins can delete loan records.' };
+    const target = loans.find(l => l.id === id);
     setLoans(prev => prev.filter(l => l.id !== id));
+    logActivity('delete_loan', `Deleted loan record "${target?.name || id}"`);
     return { success: true };
   };
 
@@ -613,6 +719,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       note: `Amortization payment for: ${targetLoan.name} (${targetLoan.lender})`,
     });
 
+    logActivity('pay_loan', `Paid loan amortization of ₱${amount} for "${targetLoan.name}"`);
     return { success: true };
   };
 
@@ -689,6 +796,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       created_at: new Date().toISOString(),
     };
     setMembers(prev => [...prev, newMember]);
+    logActivity('create_member', `Added member "${displayName}" (${role.toUpperCase()})`);
   };
 
   const updateMember = (id: string, updates: { display_name?: string; role?: HouseholdRole; email?: string }) => {
@@ -712,6 +820,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setCurrentMember(prev => ({ ...prev, ...updates }));
     }
 
+    logActivity('update_member', `Updated member record "${updates.display_name || target.display_name}"`);
     return { success: true };
   };
 
@@ -735,6 +844,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
 
     setMembers(prev => prev.filter(m => m.id !== id));
+    logActivity('delete_member', `Removed member "${target.display_name}"`);
     return { success: true };
   };
 
@@ -749,8 +859,12 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       savingsGoals,
       loans,
       recurringTransfers,
+      activityLogs,
       isAdmin,
       switchMember,
+      logActivity,
+      exportFullHouseholdBackup,
+      restoreFullHouseholdBackup,
       addWallet,
       updateWallet,
       deleteWallet,

@@ -9,6 +9,7 @@ import { BudgetsView } from '../src/components/BudgetsView';
 import { LoansView } from '../src/components/LoansView';
 import { SavingsGoalsView } from '../src/components/SavingsGoalsView';
 import { MembersView } from '../src/components/MembersView';
+import { ActivityLogView } from '../src/components/ActivityLogView';
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
@@ -45,6 +46,7 @@ export default function Home() {
         {activeTab === 'loans' && <LoansView />}
         {activeTab === 'goals' && <SavingsGoalsView />}
         {activeTab === 'members' && <MembersView />}
+        {activeTab === 'activity' && <ActivityLogView />}
       </main>
 
       <footer className="border-t border-slate-800 py-6 text-center text-xs text-slate-500 mb-20 md:mb-0">
