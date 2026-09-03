@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useHousehold } from '../context/HouseholdContext';
-import { ShieldCheck, Mail, Lock, KeyRound, AlertCircle, CheckCircle2, User, ArrowRight } from 'lucide-react';
+import { ShieldCheck, Mail, Lock, KeyRound, AlertCircle, CheckCircle2, User, ArrowRight, LogOut } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface AuthModalProps {
@@ -11,6 +12,7 @@ interface AuthModalProps {
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
+  const router = useRouter();
   const { currentMember, members, switchMember } = useHousehold();
   const [email, setEmail] = useState('steve.cantago@gmail.com');
   const [password, setPassword] = useState('');
@@ -19,6 +21,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   if (!isOpen) return null;
+
+  const handleLogout = async () => {
+    try {
+      if (supabase) {
+        await supabase.auth.signOut();
+      }
+      onClose();
+      router.push('/login');
+    } catch (err) {
+      onClose();
+      router.push('/login');
+    }
+  };
 
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,7 +69,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
         setMessage({ type: 'success', text: `Authenticated as ${matchingMember.display_name} (${matchingMember.role.toUpperCase()})` });
         setTimeout(() => onClose(), 1200);
       } else {
-        // If email is steve.cantago@gmail.com, switch to Steve's Admin account
         const steveMember = members.find(m => m.id === 'member-steve-admin');
         if (steveMember) {
           switchMember(steveMember.id);
@@ -112,9 +126,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
               <p className="text-[10px] text-slate-400 font-mono">{currentMember.email || 'No email attached'}</p>
             </div>
           </div>
-          <span className="text-[10px] font-bold uppercase text-amber-300 bg-amber-400/15 px-2 py-0.5 rounded border border-amber-400/30">
-            {currentMember.role.replace('_', ' ')}
-          </span>
+          <button
+            onClick={handleLogout}
+            className="text-xs text-rose-400 hover:bg-rose-500/10 px-2 py-1 rounded border border-rose-500/30 flex items-center space-x-1 font-medium transition-colors"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Sign Out</span>
+          </button>
         </div>
 
         {/* Auth Form */}

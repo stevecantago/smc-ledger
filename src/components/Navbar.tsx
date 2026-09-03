@@ -1,12 +1,15 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useHousehold } from '../context/HouseholdContext';
 import { 
-  ShieldCheck, UserCheck, Wallet as WalletIcon, Home, PlusCircle, Users, Landmark, Target, Plus, HeartHandshake, KeyRound 
+  ShieldCheck, UserCheck, Wallet as WalletIcon, Home, PlusCircle, Users, Landmark, Target, Plus, HeartHandshake, KeyRound, LogOut 
 } from 'lucide-react';
 import { HouseholdRole } from '../types/database';
 import { AuthModal } from './AuthModal';
+import { supabase } from '../lib/supabase';
 
 interface NavbarProps {
   activeTab: string;
@@ -15,6 +18,7 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenAddTxModal }) => {
+  const router = useRouter();
   const { household, currentMember, members, switchMember, wallets, isAdmin } = useHousehold();
   const [showAuthModal, setShowAuthModal] = useState(false);
 
@@ -30,6 +34,19 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
     { id: 'goals', label: 'Goals', icon: Target },
     { id: 'members', label: 'Roster', icon: Users },
   ];
+
+  const handleLogout = async () => {
+    if (!window.confirm('Are you sure you want to sign out of SMCLedger?')) return;
+    try {
+      if (supabase) {
+        await supabase.auth.signOut();
+      }
+      router.push('/login');
+    } catch (err) {
+      console.error(err);
+      router.push('/login');
+    }
+  };
 
   const renderRoleBadge = (role: HouseholdRole) => {
     switch (role) {
@@ -94,7 +111,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
             </div>
 
             {/* Persona Switcher & Auth Trigger */}
-            <div className="flex items-center space-x-2 shrink-0">
+            <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
               <button
                 onClick={() => setShowAuthModal(true)}
                 className="p-1.5 text-slate-400 hover:text-amber-400 bg-slate-800 border border-slate-700 rounded-lg transition-colors flex items-center space-x-1"
@@ -124,6 +141,16 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
                   ))}
                 </select>
               </div>
+
+              {/* Logout Button */}
+              <button
+                onClick={handleLogout}
+                className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 bg-slate-800 border border-slate-700 rounded-lg transition-colors flex items-center"
+                title="Sign Out / Logout"
+                aria-label="Sign Out"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
             </div>
 
           </div>
