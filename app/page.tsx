@@ -14,19 +14,24 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [showAddTxModal, setShowAddTxModal] = useState<boolean>(false);
 
+  const handleOpenAddTxModal = () => {
+    setActiveTab('transactions');
+    setShowAddTxModal(true);
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-900 text-slate-100">
       <Navbar 
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
-        onOpenAddTxModal={() => setShowAddTxModal(true)} 
+        onOpenAddTxModal={handleOpenAddTxModal} 
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-20 md:pb-6">
         {activeTab === 'dashboard' && (
           <DashboardView 
             setActiveTab={setActiveTab} 
-            onOpenAddTxModal={() => setShowAddTxModal(true)} 
+            onOpenAddTxModal={handleOpenAddTxModal} 
           />
         )}
         {activeTab === 'wallets' && <WalletsView />}
@@ -42,7 +47,7 @@ export default function Home() {
         {activeTab === 'members' && <MembersView />}
       </main>
 
-      <footer className="border-t border-slate-800 py-6 text-center text-xs text-slate-500">
+      <footer className="border-t border-slate-800 py-6 text-center text-xs text-slate-500 mb-12 md:mb-0">
         <p>SMCLedger • Multi-Tenant Family Financial Tracker (Next.js MVP 1.0.0)</p>
       </footer>
     </div>
