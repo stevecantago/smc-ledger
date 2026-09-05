@@ -4,7 +4,8 @@ import React, { useState } from 'react';
 import { useHousehold } from '../context/HouseholdContext';
 import { 
   TrendingDown, TrendingUp, ArrowRightLeft, Wallet as WalletIcon, ShieldCheck, 
-  Landmark, Target, Plus, AlertCircle, CheckCircle2, ChevronRight, DollarSign, Clock, Calendar 
+  Landmark, Target, Plus, AlertCircle, CheckCircle2, ChevronRight, DollarSign, Clock, Calendar,
+  Smartphone, CreditCard
 } from 'lucide-react';
 import { Loan } from '../types/database';
 
@@ -30,6 +31,33 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
   const liquidAssets = visibleWallets
     .filter(w => w.wallet_type !== 'credit_card')
     .reduce((acc, w) => acc + w.current_balance, 0);
+
+  // Category totals for Wallets & Credit Lines Summary
+  const totalBankBalance = visibleWallets
+    .filter(w => w.wallet_type === 'bank')
+    .reduce((sum, w) => sum + w.current_balance, 0);
+
+  const totalEWalletBalance = visibleWallets
+    .filter(w => w.wallet_type === 'e_wallet')
+    .reduce((sum, w) => sum + w.current_balance, 0);
+
+  const totalCashBalance = visibleWallets
+    .filter(w => w.wallet_type === 'cash')
+    .reduce((sum, w) => sum + w.current_balance, 0);
+
+  const totalAvailableCredit = visibleWallets
+    .filter(w => w.wallet_type === 'credit_card')
+    .reduce((sum, w) => sum + Math.max(0, (w.credit_limit || 0) - w.current_balance), 0);
+
+  const totalCreditLimit = visibleWallets
+    .filter(w => w.wallet_type === 'credit_card')
+    .reduce((sum, w) => sum + (w.credit_limit || 0), 0);
+
+  const totalUsedCredit = visibleWallets
+    .filter(w => w.wallet_type === 'credit_card')
+    .reduce((sum, w) => sum + w.current_balance, 0);
+
+  const totalCombinedAvailable = totalBankBalance + totalEWalletBalance + totalCashBalance + totalAvailableCredit;
 
   // Outstanding Credit Card Debt
   const creditCardDebt = visibleWallets
@@ -162,56 +190,136 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
       </div>
 
       {/* Household Accounts Summary Widget */}
-      <div className="bg-slate-800/80 border border-slate-700/70 rounded-xl p-5 space-y-4 shadow-lg">
-        <div className="flex items-center justify-between">
+      <div className="bg-slate-800/80 border border-slate-700/70 rounded-xl p-5 space-y-5 shadow-lg">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center space-x-2">
-            <WalletIcon className="w-4 h-4 text-sky-400" />
-            <h3 className="font-bold text-sm text-white">Household Wallets & Credit Lines Summary</h3>
+            <WalletIcon className="w-5 h-5 text-sky-400" />
+            <div>
+              <h3 className="font-bold text-sm text-white">Household Wallets & Credit Lines Summary</h3>
+              <p className="text-[11px] text-slate-400">Total liquid funds across bank accounts, e-wallets, cash, and available credit card lines</p>
+            </div>
           </div>
           <button
             onClick={() => setActiveTab('wallets')}
-            className="text-xs text-sky-400 hover:underline font-medium"
+            className="text-xs text-sky-400 hover:underline font-medium shrink-0"
           >
             Manage Accounts ➔
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-          {visibleWallets.map(w => {
-            const isCC = w.wallet_type === 'credit_card';
-            const remainingCredit = (w.credit_limit || 0) - w.current_balance;
+        {/* Totals & Summary KPI Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* Bank Accounts Total */}
+          <div className="bg-slate-900/80 border border-sky-500/30 p-3.5 rounded-xl space-y-1">
+            <div className="flex items-center justify-between text-xs text-slate-400">
+              <span className="flex items-center space-x-1">
+                <Landmark className="w-3.5 h-3.5 text-sky-400" />
+                <span>Bank Accounts</span>
+              </span>
+              <span className="text-[10px] bg-sky-500/10 text-sky-300 font-mono px-1.5 py-0.2 rounded">
+                {visibleWallets.filter(w => w.wallet_type === 'bank').length} Accounts
+              </span>
+            </div>
+            <div className="text-lg font-bold font-mono text-sky-400">
+              ₱{totalBankBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            </div>
+            <p className="text-[10px] text-slate-400">Total liquid bank savings</p>
+          </div>
 
-            return (
-              <div key={w.id} className="bg-slate-900/60 border border-slate-700/50 p-3.5 rounded-lg flex items-center justify-between">
-                <div>
-                  <div className="flex items-center space-x-1.5">
-                    <span className="font-semibold text-xs text-white">{w.name}</span>
-                    {w.is_shared && (
-                      <span className="text-[9px] bg-sky-500/15 text-sky-300 px-1 py-0.2 rounded font-mono">Shared</span>
+          {/* E-Wallets Total */}
+          <div className="bg-slate-900/80 border border-indigo-500/30 p-3.5 rounded-xl space-y-1">
+            <div className="flex items-center justify-between text-xs text-slate-400">
+              <span className="flex items-center space-x-1">
+                <Smartphone className="w-3.5 h-3.5 text-indigo-400" />
+                <span>E-Wallets</span>
+              </span>
+              <span className="text-[10px] bg-indigo-500/10 text-indigo-300 font-mono px-1.5 py-0.2 rounded">
+                {visibleWallets.filter(w => w.wallet_type === 'e_wallet').length} Accounts
+              </span>
+            </div>
+            <div className="text-lg font-bold font-mono text-indigo-400">
+              ₱{totalEWalletBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            </div>
+            <p className="text-[10px] text-slate-400">Total e-wallet balances</p>
+          </div>
+
+          {/* Credit Lines Available Total */}
+          <div className="bg-slate-900/80 border border-purple-500/30 p-3.5 rounded-xl space-y-1">
+            <div className="flex items-center justify-between text-xs text-slate-400">
+              <span className="flex items-center space-x-1">
+                <CreditCard className="w-3.5 h-3.5 text-purple-400" />
+                <span>Available Credit Lines</span>
+              </span>
+              <span className="text-[10px] bg-purple-500/10 text-purple-300 font-mono px-1.5 py-0.2 rounded">
+                {visibleWallets.filter(w => w.wallet_type === 'credit_card').length} Cards
+              </span>
+            </div>
+            <div className="text-lg font-bold font-mono text-emerald-400">
+              ₱{totalAvailableCredit.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            </div>
+            <p className="text-[10px] text-slate-400">
+              Limit: ₱{totalCreditLimit.toLocaleString()} | Used: <strong className="text-rose-400">₱{totalUsedCredit.toLocaleString()}</strong>
+            </p>
+          </div>
+
+          {/* Combined Total Purchasing Power */}
+          <div className="bg-slate-900/80 border border-emerald-500/30 p-3.5 rounded-xl space-y-1">
+            <div className="flex items-center justify-between text-xs text-slate-400">
+              <span className="flex items-center space-x-1">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Total Purchasing Power</span>
+              </span>
+              <span className="text-[10px] bg-emerald-500/10 text-emerald-300 font-mono px-1.5 py-0.2 rounded">
+                Liquid + Credit
+              </span>
+            </div>
+            <div className="text-lg font-bold font-mono text-emerald-300">
+              ₱{totalCombinedAvailable.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            </div>
+            <p className="text-[10px] text-slate-400">Combined liquid funds & available credit</p>
+          </div>
+        </div>
+
+        {/* Individual Accounts Breakdown Grid */}
+        <div className="space-y-2">
+          <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider font-mono">Individual Account Balances</h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            {visibleWallets.map(w => {
+              const isCC = w.wallet_type === 'credit_card';
+              const remainingCredit = (w.credit_limit || 0) - w.current_balance;
+
+              return (
+                <div key={w.id} className="bg-slate-900/60 border border-slate-700/50 p-3.5 rounded-lg flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center space-x-1.5">
+                      <span className="font-semibold text-xs text-white">{w.name}</span>
+                      {w.is_shared && (
+                        <span className="text-[9px] bg-sky-500/15 text-sky-300 px-1 py-0.2 rounded font-mono">Shared</span>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-slate-400 uppercase font-mono">{w.wallet_type.replace('_', ' ')}</span>
+                  </div>
+
+                  <div className="text-right font-mono">
+                    {isCC ? (
+                      <>
+                        <span className="font-bold text-xs text-emerald-400 block">
+                          ₱{remainingCredit.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </span>
+                        <span className="text-[10px] text-rose-400 block font-sans">
+                          Used: ₱{w.current_balance.toLocaleString()}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="font-bold text-xs text-emerald-400 block">
+                        ₱{w.current_balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </span>
                     )}
                   </div>
-                  <span className="text-[10px] text-slate-400 uppercase font-mono">{w.wallet_type.replace('_', ' ')}</span>
                 </div>
-
-                <div className="text-right font-mono">
-                  {isCC ? (
-                    <>
-                      <span className="font-bold text-xs text-emerald-400 block">
-                        ₱{remainingCredit.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                      </span>
-                      <span className="text-[10px] text-rose-400 block font-sans">
-                        Used: ₱{w.current_balance.toLocaleString()}
-                      </span>
-                    </>
-                  ) : (
-                    <span className="font-bold text-xs text-emerald-400 block">
-                      ₱{w.current_balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                    </span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </div>
 
