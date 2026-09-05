@@ -1,8 +1,8 @@
 export type HouseholdRole = 'admin' | 'parent_member' | 'member';
 export type WalletType = 'bank' | 'e_wallet' | 'cash' | 'credit_card';
 export type TransactionType = 'income' | 'expense' | 'transfer';
-export type RecurringFrequency = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'semi_annual' | 'annual' | 'custom_days';
-export type RecurringRuleType = 'transfer' | 'expense';
+export type RecurringFrequency = 'daily' | 'weekly' | 'biweekly' | 'bimonthly' | 'monthly' | 'quarterly' | 'semi_annual' | 'annual' | 'custom_days';
+export type RecurringRuleType = 'transfer' | 'expense' | 'loan_payment';
 export type LoanPaymentFrequency = 'monthly' | 'bi_monthly';
 
 export type ActivityLogAction = 
@@ -106,6 +106,7 @@ export interface RecurringTransfer {
   source_wallet_id: string;
   destination_wallet_id?: string | null;
   category_id?: string | null;
+  loan_id?: string | null;
   amount: number;
   frequency: RecurringFrequency;
   custom_interval_days?: number | null;

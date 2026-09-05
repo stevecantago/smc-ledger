@@ -495,6 +495,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
                     {items.map(rule => {
                       const cat = rule.category_id ? categories.find(c => c.id === rule.category_id) : null;
                       const dst = rule.destination_wallet_id ? wallets.find(w => w.id === rule.destination_wallet_id) : null;
+                      const loan = rule.loan_id ? loans.find(l => l.id === rule.loan_id) : null;
 
                       return (
                         <div key={rule.id} className="bg-slate-800/80 border border-slate-700/60 p-3 rounded-lg flex items-start justify-between gap-2 text-xs">
@@ -502,9 +503,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
                             <div className="flex items-center space-x-2">
                               <span className="font-semibold text-white">{rule.note}</span>
                               <span className={`text-[9px] font-bold font-mono px-1.5 py-0.2 rounded uppercase ${
-                                rule.rule_type === 'expense' ? 'bg-rose-500/10 text-rose-400' : 'bg-indigo-500/10 text-indigo-400'
+                                rule.rule_type === 'expense' ? 'bg-rose-500/10 text-rose-400' :
+                                rule.rule_type === 'loan_payment' ? 'bg-amber-500/10 text-amber-400' :
+                                'bg-indigo-500/10 text-indigo-400'
                               }`}>
-                                {rule.rule_type}
+                                {rule.rule_type === 'loan_payment' ? 'LOAN PAYMENT' : rule.rule_type}
                               </span>
                             </div>
 
@@ -513,12 +516,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
                                 <span>➔ Destination: <strong className="text-indigo-300">{dst.name}</strong></span>
                               )}
 
-                              {cat && (
+                              {loan ? (
+                                <span className="inline-flex items-center text-[10px] font-semibold text-amber-300 bg-amber-500/15 px-2 py-0.2 rounded border border-amber-500/30">
+                                  <Landmark className="w-3 h-3 mr-1 text-amber-400" />
+                                  {loan.name}
+                                </span>
+                              ) : cat ? (
                                 <span className="inline-flex items-center text-[10px] font-semibold text-sky-300 bg-sky-500/15 px-2 py-0.2 rounded border border-sky-500/30">
                                   <CategoryIcon slug={cat.icon_slug} className="w-3 h-3 mr-1" />
                                   {cat.name}
                                 </span>
-                              )}
+                              ) : null}
                             </div>
 
                             <div className="text-[11px] font-bold text-amber-300 font-mono flex items-center pt-0.5">
@@ -531,7 +539,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
                               ₱{rule.amount.toFixed(2)}
                             </span>
                             <span className="text-[10px] text-slate-400 font-sans block uppercase">
-                              {rule.frequency}
+                              {rule.frequency === 'bimonthly' ? 'BI-MONTHLY' : rule.frequency}
                             </span>
                           </div>
                         </div>

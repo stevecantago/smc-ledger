@@ -8,7 +8,7 @@ import { CategoryIcon } from './CategoryIcon';
 
 export const WalletsView: React.FC = () => {
   const { 
-    wallets, categories, members, currentMember, isAdmin, 
+    wallets, categories, loans, members, currentMember, isAdmin, 
     addWallet, updateWallet, deleteWallet,
     recurringTransfers, addRecurringTransfer, updateRecurringTransfer, toggleRecurringTransfer, deleteRecurringTransfer 
   } = useHousehold();
@@ -39,6 +39,7 @@ export const WalletsView: React.FC = () => {
   const [sourceWalletId, setSourceWalletId] = useState(wallets[0]?.id || '');
   const [destWalletId, setDestWalletId] = useState('');
   const [categoryId, setCategoryId] = useState(categories[0]?.id || '');
+  const [loanId, setLoanId] = useState(loans[0]?.id || '');
   const [transferAmount, setTransferAmount] = useState('');
   const [frequency, setFrequency] = useState<RecurringFrequency>('monthly');
   const [customDays, setCustomDays] = useState('10');
@@ -50,6 +51,7 @@ export const WalletsView: React.FC = () => {
   const [editSourceWalletId, setEditSourceWalletId] = useState('');
   const [editDestWalletId, setEditDestWalletId] = useState('');
   const [editCategoryId, setEditCategoryId] = useState('');
+  const [editLoanId, setEditLoanId] = useState('');
   const [editTransferAmount, setEditTransferAmount] = useState('');
   const [editFrequency, setEditFrequency] = useState<RecurringFrequency>('monthly');
   const [editCustomDays, setEditCustomDays] = useState('10');
@@ -112,12 +114,13 @@ export const WalletsView: React.FC = () => {
       rule_type: ruleType,
       source_wallet_id: sourceWalletId,
       destination_wallet_id: ruleType === 'transfer' ? destWalletId : null,
-      category_id: categoryId || null,
+      category_id: ruleType === 'loan_payment' ? null : (categoryId || null),
+      loan_id: ruleType === 'loan_payment' ? (loanId || null) : null,
       amount: parseFloat(transferAmount) || 0,
       frequency: frequency,
       custom_interval_days: frequency === 'custom_days' ? (parseInt(customDays) || 1) : null,
       next_run_date: nextRunDate || null,
-      note: transferNote.trim() || (ruleType === 'expense' ? 'Recurring Bill Payment' : 'Automated Allowance Transfer'),
+      note: transferNote.trim() || (ruleType === 'expense' ? 'Recurring Bill Payment' : ruleType === 'loan_payment' ? 'Loan Amortization Payment' : 'Automated Allowance Transfer'),
     });
 
     setTransferAmount('');
@@ -134,7 +137,8 @@ export const WalletsView: React.FC = () => {
       rule_type: editRuleType,
       source_wallet_id: editSourceWalletId,
       destination_wallet_id: editRuleType === 'transfer' ? editDestWalletId : null,
-      category_id: editCategoryId || null,
+      category_id: editRuleType === 'loan_payment' ? null : (editCategoryId || null),
+      loan_id: editRuleType === 'loan_payment' ? (editLoanId || null) : null,
       amount: parseFloat(editTransferAmount) || 0,
       frequency: editFrequency,
       custom_interval_days: editFrequency === 'custom_days' ? (parseInt(editCustomDays) || 1) : null,
@@ -160,6 +164,7 @@ export const WalletsView: React.FC = () => {
       case 'daily': return 'Daily';
       case 'weekly': return 'Weekly';
       case 'biweekly': return 'Bi-Weekly';
+      case 'bimonthly': return 'Bi-Monthly';
       case 'monthly': return 'Monthly';
       case 'quarterly': return 'Quarterly (Every 3 mos)';
       case 'semi_annual': return 'Semi-Annual (Every 6 mos)';
@@ -371,12 +376,17 @@ export const WalletsView: React.FC = () => {
             const src = wallets.find(w => w.id === rule.source_wallet_id);
             const dst = rule.destination_wallet_id ? wallets.find(w => w.id === rule.destination_wallet_id) : null;
             const cat = rule.category_id ? categories.find(c => c.id === rule.category_id) : null;
+            const loan = rule.loan_id ? loans.find(l => l.id === rule.loan_id) : null;
 
             return (
               <div key={rule.id} className="bg-slate-900/60 border border-slate-700/80 p-4 rounded-xl space-y-3">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center space-x-3">
-                    {cat ? (
+                    {rule.rule_type === 'loan_payment' ? (
+                      <div className="p-2.5 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-lg shrink-0">
+                        <Landmark className="w-5 h-5" />
+                      </div>
+                    ) : cat ? (
                       <div className="p-2.5 bg-slate-800 border border-slate-700 rounded-lg shrink-0">
                         <CategoryIcon slug={cat.icon_slug} className="w-5 h-5" />
                       </div>
@@ -390,15 +400,22 @@ export const WalletsView: React.FC = () => {
                       <p className="text-xs text-slate-400 flex flex-wrap items-center gap-1 mt-0.5">
                         {rule.rule_type === 'expense' ? (
                           <span>Payer: <strong className="text-slate-200">{src?.name}</strong></span>
+                        ) : rule.rule_type === 'loan_payment' ? (
+                          <span>Payer: <strong className="text-amber-300">{src?.name}</strong></span>
                         ) : (
                           <span>{src?.name} <strong className="text-indigo-400">➔</strong> {dst?.name || 'Destination'}</span>
                         )}
-                        {cat && (
+                        {loan ? (
+                          <span className="inline-flex items-center text-[10px] font-semibold text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded border border-amber-500/30">
+                            <Landmark className="w-3 h-3 mr-1 text-amber-400" />
+                            Loan: {loan.name}
+                          </span>
+                        ) : cat ? (
                           <span className="inline-flex items-center text-[10px] font-semibold text-sky-300 bg-sky-500/15 px-2 py-0.5 rounded border border-sky-500/30">
                             <CategoryIcon slug={cat.icon_slug} className="w-3 h-3 mr-1" />
                             {cat.name}
                           </span>
-                        )}
+                        ) : null}
                       </p>
                     </div>
                   </div>
@@ -433,6 +450,7 @@ export const WalletsView: React.FC = () => {
                           setEditSourceWalletId(rule.source_wallet_id);
                           setEditDestWalletId(rule.destination_wallet_id || '');
                           setEditCategoryId(rule.category_id || '');
+                          setEditLoanId(rule.loan_id || '');
                           setEditTransferAmount(rule.amount.toString());
                           setEditFrequency(rule.frequency);
                           setEditCustomDays((rule.custom_interval_days || 10).toString());
@@ -699,7 +717,7 @@ export const WalletsView: React.FC = () => {
             <form onSubmit={handleRecurringSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1.5">Schedule Type</label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
                     onClick={() => setRuleType('expense')}
@@ -709,7 +727,7 @@ export const WalletsView: React.FC = () => {
                         : 'bg-slate-800 text-slate-400 border-slate-700'
                     }`}
                   >
-                    Recurring Bill (Internet / School Dues)
+                    Recurring Bill
                   </button>
                   <button
                     type="button"
@@ -720,17 +738,35 @@ export const WalletsView: React.FC = () => {
                         : 'bg-slate-800 text-slate-400 border-slate-700'
                     }`}
                   >
-                    Recurring Transfer (Allowance)
+                    Recurring Transfer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRuleType('loan_payment');
+                      if (loans.length > 0 && !loanId) {
+                        setLoanId(loans[0].id);
+                        if (!transferNote) setTransferNote(`Loan Amortization - ${loans[0].name}`);
+                        if (!transferAmount) setTransferAmount(loans[0].monthly_amortization.toString());
+                      }
+                    }}
+                    className={`py-2 rounded-lg text-xs font-bold border transition-all ${
+                      ruleType === 'loan_payment'
+                        ? 'bg-amber-500/10 text-amber-400 border-amber-500/30 ring-1 ring-sky-500'
+                        : 'bg-slate-800 text-slate-400 border-slate-700'
+                    }`}
+                  >
+                    Loan Payment
                   </button>
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Bill / Transfer Title</label>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Title / Description</label>
                 <input
                   type="text"
                   required
-                  placeholder={ruleType === 'expense' ? "e.g. PLDT Fiber Internet, Globe Load, Water Bill" : "e.g. Alex Weekly Allowance"}
+                  placeholder={ruleType === 'expense' ? "e.g. PLDT Fiber Internet, Globe Load, Water Bill" : ruleType === 'loan_payment' ? "e.g. Car Loan Amortization" : "e.g. Alex Weekly Allowance"}
                   value={transferNote}
                   onChange={(e) => setTransferNote(e.target.value)}
                   className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
@@ -766,19 +802,43 @@ export const WalletsView: React.FC = () => {
                 </div>
               )}
 
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Associated Envelope Category</label>
-                <select
-                  value={categoryId}
-                  onChange={(e) => setCategoryId(e.target.value)}
-                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                >
-                  <option value="">-- None / Uncategorized --</option>
-                  {categories.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-              </div>
+              {ruleType === 'loan_payment' ? (
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Associated Loan Item</label>
+                  <select
+                    value={loanId}
+                    onChange={(e) => {
+                      const selectedId = e.target.value;
+                      setLoanId(selectedId);
+                      const foundLoan = loans.find(l => l.id === selectedId);
+                      if (foundLoan) {
+                        setTransferNote(`Loan Amortization - ${foundLoan.name}`);
+                        setTransferAmount(foundLoan.monthly_amortization.toString());
+                      }
+                    }}
+                    className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  >
+                    <option value="">-- Select Associated Loan --</option>
+                    {loans.map(l => (
+                      <option key={l.id} value={l.id}>{l.name} ({l.lender}) - Bal: ₱{l.remaining_balance.toFixed(2)}</option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Associated Envelope Category</label>
+                  <select
+                    value={categoryId}
+                    onChange={(e) => setCategoryId(e.target.value)}
+                    className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  >
+                    <option value="">-- None / Uncategorized --</option>
+                    {categories.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -804,6 +864,7 @@ export const WalletsView: React.FC = () => {
                     <option value="daily">Daily</option>
                     <option value="weekly">Weekly</option>
                     <option value="biweekly">Bi-Weekly</option>
+                    <option value="bimonthly">Bi-Monthly (Twice a Month / 15 Days)</option>
                     <option value="monthly">Monthly</option>
                     <option value="quarterly">Quarterly (Every 3 Mos)</option>
                     <option value="semi_annual">Semi-Annual (Every 6 Mos)</option>
@@ -872,7 +933,7 @@ export const WalletsView: React.FC = () => {
             <form onSubmit={handleEditRecurringSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1.5">Schedule Type</label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
                     onClick={() => setEditRuleType('expense')}
@@ -882,7 +943,7 @@ export const WalletsView: React.FC = () => {
                         : 'bg-slate-800 text-slate-400 border-slate-700'
                     }`}
                   >
-                    Recurring Bill (Internet / School Dues)
+                    Recurring Bill
                   </button>
                   <button
                     type="button"
@@ -893,13 +954,29 @@ export const WalletsView: React.FC = () => {
                         : 'bg-slate-800 text-slate-400 border-slate-700'
                     }`}
                   >
-                    Recurring Transfer (Allowance)
+                    Recurring Transfer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditRuleType('loan_payment');
+                      if (loans.length > 0 && !editLoanId) {
+                        setEditLoanId(loans[0].id);
+                      }
+                    }}
+                    className={`py-2 rounded-lg text-xs font-bold border transition-all ${
+                      editRuleType === 'loan_payment'
+                        ? 'bg-amber-500/10 text-amber-400 border-amber-500/30 ring-1 ring-sky-500'
+                        : 'bg-slate-800 text-slate-400 border-slate-700'
+                    }`}
+                  >
+                    Loan Payment
                   </button>
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Bill / Transfer Title</label>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Title / Description</label>
                 <input
                   type="text"
                   required
@@ -938,19 +1015,35 @@ export const WalletsView: React.FC = () => {
                 </div>
               )}
 
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Associated Envelope Category</label>
-                <select
-                  value={editCategoryId}
-                  onChange={(e) => setEditCategoryId(e.target.value)}
-                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                >
-                  <option value="">-- None / Uncategorized --</option>
-                  {categories.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-              </div>
+              {editRuleType === 'loan_payment' ? (
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Associated Loan Item</label>
+                  <select
+                    value={editLoanId}
+                    onChange={(e) => setEditLoanId(e.target.value)}
+                    className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  >
+                    <option value="">-- Select Associated Loan --</option>
+                    {loans.map(l => (
+                      <option key={l.id} value={l.id}>{l.name} ({l.lender}) - Bal: ₱{l.remaining_balance.toFixed(2)}</option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Associated Envelope Category</label>
+                  <select
+                    value={editCategoryId}
+                    onChange={(e) => setEditCategoryId(e.target.value)}
+                    className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  >
+                    <option value="">-- None / Uncategorized --</option>
+                    {categories.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -975,6 +1068,7 @@ export const WalletsView: React.FC = () => {
                     <option value="daily">Daily</option>
                     <option value="weekly">Weekly</option>
                     <option value="biweekly">Bi-Weekly</option>
+                    <option value="bimonthly">Bi-Monthly (Twice a Month / 15 Days)</option>
                     <option value="monthly">Monthly</option>
                     <option value="quarterly">Quarterly (Every 3 Mos)</option>
                     <option value="semi_annual">Semi-Annual (Every 6 Mos)</option>

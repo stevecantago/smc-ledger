@@ -97,6 +97,7 @@ interface HouseholdContextType {
     source_wallet_id: string; 
     destination_wallet_id?: string | null; 
     category_id?: string | null;
+    loan_id?: string | null;
     amount: number; 
     frequency: RecurringFrequency; 
     custom_interval_days?: number | null;
@@ -108,6 +109,7 @@ interface HouseholdContextType {
     source_wallet_id?: string; 
     destination_wallet_id?: string | null; 
     category_id?: string | null;
+    loan_id?: string | null;
     amount?: number; 
     frequency?: RecurringFrequency; 
     custom_interval_days?: number | null;
@@ -960,6 +962,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       case 'daily': return 1;
       case 'weekly': return 7;
       case 'biweekly': return 14;
+      case 'bimonthly': return 15;
       case 'monthly': return 30;
       case 'quarterly': return 90;
       case 'semi_annual': return 180;
@@ -974,6 +977,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     source_wallet_id: string; 
     destination_wallet_id?: string | null; 
     category_id?: string | null;
+    loan_id?: string | null;
     amount: number; 
     frequency: RecurringFrequency; 
     custom_interval_days?: number | null;
@@ -993,6 +997,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       source_wallet_id: data.source_wallet_id,
       destination_wallet_id: data.destination_wallet_id || null,
       category_id: data.category_id || null,
+      loan_id: data.loan_id || null,
       amount: data.amount,
       frequency: data.frequency,
       custom_interval_days: data.custom_interval_days || null,
@@ -1014,6 +1019,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     source_wallet_id?: string; 
     destination_wallet_id?: string | null; 
     category_id?: string | null;
+    loan_id?: string | null;
     amount?: number; 
     frequency?: RecurringFrequency; 
     custom_interval_days?: number | null;
