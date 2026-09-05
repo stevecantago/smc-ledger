@@ -605,7 +605,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const feeAmount = data.fee || 0;
     let updatedWallets = [...wallets];
 
-    if (data.type === 'expense') {
+    if (data.type === 'expense' || data.type === 'loan') {
       const totalOutflow = data.amount + feeAmount;
       const newBal = sourceWallet.current_balance - totalOutflow;
       updatedWallets = updatedWallets.map(w => w.id === data.wallet_id ? { ...w, current_balance: newBal } : w);
@@ -694,7 +694,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const feeAmount = target.fee || 0;
     let updatedWallets = [...wallets];
 
-    if (target.type === 'expense') {
+    if (target.type === 'expense' || target.type === 'loan') {
       const totalOutflow = target.amount + feeAmount;
       const sourceWallet = wallets.find(w => w.id === target.wallet_id);
       if (sourceWallet) {

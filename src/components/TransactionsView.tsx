@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useHousehold } from '../context/HouseholdContext';
 import { 
-  TrendingDown, TrendingUp, ArrowRightLeft, Search, Filter, Trash2, Edit3, Clock, 
+  TrendingDown, TrendingUp, ArrowRightLeft, Landmark, Search, Filter, Trash2, Edit3, Clock, 
   ExternalLink, Plus, AlertCircle, CheckCircle2, ShieldAlert, Download, Image, Upload, DollarSign 
 } from 'lucide-react';
 import { Transaction, TransactionType } from '../types/database';
@@ -16,8 +16,9 @@ interface TransactionsViewProps {
 
 export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, setShowModal }) => {
   const { 
-    transactions, wallets, categories, members, currentMember, isAdmin,
-    addTransaction, updateTransaction, deleteTransaction, canEditTransaction 
+    transactions, wallets, categories, loans, recurringTransfers, members, currentMember, isAdmin,
+    addTransaction, updateTransaction, deleteTransaction, canEditTransaction,
+    updateRecurringTransfer, deleteRecurringTransfer, payLoanAmortization 
   } = useHousehold();
 
   // Filters
@@ -28,6 +29,9 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
 
   // Form state for Modal
   const [txType, setTxType] = useState<TransactionType>('expense');
+  const [selectedRecurringId, setSelectedRecurringId] = useState('');
+  const [selectedLoanId, setSelectedLoanId] = useState('');
+  const [showCustomNote, setShowCustomNote] = useState(false);
   const [amount, setAmount] = useState('');
   const [fee, setFee] = useState('');
   const [walletId, setWalletId] = useState(wallets[0]?.id || '');
@@ -40,6 +44,28 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
   const [errorMsg, setErrorMsg] = useState('');
 
   const visibleWallets = wallets.filter(w => isAdmin || w.is_shared || w.owner_id === currentMember.id);
+
+  const getDaysOffset = (freq: string, customInterval?: number | null) => {
+    switch (freq) {
+      case 'daily': return 1;
+      case 'weekly': return 7;
+      case 'biweekly': return 14;
+      case 'bimonthly': return 15;
+      case 'monthly': return 30;
+      case 'quarterly': return 90;
+      case 'semi_annual': return 180;
+      case 'annual': return 365;
+      case 'custom_days': return customInterval || 1;
+      default: return 30;
+    }
+  };
+
+  const advanceDateByDays = (startDateStr: string, days: number) => {
+    const d = new Date(startDateStr);
+    if (isNaN(d.getTime())) return new Date(Date.now() + days * 86400000).toISOString().split('T')[0];
+    d.setDate(d.getDate() + days);
+    return d.toISOString().split('T')[0];
+  };
 
   const filteredTx = transactions.filter(t => {
     const matchesSearch = !searchTerm || (t.note && t.note.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -87,17 +113,22 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
       return;
     }
 
+    if (txType === 'loan' && !selectedLoanId) {
+      setErrorMsg('Please select an Associated Loan Item for the loan payment.');
+      return;
+    }
+
     const parsedFee = parseFloat(fee) || 0;
 
     const res = addTransaction({
       wallet_id: walletId,
       destination_wallet_id: txType === 'transfer' ? destWalletId : null,
-      category_id: txType === 'expense' ? categoryId : null,
+      category_id: txType === 'expense' ? (categoryId || null) : null,
       type: txType,
       amount: parsedAmount,
       fee: parsedFee,
       transaction_date: txDate,
-      note: note.trim(),
+      note: note.trim() || (txType === 'loan' ? 'Loan Amortization Payment' : txType === 'expense' ? 'Expense' : txType === 'transfer' ? 'Transfer' : 'Income'),
       receipt_url: receiptUrl.trim() || undefined,
     });
 
@@ -106,9 +137,36 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
       return;
     }
 
+    // Post-logging updates
+    if (txType === 'loan' && selectedLoanId) {
+      // Advance parent loan's next due date and increment paid count
+      payLoanAmortization(selectedLoanId, parsedAmount, walletId);
+
+      // Handle linked recurring loan payment item
+      if (selectedRecurringId && selectedRecurringId !== 'others') {
+        const parentLoan = loans.find(l => l.id === selectedLoanId);
+        if (parentLoan && (parentLoan.remaining_balance - parsedAmount) <= 0) {
+          // Remove recurring loan payment rule if fully paid
+          deleteRecurringTransfer(selectedRecurringId);
+        }
+      }
+    } else if (selectedRecurringId && selectedRecurringId !== 'others') {
+      // Advance Next Due date of recurring expense or transfer item
+      const rule = recurringTransfers.find(r => r.id === selectedRecurringId);
+      if (rule) {
+        const offsetDays = getDaysOffset(rule.frequency, rule.custom_interval_days);
+        const baseDate = rule.next_run_date || txDate;
+        const newNextRun = advanceDateByDays(baseDate, offsetDays);
+        updateRecurringTransfer(rule.id, { next_run_date: newNextRun });
+      }
+    }
+
     setAmount('');
     setFee('');
     setNote('');
+    setSelectedRecurringId('');
+    setSelectedLoanId('');
+    setShowCustomNote(false);
     setReceiptUrl('');
     setReceiptFileName('');
     setShowModal(false);
@@ -149,6 +207,9 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
             onClick={() => {
               setErrorMsg('');
               if (visibleWallets.length > 0) setWalletId(visibleWallets[0].id);
+              setSelectedRecurringId('');
+              setSelectedLoanId('');
+              setShowCustomNote(false);
               setShowModal(true);
             }}
             className="flex items-center space-x-1.5 bg-sky-600 hover:bg-sky-500 text-white px-3.5 py-2 rounded-lg font-medium text-xs transition-all shadow shrink-0"
@@ -184,6 +245,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
             <option value="expense">Expenses Only</option>
             <option value="income">Income Only</option>
             <option value="transfer">Transfers Only</option>
+            <option value="loan">Loan Payments Only</option>
           </select>
 
           {/* Category Filter */}
@@ -204,7 +266,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
             onChange={(e) => setPayerFilter(e.target.value)}
             className="bg-slate-900/80 text-white text-xs px-3 py-2 rounded-lg border border-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500"
           >
-            <option value="all">All Family Members</option>
+            <option value="all">All Household Members</option>
             {members.map(m => (
               <option key={m.id} value={m.id}>{m.display_name}</option>
             ))}
@@ -212,26 +274,26 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
         </div>
       </div>
 
-      {/* Desktop Transaction Table (>= md) */}
+      {/* Desktop Ledger Table (>= md) */}
       <div className="hidden md:block bg-slate-800/80 border border-slate-700/70 rounded-xl overflow-hidden shadow-lg">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="bg-slate-900/90 text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-700">
+          <table className="w-full text-left text-xs text-slate-300">
+            <thead className="bg-slate-900/90 text-slate-400 uppercase text-[10px] tracking-wider font-semibold border-b border-slate-700">
+              <tr>
                 <th className="py-3 px-4">Date & Type</th>
                 <th className="py-3 px-4">Description / Note</th>
                 <th className="py-3 px-4">Source Account</th>
-                <th className="py-3 px-4">Envelope / Dest</th>
-                <th className="py-3 px-4">Payer</th>
-                <th className="py-3 px-4 text-right">Amount & Fee</th>
-                <th className="py-3 px-4 text-right">Actions</th>
+                <th className="py-3 px-4">Category / Target</th>
+                <th className="py-3 px-4">Logged By</th>
+                <th className="py-3 px-4 text-right">Amount (₱)</th>
+                <th className="py-3 px-4 text-right">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-700/50 text-slate-300">
+            <tbody className="divide-y divide-slate-800">
               {filteredTx.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-8 text-center text-slate-500 italic">
-                    No transaction entries match the selected filters.
+                    No transaction entries found matching your filter criteria.
                   </td>
                 </tr>
               ) : (
@@ -244,16 +306,18 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                   const txFee = tx.fee || 0;
 
                   return (
-                    <tr key={tx.id} className="hover:bg-slate-700/30 transition-colors">
-                      <td className="py-3 px-4 font-mono whitespace-nowrap">
-                        <div className="flex items-center space-x-2">
+                    <tr key={tx.id} className="hover:bg-slate-800/50 transition-colors">
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        <div className="flex items-center space-x-2 font-mono">
                           <span className={`p-1.5 rounded ${
                             tx.type === 'expense' ? 'bg-rose-500/10 text-rose-400' :
                             tx.type === 'income' ? 'bg-emerald-500/10 text-emerald-400' :
+                            tx.type === 'loan' ? 'bg-amber-500/10 text-amber-400' :
                             'bg-indigo-500/10 text-indigo-400'
                           }`}>
                             {tx.type === 'expense' ? <TrendingDown className="w-3.5 h-3.5" /> :
                              tx.type === 'income' ? <TrendingUp className="w-3.5 h-3.5" /> :
+                             tx.type === 'loan' ? <Landmark className="w-3.5 h-3.5" /> :
                              <ArrowRightLeft className="w-3.5 h-3.5" />}
                           </span>
                           <span>{tx.transaction_date}</span>
@@ -285,6 +349,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                           <span className="text-sky-300 font-medium">{category?.name || 'General'}</span>
                         ) : tx.type === 'transfer' ? (
                           <span className="text-indigo-300 font-medium">➔ {dstWallet?.name || 'Destination'}</span>
+                        ) : tx.type === 'loan' ? (
+                          <span className="text-amber-300 font-medium">Loan Amortization</span>
                         ) : (
                           <span className="text-slate-500">—</span>
                         )}
@@ -301,9 +367,10 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                           <span className={
                             tx.type === 'expense' ? 'text-rose-400' :
                             tx.type === 'income' ? 'text-emerald-400' :
+                            tx.type === 'loan' ? 'text-amber-400' :
                             'text-indigo-300'
                           }>
-                            {tx.type === 'expense' ? '-' : tx.type === 'income' ? '+' : ''}
+                            {tx.type === 'expense' || tx.type === 'loan' ? '-' : tx.type === 'income' ? '+' : ''}
                             ₱{tx.amount.toFixed(2)}
                           </span>
                           {txFee > 0 && (
@@ -358,16 +425,18 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                 key={tx.id} 
                 className="bg-slate-800/90 border border-slate-700/80 rounded-xl p-4 space-y-3 shadow-md"
               >
-                {/* Header Row: Type Icon, Date, Amount & Fee */}
+                {/* Header Row */}
                 <div className="flex items-start justify-between">
                   <div className="flex items-center space-x-2.5">
                     <span className={`p-2 rounded-lg ${
                       tx.type === 'expense' ? 'bg-rose-500/10 text-rose-400' :
                       tx.type === 'income' ? 'bg-emerald-500/10 text-emerald-400' :
+                      tx.type === 'loan' ? 'bg-amber-500/10 text-amber-400' :
                       'bg-indigo-500/10 text-indigo-400'
                     }`}>
                       {tx.type === 'expense' ? <TrendingDown className="w-4 h-4" /> :
                        tx.type === 'income' ? <TrendingUp className="w-4 h-4" /> :
+                       tx.type === 'loan' ? <Landmark className="w-4 h-4" /> :
                        <ArrowRightLeft className="w-4 h-4" />}
                     </span>
                     <div>
@@ -378,11 +447,11 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
 
                   <div className="text-right">
                     <span className={`text-base font-bold font-mono block ${
-                      tx.type === 'expense' ? 'text-rose-400' :
+                      tx.type === 'expense' || tx.type === 'loan' ? 'text-rose-400' :
                       tx.type === 'income' ? 'text-emerald-400' :
                       'text-indigo-300'
                     }`}>
-                      {tx.type === 'expense' ? '-' : tx.type === 'income' ? '+' : ''}
+                      {tx.type === 'expense' || tx.type === 'loan' ? '-' : tx.type === 'income' ? '+' : ''}
                       ₱{tx.amount.toFixed(2)}
                     </span>
                     {txFee > 0 && (
@@ -422,6 +491,11 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                     {tx.type === 'transfer' && (
                       <div className="text-slate-400">
                         Destination: <strong className="text-indigo-300">➔ {dstWallet?.name || 'Unknown'}</strong>
+                      </div>
+                    )}
+                    {tx.type === 'loan' && (
+                      <div className="text-slate-400">
+                        Type: <strong className="text-amber-300">Loan Amortization Payment</strong>
                       </div>
                     )}
                   </div>
@@ -475,10 +549,15 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
               {/* Type Switcher */}
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1.5">Transaction Type</label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
                   <button
                     type="button"
-                    onClick={() => setTxType('expense')}
+                    onClick={() => {
+                      setTxType('expense');
+                      setSelectedRecurringId('');
+                      setSelectedLoanId('');
+                      setShowCustomNote(false);
+                    }}
                     className={`py-2 rounded-lg text-xs font-bold border transition-all ${
                       txType === 'expense'
                         ? 'bg-rose-500/10 text-rose-400 border-rose-500/30 ring-1 ring-sky-500'
@@ -489,7 +568,12 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                   </button>
                   <button
                     type="button"
-                    onClick={() => setTxType('income')}
+                    onClick={() => {
+                      setTxType('income');
+                      setSelectedRecurringId('');
+                      setSelectedLoanId('');
+                      setShowCustomNote(false);
+                    }}
                     className={`py-2 rounded-lg text-xs font-bold border transition-all ${
                       txType === 'income'
                         ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 ring-1 ring-sky-500'
@@ -500,7 +584,12 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                   </button>
                   <button
                     type="button"
-                    onClick={() => setTxType('transfer')}
+                    onClick={() => {
+                      setTxType('transfer');
+                      setSelectedRecurringId('');
+                      setSelectedLoanId('');
+                      setShowCustomNote(false);
+                    }}
                     className={`py-2 rounded-lg text-xs font-bold border transition-all ${
                       txType === 'transfer'
                         ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30 ring-1 ring-sky-500'
@@ -509,8 +598,154 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                   >
                     Transfer
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTxType('loan');
+                      setSelectedRecurringId('');
+                      setSelectedLoanId(loans[0]?.id || '');
+                      setShowCustomNote(false);
+                    }}
+                    className={`py-2 rounded-lg text-xs font-bold border transition-all ${
+                      txType === 'loan'
+                        ? 'bg-amber-500/10 text-amber-400 border-amber-500/30 ring-1 ring-sky-500'
+                        : 'bg-slate-800 text-slate-400 border-slate-700'
+                    }`}
+                  >
+                    Loan
+                  </button>
                 </div>
               </div>
+
+              {/* Conditional Dropdown PLACED ABOVE Amount & Fee Fields */}
+              {txType === 'expense' && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Recurring Expenses</label>
+                  <select
+                    value={selectedRecurringId}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSelectedRecurringId(val);
+                      if (val === 'others') {
+                        setShowCustomNote(true);
+                        setNote('');
+                      } else if (val) {
+                        const r = recurringTransfers.find(item => item.id === val);
+                        if (r) {
+                          setAmount(r.amount.toString());
+                          setWalletId(r.source_wallet_id);
+                          if (r.category_id) setCategoryId(r.category_id);
+                          setNote(r.note);
+                          setShowCustomNote(false);
+                        }
+                      } else {
+                        setShowCustomNote(false);
+                      }
+                    }}
+                    className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  >
+                    <option value="">-- Select Recurring Expense (Optional) --</option>
+                    {recurringTransfers.filter(r => r.rule_type === 'expense').map(r => (
+                      <option key={r.id} value={r.id}>
+                        {r.note} (₱{r.amount.toFixed(2)})
+                      </option>
+                    ))}
+                    <option value="others">+ Others (Custom Expense)</option>
+                  </select>
+                </div>
+              )}
+
+              {txType === 'transfer' && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Recurring Transfer</label>
+                  <select
+                    value={selectedRecurringId}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSelectedRecurringId(val);
+                      if (val === 'others') {
+                        setShowCustomNote(true);
+                        setNote('');
+                      } else if (val) {
+                        const r = recurringTransfers.find(item => item.id === val);
+                        if (r) {
+                          setAmount(r.amount.toString());
+                          setWalletId(r.source_wallet_id);
+                          if (r.destination_wallet_id) setDestWalletId(r.destination_wallet_id);
+                          if (r.category_id) setCategoryId(r.category_id);
+                          setNote(r.note);
+                          setShowCustomNote(false);
+                        }
+                      } else {
+                        setShowCustomNote(false);
+                      }
+                    }}
+                    className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  >
+                    <option value="">-- Select Recurring Transfer (Optional) --</option>
+                    {recurringTransfers.filter(r => r.rule_type === 'transfer').map(r => (
+                      <option key={r.id} value={r.id}>
+                        {r.note} (₱{r.amount.toFixed(2)})
+                      </option>
+                    ))}
+                    <option value="others">+ Others (Custom Transfer)</option>
+                  </select>
+                </div>
+              )}
+
+              {txType === 'loan' && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Loan Payments</label>
+                  <select
+                    value={selectedRecurringId}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSelectedRecurringId(val);
+                      if (val === 'others') {
+                        setShowCustomNote(true);
+                        setNote('');
+                      } else if (val) {
+                        const r = recurringTransfers.find(item => item.id === val);
+                        if (r) {
+                          setAmount(r.amount.toString());
+                          setWalletId(r.source_wallet_id);
+                          if (r.loan_id) setSelectedLoanId(r.loan_id);
+                          setNote(r.note);
+                          setShowCustomNote(false);
+                        }
+                      } else {
+                        setShowCustomNote(false);
+                      }
+                    }}
+                    className="w-full bg-slate-800 text-amber-300 text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-semibold"
+                  >
+                    <option value="">-- Select Loan Payment Rule (Optional) --</option>
+                    {recurringTransfers.filter(r => r.rule_type === 'loan_payment').map(r => (
+                      <option key={r.id} value={r.id}>
+                        {r.note} (₱{r.amount.toFixed(2)})
+                      </option>
+                    ))}
+                    <option value="others">+ Others (Custom Loan Payment)</option>
+                  </select>
+                </div>
+              )}
+
+              {/* Custom entry field when Others is selected */}
+              {(selectedRecurringId === 'others' || showCustomNote) && (
+                <div>
+                  <label className="block text-xs font-medium text-amber-400 mb-1 font-mono">
+                    Custom {txType.toUpperCase()} Title / Description
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder={`Indicate custom ${txType} transaction...`}
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    className="w-full bg-slate-800 text-white text-xs border border-amber-500/50 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  />
+                </div>
+              )}
 
               {/* Amount & Fee Fields */}
               <div className="grid grid-cols-2 gap-3">
@@ -592,17 +827,47 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                 </div>
               )}
 
+              {/* Associated Loan Item for Loan Payment */}
+              {txType === 'loan' && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Associated Loan Item</label>
+                  <select
+                    value={selectedLoanId}
+                    onChange={(e) => {
+                      const lId = e.target.value;
+                      setSelectedLoanId(lId);
+                      const foundLoan = loans.find(l => l.id === lId);
+                      if (foundLoan) {
+                        if (!amount) setAmount(foundLoan.monthly_amortization.toString());
+                        if (!walletId && foundLoan.source_wallet_id) setWalletId(foundLoan.source_wallet_id);
+                        if (!note) setNote(`Loan Amortization - ${foundLoan.name}`);
+                      }
+                    }}
+                    className="w-full bg-slate-800 text-amber-300 text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-semibold"
+                  >
+                    <option value="">-- Select Associated Loan --</option>
+                    {loans.map(l => (
+                      <option key={l.id} value={l.id}>
+                        {l.name} ({l.lender}) - Bal: ₱{l.remaining_balance.toFixed(2)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {/* Note / Description */}
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Description / Note</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Weekly Groceries, InstaPay Transfer, Load"
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                />
-              </div>
+              {selectedRecurringId !== 'others' && !showCustomNote && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1 font-sans">Description / Note</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Weekly Groceries, InstaPay Transfer, Load"
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  />
+                </div>
+              )}
 
               {/* Transaction Date */}
               <div>
