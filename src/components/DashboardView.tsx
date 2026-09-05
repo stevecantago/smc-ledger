@@ -5,7 +5,7 @@ import { useHousehold } from '../context/HouseholdContext';
 import { 
   TrendingDown, TrendingUp, ArrowRightLeft, Wallet as WalletIcon, ShieldCheck, 
   Landmark, Target, Plus, AlertCircle, CheckCircle2, ChevronRight, DollarSign, Clock, Calendar,
-  Smartphone, CreditCard
+  Smartphone, CreditCard, Banknote
 } from 'lucide-react';
 import { Loan, Wallet } from '../types/database';
 import { CategoryIcon } from './CategoryIcon';
@@ -241,7 +241,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
         </div>
 
         {/* Totals & Summary KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
           {/* Bank Accounts Total */}
           <div className="bg-slate-900/80 border border-sky-500/30 p-3.5 rounded-xl space-y-1">
             <div className="flex items-center justify-between text-xs text-slate-400">
@@ -274,6 +274,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
               ₱{totalEWalletBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </div>
             <p className="text-[10px] text-slate-400">Total e-wallet balances</p>
+          </div>
+
+          {/* Cash Total */}
+          <div className="bg-slate-900/80 border border-amber-500/30 p-3.5 rounded-xl space-y-1">
+            <div className="flex items-center justify-between text-xs text-slate-400">
+              <span className="flex items-center space-x-1">
+                <Banknote className="w-3.5 h-3.5 text-amber-400" />
+                <span>Cash On Hand</span>
+              </span>
+              <span className="text-[10px] bg-amber-500/10 text-amber-300 font-mono px-1.5 py-0.2 rounded">
+                {visibleWallets.filter(w => w.wallet_type === 'cash').length} Accounts
+              </span>
+            </div>
+            <div className="text-lg font-bold font-mono text-amber-400">
+              ₱{totalCashBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            </div>
+            <p className="text-[10px] text-slate-400 font-mono">Total cash balances</p>
           </div>
 
           {/* Credit Lines Available Total */}
