@@ -65,20 +65,26 @@ interface HouseholdContextType {
   addLoan: (loan: { 
     name: string; 
     lender: string; 
+    source_wallet_id?: string | null;
     total_principal: number; 
+    total_amortizations?: number | null;
+    paid_amortizations_count?: number | null;
     remaining_balance?: number;
     amount_paid?: number;
     interest_rate_annual: number; 
     monthly_amortization: number; 
     payment_frequency?: LoanPaymentFrequency;
-    due_day_of_month: number;
+    due_day_of_month?: number;
     second_due_day_of_month?: number | null;
     next_due_date?: string | null;
   }) => void;
   updateLoan: (id: string, updates: { 
     name?: string; 
     lender?: string; 
+    source_wallet_id?: string | null;
     total_principal?: number; 
+    total_amortizations?: number | null;
+    paid_amortizations_count?: number | null;
     remaining_balance?: number; 
     amount_paid?: number;
     interest_rate_annual?: number; 
@@ -813,13 +819,16 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const addLoan = (data: { 
     name: string; 
     lender: string; 
+    source_wallet_id?: string | null;
     total_principal: number; 
+    total_amortizations?: number | null;
+    paid_amortizations_count?: number | null;
     remaining_balance?: number;
     amount_paid?: number;
     interest_rate_annual: number; 
     monthly_amortization: number; 
     payment_frequency?: LoanPaymentFrequency;
-    due_day_of_month: number;
+    due_day_of_month?: number;
     second_due_day_of_month?: number | null;
     next_due_date?: string | null;
   }) => {
@@ -828,21 +837,26 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       return;
     }
 
-    const paid = data.amount_paid !== undefined ? data.amount_paid : 0;
-    const remaining = data.remaining_balance !== undefined ? data.remaining_balance : Math.max(0, data.total_principal - paid);
+    const paidCount = data.paid_amortizations_count || 0;
+    const paid = data.amount_paid !== undefined && data.amount_paid !== null ? data.amount_paid : (paidCount * data.monthly_amortization);
+    const totalAmort = data.total_amortizations || null;
+    const remaining = data.remaining_balance !== undefined && data.remaining_balance !== null ? data.remaining_balance : (totalAmort ? Math.max(0, (totalAmort - paidCount) * data.monthly_amortization) : Math.max(0, data.total_principal - paid));
 
     const newLoan: Loan = {
       id: `loan-${Date.now()}`,
       household_id: household.id,
       name: data.name,
       lender: data.lender,
+      source_wallet_id: data.source_wallet_id || null,
       total_principal: data.total_principal,
+      total_amortizations: totalAmort,
+      paid_amortizations_count: paidCount,
       remaining_balance: remaining,
       amount_paid: paid,
       interest_rate_annual: data.interest_rate_annual,
       monthly_amortization: data.monthly_amortization,
       payment_frequency: data.payment_frequency || 'monthly',
-      due_day_of_month: data.due_day_of_month,
+      due_day_of_month: data.due_day_of_month || 1,
       second_due_day_of_month: data.second_due_day_of_month || null,
       next_due_date: data.next_due_date || null,
       start_date: new Date().toISOString().split('T')[0],
@@ -854,12 +868,31 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (supabase) {
       Promise.resolve(supabase.from('loans').insert([newLoan])).catch(() => {});
     }
+
+    // Auto-create/sync Recurring Schedule Item for this Loan
+    const sourceW = data.source_wallet_id || (wallets.length > 0 ? wallets[0].id : null);
+    if (sourceW) {
+      const freq: RecurringFrequency = data.payment_frequency === 'bi_monthly' ? 'bimonthly' : 'monthly';
+      addRecurringTransfer({
+        rule_type: 'loan_payment',
+        source_wallet_id: sourceW,
+        loan_id: newLoan.id,
+        category_id: null,
+        amount: data.monthly_amortization,
+        frequency: freq,
+        next_run_date: data.next_due_date || new Date().toISOString().split('T')[0],
+        note: data.name,
+      });
+    }
   };
 
   const updateLoan = (id: string, updates: { 
     name?: string; 
     lender?: string; 
+    source_wallet_id?: string | null;
     total_principal?: number; 
+    total_amortizations?: number | null;
+    paid_amortizations_count?: number | null;
     remaining_balance?: number; 
     amount_paid?: number;
     interest_rate_annual?: number; 
@@ -870,12 +903,41 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     next_due_date?: string | null;
   }) => {
     if (!isAdmin) return { success: false, error: 'Only Household Parents/Admins can edit loan records.' };
-    setLoans(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l));
-    logActivity('update_loan', `Updated loan record "${updates.name || id}"`);
+    const target = loans.find(l => l.id === id);
+    const updated = { ...target, ...updates } as Loan;
+    setLoans(prev => prev.map(l => l.id === id ? updated : l));
+    logActivity('update_loan', `Updated loan record "${updates.name || target?.name || id}"`);
 
     if (supabase) {
       Promise.resolve(supabase.from('loans').update(updates).eq('id', id)).catch(() => {});
     }
+
+    // Sync Recurring Transfer Rule
+    const existingRule = recurringTransfers.find(r => r.loan_id === id);
+    if (existingRule) {
+      const freq: RecurringFrequency = updated.payment_frequency === 'bi_monthly' ? 'bimonthly' : 'monthly';
+      updateRecurringTransfer(existingRule.id, {
+        rule_type: 'loan_payment',
+        source_wallet_id: updated.source_wallet_id || existingRule.source_wallet_id,
+        amount: updated.monthly_amortization,
+        frequency: freq,
+        next_run_date: updated.next_due_date || existingRule.next_run_date,
+        note: updated.name,
+      });
+    } else if (updated.source_wallet_id) {
+      const freq: RecurringFrequency = updated.payment_frequency === 'bi_monthly' ? 'bimonthly' : 'monthly';
+      addRecurringTransfer({
+        rule_type: 'loan_payment',
+        source_wallet_id: updated.source_wallet_id,
+        loan_id: id,
+        category_id: null,
+        amount: updated.monthly_amortization,
+        frequency: freq,
+        next_run_date: updated.next_due_date || new Date().toISOString().split('T')[0],
+        note: updated.name,
+      });
+    }
+
     return { success: true };
   };
 
@@ -884,6 +946,12 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const target = loans.find(l => l.id === id);
     setLoans(prev => prev.filter(l => l.id !== id));
     logActivity('delete_loan', `Deleted loan record "${target?.name || id}"`);
+
+    // Delete linked recurring schedule rule
+    const linkedRule = recurringTransfers.find(r => r.loan_id === id);
+    if (linkedRule) {
+      deleteRecurringTransfer(linkedRule.id);
+    }
 
     if (supabase) {
       Promise.resolve(supabase.from('loans').delete().eq('id', id)).catch(() => {});
@@ -902,38 +970,35 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       return { success: false, error: 'Insufficient wallet balance for amortization payment' };
     }
 
-    // Auto-advance next_due_date
-    let nextDueDate: string | null = targetLoan.next_due_date || null;
+    // Auto-advance next_due_date (+30 days for monthly, +15 days for bi-monthly)
+    let nextDueDate: string | null = targetLoan.next_due_date || new Date().toISOString().split('T')[0];
     if (nextDueDate) {
       const currentDate = new Date(nextDueDate);
-      if (targetLoan.payment_frequency === 'bi_monthly') {
-        const day1 = targetLoan.due_day_of_month;
-        const day2 = targetLoan.second_due_day_of_month || 30;
-        const currentDay = currentDate.getDate();
-
-        if (Math.abs(currentDay - day1) <= Math.abs(currentDay - day2)) {
-          currentDate.setDate(day2);
-        } else {
-          currentDate.setMonth(currentDate.getMonth() + 1);
-          currentDate.setDate(day1);
-        }
-      } else {
-        currentDate.setMonth(currentDate.getMonth() + 1);
-      }
+      const daysToAdd = targetLoan.payment_frequency === 'bi_monthly' ? 15 : 30;
+      currentDate.setDate(currentDate.getDate() + daysToAdd);
       nextDueDate = currentDate.toISOString().split('T')[0];
     }
 
-    const currentPaid = targetLoan.amount_paid !== undefined ? targetLoan.amount_paid : (targetLoan.total_principal - targetLoan.remaining_balance);
+    const currentPaidCount = targetLoan.paid_amortizations_count || 0;
+    const newPaidCount = currentPaidCount + 1;
+    const currentPaid = targetLoan.amount_paid !== undefined ? targetLoan.amount_paid : (currentPaidCount * targetLoan.monthly_amortization);
     const newPaid = currentPaid + amount;
-    const newRemaining = Math.max(0, targetLoan.remaining_balance - amount);
+    
+    const totalAmort = targetLoan.total_amortizations || null;
+    const newRemaining = totalAmort 
+      ? Math.max(0, (totalAmort - newPaidCount) * targetLoan.monthly_amortization) 
+      : Math.max(0, targetLoan.remaining_balance - amount);
+      
     const newWalletBal = sourceWallet.current_balance - amount;
 
     setWallets(prev => prev.map(w => w.id === walletId ? { ...w, current_balance: newWalletBal } : w));
     setLoans(prev => prev.map(l => l.id === loanId ? { 
       ...l, 
+      paid_amortizations_count: newPaidCount,
       remaining_balance: newRemaining,
       amount_paid: newPaid,
       next_due_date: nextDueDate,
+      source_wallet_id: walletId,
     } : l));
 
     addTransaction({
@@ -946,11 +1011,23 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     logActivity('pay_loan', `Paid loan amortization of ₱${amount} for "${targetLoan.name}"`);
 
+    // Sync updated Next Due Date to Recurring Transfer Schedule
+    const linkedRule = recurringTransfers.find(r => r.loan_id === loanId);
+    if (linkedRule && nextDueDate) {
+      updateRecurringTransfer(linkedRule.id, {
+        next_run_date: nextDueDate,
+        source_wallet_id: walletId,
+        amount: targetLoan.monthly_amortization,
+      });
+    }
+
     if (supabase) {
       Promise.resolve(supabase.from('loans').update({
+        paid_amortizations_count: newPaidCount,
         remaining_balance: newRemaining,
         amount_paid: newPaid,
         next_due_date: nextDueDate,
+        source_wallet_id: walletId,
       }).eq('id', loanId)).catch(() => {});
       updateWalletBalanceInSupabase(walletId, newWalletBal);
     }

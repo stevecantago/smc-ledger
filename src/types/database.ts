@@ -86,14 +86,17 @@ export interface Loan {
   household_id: string;
   name: string;
   lender: string;
+  source_wallet_id?: string | null;
   total_principal: number;
   remaining_balance: number;
+  total_amortizations?: number | null;
+  paid_amortizations_count?: number | null;
   amount_paid?: number; // Total principal/amortization paid to date
   interest_rate_annual: number;
-  monthly_amortization: number;
+  monthly_amortization: number; // Required Amortization
   payment_frequency?: LoanPaymentFrequency;
-  due_day_of_month: number;
-  second_due_day_of_month?: number | null; // e.g. Day 30 for 15th & 30th bi-monthly schedule
+  due_day_of_month?: number;
+  second_due_day_of_month?: number | null;
   next_due_date?: string | null; // Explicit upcoming due date (e.g. "2026-09-15")
   start_date: string;
   created_at: string;

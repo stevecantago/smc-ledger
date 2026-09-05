@@ -573,13 +573,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {loans.map(loan => {
-              const paidAmount = loan.amount_paid !== undefined ? loan.amount_paid : (loan.total_principal - loan.remaining_balance);
+              const paidCount = loan.paid_amortizations_count || 0;
+              const paidAmount = loan.amount_paid !== undefined && loan.amount_paid !== null ? loan.amount_paid : (paidCount * loan.monthly_amortization);
               const percentPaid = loan.total_principal > 0 
                 ? Math.min(Math.round((paidAmount / loan.total_principal) * 100), 100) 
                 : 0;
 
               const isBiMonthly = loan.payment_frequency === 'bi_monthly';
-              const singleInstallment = isBiMonthly ? loan.monthly_amortization / 2 : loan.monthly_amortization;
 
               return (
                 <div key={loan.id} className="bg-slate-900/60 border border-slate-700/60 rounded-xl p-4 space-y-3">
@@ -592,13 +592,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
                       <span className="text-[10px] font-bold text-amber-300 bg-amber-400/15 px-2 py-0.5 rounded border border-amber-400/25">
                         Due: {loan.next_due_date}
                       </span>
-                    ) : isBiMonthly ? (
-                      <span className="text-[10px] font-bold text-purple-300 bg-purple-500/15 px-2 py-0.5 rounded border border-purple-500/20">
-                        Days {loan.due_day_of_month} & {loan.second_due_day_of_month || 30}
-                      </span>
                     ) : (
-                      <span className="text-[10px] font-bold text-amber-300 bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/20">
-                        Day {loan.due_day_of_month} Due
+                      <span className="text-[10px] font-medium text-slate-400 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">
+                        {isBiMonthly ? 'Bi-Monthly' : 'Monthly'}
                       </span>
                     )}
                   </div>
@@ -606,20 +602,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
                   <div className="flex justify-between items-baseline text-xs font-mono">
                     <div>
                       <span className="text-slate-400 text-[10px]">Remaining Balance:</span>
-                      <p className="font-bold text-rose-400">₱{loan.remaining_balance.toLocaleString()}</p>
+                      <p className="font-bold text-rose-400">₱{loan.remaining_balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
                     </div>
                     <div className="text-right">
                       <span className="text-slate-400 text-[10px]">
-                        {isBiMonthly ? 'Bi-Monthly Payment:' : 'Monthly Amortization:'}
+                        Required Amortization:
                       </span>
-                      <p className="font-bold text-white">₱{singleInstallment.toLocaleString()}</p>
+                      <p className="font-bold text-white">₱{loan.monthly_amortization.toLocaleString()}</p>
                     </div>
                   </div>
 
                   {/* Progress */}
                   <div className="space-y-1">
                     <div className="flex justify-between text-[10px]">
-                      <span className="text-slate-400">Paid: ₱{paidAmount.toLocaleString()}</span>
+                      <span className="text-slate-400">Paid: {paidCount} Amortizations (₱{paidAmount.toLocaleString()})</span>
                       <span className="text-emerald-400 font-bold">{percentPaid}% Paid Off</span>
                     </div>
                     <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
@@ -634,13 +630,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
                     onClick={() => {
                       setErrorMsg('');
                       setPayingLoan(loan);
-                      setPayAmount(singleInstallment.toString());
-                      if (visibleWallets.length > 0) setSelectedWalletId(visibleWallets[0].id);
+                      setPayAmount(loan.monthly_amortization.toString());
+                      if (visibleWallets.length > 0) setSelectedWalletId(loan.source_wallet_id || visibleWallets[0].id);
                     }}
                     className="w-full text-center py-1.5 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-xs font-bold rounded-lg transition-colors flex items-center justify-center space-x-1"
                   >
                     <DollarSign className="w-3.5 h-3.5" />
-                    <span>Pay Amortization (₱{singleInstallment.toLocaleString()})</span>
+                    <span>Pay Required Amortization (₱{loan.monthly_amortization.toLocaleString()})</span>
                   </button>
                 </div>
               );
