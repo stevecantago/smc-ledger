@@ -7,7 +7,8 @@ import {
   Landmark, Target, Plus, AlertCircle, CheckCircle2, ChevronRight, DollarSign, Clock, Calendar,
   Smartphone, CreditCard
 } from 'lucide-react';
-import { Loan } from '../types/database';
+import { Loan, Wallet } from '../types/database';
+import { CategoryIcon } from './CategoryIcon';
 
 interface DashboardViewProps {
   setActiveTab: (tab: string) => void;
@@ -24,6 +25,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
   const [payAmount, setPayAmount] = useState('');
   const [selectedWalletId, setSelectedWalletId] = useState(wallets[0]?.id || '');
   const [errorMsg, setErrorMsg] = useState('');
+
+  // Date Range Filter State for Recurring Bills & Transfers
+  const todayStr = new Date().toISOString().split('T')[0];
+  const defaultEndStr = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
+  const [recurringStartDate, setRecurringStartDate] = useState<string>(todayStr);
+  const [recurringEndDate, setRecurringEndDate] = useState<string>(defaultEndStr);
 
   const visibleWallets = wallets.filter(w => isAdmin || w.is_shared || w.owner_id === currentMember.id);
 
@@ -74,6 +81,32 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
   const totalMonthlyExpense = transactions
     .filter(t => t.type === 'expense')
     .reduce((sum, t) => sum + t.amount + (t.fee || 0), 0);
+
+  // Filter & Grouping Math for Recurring Bills & Transfers Schedule by Date Range and Wallet Account
+  const filteredRecurring = recurringTransfers.filter(rule => {
+    if (!rule.next_run_date) return false;
+    const itemDate = rule.next_run_date;
+    const matchesStart = !recurringStartDate || itemDate >= recurringStartDate;
+    const matchesEnd = !recurringEndDate || itemDate <= recurringEndDate;
+    return matchesStart && matchesEnd;
+  });
+
+  const walletGroupsMap = new Map<string, { wallet: Wallet | undefined; items: typeof filteredRecurring; totalOutflow: number }>();
+
+  filteredRecurring.forEach(rule => {
+    const walletId = rule.source_wallet_id;
+    if (!walletGroupsMap.has(walletId)) {
+      const w = wallets.find(item => item.id === walletId);
+      walletGroupsMap.set(walletId, { wallet: w, items: [], totalOutflow: 0 });
+    }
+    const group = walletGroupsMap.get(walletId)!;
+    group.items.push(rule);
+    group.totalOutflow += rule.amount;
+  });
+
+  const walletGroups = Array.from(walletGroupsMap.values());
+  const totalFilteredOutflow = filteredRecurring.reduce((sum, r) => sum + r.amount, 0);
+  const totalFilteredItemsCount = filteredRecurring.length;
 
   const handlePayAmortizationSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -321,6 +354,195 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
             })}
           </div>
         </div>
+      </div>
+
+      {/* Recurring Bills & Transfers Schedule Section */}
+      <div className="bg-slate-800/80 border border-slate-700/70 rounded-xl p-5 space-y-5 shadow-lg">
+        {/* Header & Date Range Toolbar */}
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 border-b border-slate-700/60 pb-4">
+          <div>
+            <div className="flex items-center space-x-2">
+              <Clock className="w-5 h-5 text-indigo-400" />
+              <h3 className="font-bold text-sm text-white">Recurring Bills & Transfers Schedule</h3>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              Filter upcoming recurring bills & transfers by date range and view required wallet outflow totals.
+            </p>
+          </div>
+
+          {/* Custom Start & End Date Inputs & Presets */}
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <div className="flex items-center space-x-1.5 bg-slate-900/80 border border-slate-700 px-2.5 py-1.5 rounded-lg">
+              <span className="text-slate-400 font-medium">From:</span>
+              <input
+                type="date"
+                value={recurringStartDate}
+                onChange={(e) => setRecurringStartDate(e.target.value)}
+                className="bg-transparent text-amber-300 font-mono font-bold focus:outline-none cursor-pointer"
+              />
+            </div>
+
+            <div className="flex items-center space-x-1.5 bg-slate-900/80 border border-slate-700 px-2.5 py-1.5 rounded-lg">
+              <span className="text-slate-400 font-medium">To:</span>
+              <input
+                type="date"
+                value={recurringEndDate}
+                onChange={(e) => setRecurringEndDate(e.target.value)}
+                className="bg-transparent text-amber-300 font-mono font-bold focus:outline-none cursor-pointer"
+              />
+            </div>
+
+            {/* Quick Presets */}
+            <button
+              type="button"
+              onClick={() => {
+                setRecurringStartDate(todayStr);
+                setRecurringEndDate(defaultEndStr);
+              }}
+              className="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-[11px] font-semibold rounded-lg transition-colors"
+            >
+              Next 30 Days
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setRecurringStartDate('');
+                setRecurringEndDate('');
+              }}
+              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 text-[11px] font-medium rounded-lg transition-colors"
+            >
+              Show All
+            </button>
+          </div>
+        </div>
+
+        {/* Overall Filter Summary Banner */}
+        <div className="bg-slate-900/70 border border-slate-700/60 p-4 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+              <Calendar className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-slate-400">Date Range Filter: </span>
+              <strong className="text-amber-300 font-mono">
+                {recurringStartDate || 'Earliest'} ➔ {recurringEndDate || 'Latest'}
+              </strong>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                {totalFilteredItemsCount} scheduled items across {walletGroups.length} paying wallet accounts
+              </p>
+            </div>
+          </div>
+
+          <div className="text-right">
+            <span className="text-[10px] text-slate-400 uppercase font-mono tracking-wider block">Total Scheduled Outflow</span>
+            <span className="text-xl font-bold font-mono text-rose-400 block">
+              ₱{totalFilteredOutflow.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            </span>
+          </div>
+        </div>
+
+        {/* Grouped by Paying Wallet Account */}
+        {walletGroups.length === 0 ? (
+          <div className="bg-slate-900/40 border border-slate-700/40 rounded-xl p-8 text-center text-slate-500 italic text-xs">
+            No recurring bills or transfers scheduled with next due dates falling within the selected date range ({recurringStartDate || 'Start'} to {recurringEndDate || 'End'}).
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {walletGroups.map(({ wallet, items, totalOutflow }) => {
+              const isCC = wallet?.wallet_type === 'credit_card';
+              const currentBal = wallet?.current_balance || 0;
+              const availCredit = isCC ? ((wallet?.credit_limit || 0) - currentBal) : currentBal;
+              const hasSufficientFunds = isCC ? availCredit >= totalOutflow : currentBal >= totalOutflow;
+
+              return (
+                <div key={wallet?.id || 'unknown'} className="bg-slate-900/80 border border-slate-700/70 rounded-xl p-4 space-y-3 shadow-md">
+                  {/* Wallet Group Header */}
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                    <div className="flex items-center space-x-2.5">
+                      <div className="p-2 rounded-lg bg-slate-800 border border-slate-700">
+                        <WalletIcon className="w-4 h-4 text-sky-400" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-sm text-white flex items-center space-x-2">
+                          <span>{wallet?.name || 'Unknown Paying Account'}</span>
+                          <span className="text-[10px] text-slate-400 font-mono uppercase bg-slate-800 px-1.5 py-0.2 rounded border border-slate-700">
+                            {wallet?.wallet_type.replace('_', ' ') || 'Account'}
+                          </span>
+                        </h4>
+                        <p className="text-[11px] text-slate-400 flex items-center space-x-2 mt-0.5">
+                          <span>Account Available: <strong className={isCC ? "text-emerald-400 font-mono" : "text-slate-200 font-mono"}>₱{availCredit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong></span>
+                          {!hasSufficientFunds && (
+                            <span className="text-[10px] font-bold text-rose-400 bg-rose-500/15 px-1.5 py-0.2 rounded border border-rose-500/30">
+                              Insufficient Available Balance!
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Group Outflow Total */}
+                    <div className="text-left sm:text-right">
+                      <span className="text-[10px] text-slate-400 uppercase font-mono tracking-wider block">Paying Account Outflow Total</span>
+                      <span className="text-base font-bold font-mono text-rose-400 block">
+                        ₱{totalOutflow.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* List of Recurring Items for this Wallet */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                    {items.map(rule => {
+                      const cat = rule.category_id ? categories.find(c => c.id === rule.category_id) : null;
+                      const dst = rule.destination_wallet_id ? wallets.find(w => w.id === rule.destination_wallet_id) : null;
+
+                      return (
+                        <div key={rule.id} className="bg-slate-800/80 border border-slate-700/60 p-3 rounded-lg flex items-start justify-between gap-2 text-xs">
+                          <div className="space-y-1">
+                            <div className="flex items-center space-x-2">
+                              <span className="font-semibold text-white">{rule.note}</span>
+                              <span className={`text-[9px] font-bold font-mono px-1.5 py-0.2 rounded uppercase ${
+                                rule.rule_type === 'expense' ? 'bg-rose-500/10 text-rose-400' : 'bg-indigo-500/10 text-indigo-400'
+                              }`}>
+                                {rule.rule_type}
+                              </span>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400">
+                              {rule.rule_type === 'transfer' && dst && (
+                                <span>➔ Destination: <strong className="text-indigo-300">{dst.name}</strong></span>
+                              )}
+
+                              {cat && (
+                                <span className="inline-flex items-center text-[10px] font-semibold text-sky-300 bg-sky-500/15 px-2 py-0.2 rounded border border-sky-500/30">
+                                  <CategoryIcon slug={cat.icon_slug} className="w-3 h-3 mr-1" />
+                                  {cat.name}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="text-[11px] font-bold text-amber-300 font-mono flex items-center pt-0.5">
+                              <Calendar className="w-3.5 h-3.5 mr-1 text-amber-400" /> Next Due Date: {rule.next_run_date}
+                            </div>
+                          </div>
+
+                          <div className="text-right font-mono shrink-0">
+                            <span className="font-bold text-sm text-rose-400 block">
+                              ₱{rule.amount.toFixed(2)}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-sans block uppercase">
+                              {rule.frequency}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Two Column Grid: Loans Amortization & Recent Transactions */}
