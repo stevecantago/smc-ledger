@@ -3,19 +3,22 @@
 import React, { useState } from 'react';
 import { useHousehold } from '../context/HouseholdContext';
 import { Wallet as WalletIcon, Landmark, Smartphone, Banknote, Shield, Lock, Plus, ArrowRightLeft, Calendar, Power, Wifi, Clock, Edit2, Trash2, CreditCard } from 'lucide-react';
-import { Wallet, WalletType, RecurringFrequency, RecurringRuleType } from '../types/database';
+import { Wallet, WalletType, RecurringFrequency, RecurringRuleType, RecurringTransfer } from '../types/database';
 import { CategoryIcon } from './CategoryIcon';
 
 export const WalletsView: React.FC = () => {
   const { 
     wallets, categories, members, currentMember, isAdmin, 
     addWallet, updateWallet, deleteWallet,
-    recurringTransfers, addRecurringTransfer, toggleRecurringTransfer, deleteRecurringTransfer 
+    recurringTransfers, addRecurringTransfer, updateRecurringTransfer, toggleRecurringTransfer, deleteRecurringTransfer 
   } = useHousehold();
 
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [editingWallet, setEditingWallet] = useState<Wallet | null>(null);
+  
+  // Recurring Modals & State
   const [showRecurringModal, setShowRecurringModal] = useState(false);
+  const [editingRecurring, setEditingRecurring] = useState<RecurringTransfer | null>(null);
 
   // Add Wallet Form State
   const [name, setName] = useState('');
@@ -39,7 +42,20 @@ export const WalletsView: React.FC = () => {
   const [transferAmount, setTransferAmount] = useState('');
   const [frequency, setFrequency] = useState<RecurringFrequency>('monthly');
   const [customDays, setCustomDays] = useState('10');
+  const [nextRunDate, setNextRunDate] = useState(new Date().toISOString().split('T')[0]);
   const [transferNote, setTransferNote] = useState('');
+
+  // Edit Recurring Bill / Transfer Form State
+  const [editRuleType, setEditRuleType] = useState<RecurringRuleType>('expense');
+  const [editSourceWalletId, setEditSourceWalletId] = useState('');
+  const [editDestWalletId, setEditDestWalletId] = useState('');
+  const [editCategoryId, setEditCategoryId] = useState('');
+  const [editTransferAmount, setEditTransferAmount] = useState('');
+  const [editFrequency, setEditFrequency] = useState<RecurringFrequency>('monthly');
+  const [editCustomDays, setEditCustomDays] = useState('10');
+  const [editNextRunDate, setEditNextRunDate] = useState('');
+  const [editTransferNote, setEditTransferNote] = useState('');
+  const [editIsActive, setEditIsActive] = useState(true);
 
   const visibleWallets = wallets.filter(w => isAdmin || w.is_shared || w.owner_id === currentMember.id);
 
@@ -96,16 +112,38 @@ export const WalletsView: React.FC = () => {
       rule_type: ruleType,
       source_wallet_id: sourceWalletId,
       destination_wallet_id: ruleType === 'transfer' ? destWalletId : null,
-      category_id: ruleType === 'expense' ? categoryId : null,
+      category_id: categoryId || null,
       amount: parseFloat(transferAmount) || 0,
       frequency: frequency,
       custom_interval_days: frequency === 'custom_days' ? (parseInt(customDays) || 1) : null,
+      next_run_date: nextRunDate || null,
       note: transferNote.trim() || (ruleType === 'expense' ? 'Recurring Bill Payment' : 'Automated Allowance Transfer'),
     });
 
     setTransferAmount('');
     setTransferNote('');
+    setNextRunDate(new Date().toISOString().split('T')[0]);
     setShowRecurringModal(false);
+  };
+
+  const handleEditRecurringSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingRecurring) return;
+
+    updateRecurringTransfer(editingRecurring.id, {
+      rule_type: editRuleType,
+      source_wallet_id: editSourceWalletId,
+      destination_wallet_id: editRuleType === 'transfer' ? editDestWalletId : null,
+      category_id: editCategoryId || null,
+      amount: parseFloat(editTransferAmount) || 0,
+      frequency: editFrequency,
+      custom_interval_days: editFrequency === 'custom_days' ? (parseInt(editCustomDays) || 1) : null,
+      next_run_date: editNextRunDate.trim() || undefined,
+      note: editTransferNote.trim(),
+      is_active: editIsActive,
+    });
+
+    setEditingRecurring(null);
   };
 
   const getWalletIcon = (type: WalletType) => {
@@ -151,6 +189,7 @@ export const WalletsView: React.FC = () => {
               onClick={() => {
                 if (visibleWallets.length > 0) setSourceWalletId(visibleWallets[0].id);
                 if (categories.length > 0) setCategoryId(categories[0].id);
+                setNextRunDate(new Date().toISOString().split('T')[0]);
                 setShowRecurringModal(true);
               }}
               className="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-2 rounded-lg font-medium text-xs transition-all shadow"
@@ -310,11 +349,16 @@ export const WalletsView: React.FC = () => {
               <Clock className="w-4 h-4 text-indigo-400" />
               <span>Automated Recurring Bills & Transfers Schedule</span>
             </h3>
-            <p className="text-xs text-slate-400">Manage recurring Internet bills, School Dues, Water, Electric, Subscriptions, and Allowance rules</p>
+            <p className="text-xs text-slate-400">Manage recurring Internet bills, School Dues, Water, Electric, Subscriptions, and Allowance rules with associated Envelope Categories & Next Due Dates.</p>
           </div>
           {isAdmin && (
             <button
-              onClick={() => setShowRecurringModal(true)}
+              onClick={() => {
+                if (visibleWallets.length > 0) setSourceWalletId(visibleWallets[0].id);
+                if (categories.length > 0) setCategoryId(categories[0].id);
+                setNextRunDate(new Date().toISOString().split('T')[0]);
+                setShowRecurringModal(true);
+              }}
               className="text-xs text-indigo-400 hover:underline font-medium"
             >
               + Add Schedule Rule
@@ -333,27 +377,33 @@ export const WalletsView: React.FC = () => {
                 <div className="flex items-start justify-between">
                   <div className="flex items-center space-x-3">
                     {cat ? (
-                      <div className="p-2.5 bg-slate-800 border border-slate-700 rounded-lg">
+                      <div className="p-2.5 bg-slate-800 border border-slate-700 rounded-lg shrink-0">
                         <CategoryIcon slug={cat.icon_slug} className="w-5 h-5" />
                       </div>
                     ) : (
-                      <div className="p-2.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-lg">
+                      <div className="p-2.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-lg shrink-0">
                         <ArrowRightLeft className="w-5 h-5" />
                       </div>
                     )}
                     <div>
                       <h4 className="font-semibold text-sm text-white">{rule.note}</h4>
-                      <p className="text-xs text-slate-400 flex items-center mt-0.5">
+                      <p className="text-xs text-slate-400 flex flex-wrap items-center gap-1 mt-0.5">
                         {rule.rule_type === 'expense' ? (
-                          <span>Payer: <strong className="text-slate-200">{src?.name}</strong> ➔ Envelope: <strong className="text-sky-400">{cat?.name || 'General'}</strong></span>
+                          <span>Payer: <strong className="text-slate-200">{src?.name}</strong></span>
                         ) : (
-                          <span>{src?.name} <strong className="text-indigo-400">➔</strong> {dst?.name}</span>
+                          <span>{src?.name} <strong className="text-indigo-400">➔</strong> {dst?.name || 'Destination'}</span>
+                        )}
+                        {cat && (
+                          <span className="inline-flex items-center text-[10px] font-semibold text-sky-300 bg-sky-500/15 px-2 py-0.5 rounded border border-sky-500/30">
+                            <CategoryIcon slug={cat.icon_slug} className="w-3 h-3 mr-1" />
+                            {cat.name}
+                          </span>
                         )}
                       </p>
                     </div>
                   </div>
 
-                  <span className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded border ${
+                  <span className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded border shrink-0 ${
                     rule.is_active 
                       ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
                       : 'bg-slate-800 text-slate-500 border-slate-700'
@@ -369,24 +419,44 @@ export const WalletsView: React.FC = () => {
                     <span className="text-sky-300 font-medium ml-1 font-mono">
                       ({formatFrequencyLabel(rule.frequency, rule.custom_interval_days)})
                     </span>
-                    <p className="text-[10px] text-slate-500 flex items-center mt-0.5">
-                      <Calendar className="w-3 h-3 mr-1 text-amber-400" /> Next Due: {rule.next_run_date}
+                    <p className="text-[11px] font-bold text-amber-300 flex items-center mt-1 font-mono">
+                      <Calendar className="w-3.5 h-3.5 mr-1 text-amber-400" /> Next Due: {rule.next_run_date}
                     </p>
                   </div>
 
                   {isAdmin && (
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2 shrink-0">
+                      <button
+                        onClick={() => {
+                          setEditingRecurring(rule);
+                          setEditRuleType(rule.rule_type);
+                          setEditSourceWalletId(rule.source_wallet_id);
+                          setEditDestWalletId(rule.destination_wallet_id || '');
+                          setEditCategoryId(rule.category_id || '');
+                          setEditTransferAmount(rule.amount.toString());
+                          setEditFrequency(rule.frequency);
+                          setEditCustomDays((rule.custom_interval_days || 10).toString());
+                          setEditNextRunDate(rule.next_run_date);
+                          setEditTransferNote(rule.note);
+                          setEditIsActive(rule.is_active);
+                        }}
+                        className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-amber-400/10 rounded transition-colors flex items-center space-x-1"
+                        title="Edit Recurring Schedule Rule & Next Due Date"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                        <span className="text-[11px] font-medium">Edit</span>
+                      </button>
                       <button
                         onClick={() => toggleRecurringTransfer(rule.id)}
-                        className="p-1 text-slate-400 hover:text-indigo-400 transition-colors flex items-center space-x-1"
-                        title="Toggle active state"
+                        className="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-indigo-400/10 rounded transition-colors flex items-center space-x-1"
+                        title="Toggle active/paused state"
                       >
                         <Power className="w-3.5 h-3.5" />
-                        <span className="text-[11px]">{rule.is_active ? 'Pause' : 'Activate'}</span>
+                        <span className="text-[11px] font-medium">{rule.is_active ? 'Pause' : 'Activate'}</span>
                       </button>
                       <button
                         onClick={() => handleDeleteRecurring(rule.id)}
-                        className="p-1 text-slate-400 hover:text-rose-400 transition-colors"
+                        className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded transition-colors"
                         title="Delete Recurring Schedule Rule"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -620,7 +690,7 @@ export const WalletsView: React.FC = () => {
       {/* Add Recurring Bill / Transfer Schedule Modal */}
       {showRecurringModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6 space-y-5 shadow-2xl">
+          <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6 space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto">
             <h3 className="text-base font-bold text-white flex items-center space-x-2">
               <Clock className="w-5 h-5 text-indigo-400" />
               <span>Schedule Recurring Bill or Allowance</span>
@@ -680,20 +750,7 @@ export const WalletsView: React.FC = () => {
                 </select>
               </div>
 
-              {ruleType === 'expense' ? (
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Envelope Category</label>
-                  <select
-                    value={categoryId}
-                    onChange={(e) => setCategoryId(e.target.value)}
-                    className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                  >
-                    {categories.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
-                </div>
-              ) : (
+              {ruleType === 'transfer' && (
                 <div>
                   <label className="block text-xs font-medium text-slate-300 mb-1">Destination Account (Teen/Dependent)</label>
                   <select
@@ -708,6 +765,20 @@ export const WalletsView: React.FC = () => {
                   </select>
                 </div>
               )}
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Associated Envelope Category</label>
+                <select
+                  value={categoryId}
+                  onChange={(e) => setCategoryId(e.target.value)}
+                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                >
+                  <option value="">-- None / Uncategorized --</option>
+                  {categories.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -758,6 +829,17 @@ export const WalletsView: React.FC = () => {
                 </div>
               )}
 
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Next Payment / Execution Due Date</label>
+                <input
+                  type="date"
+                  required
+                  value={nextRunDate}
+                  onChange={(e) => setNextRunDate(e.target.value)}
+                  className="w-full bg-slate-800 text-amber-300 text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
+                />
+              </div>
+
               <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-800">
                 <button
                   type="button"
@@ -770,7 +852,190 @@ export const WalletsView: React.FC = () => {
                   type="submit"
                   className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg transition-all shadow"
                 >
-                  Save Recurring Rule
+                  Create Schedule Rule
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Recurring Bill / Transfer Schedule Modal */}
+      {editingRecurring && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6 space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <h3 className="text-base font-bold text-white flex items-center space-x-2">
+              <Clock className="w-5 h-5 text-indigo-400" />
+              <span>Edit Recurring Schedule Rule: {editingRecurring.note}</span>
+            </h3>
+
+            <form onSubmit={handleEditRecurringSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1.5">Schedule Type</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditRuleType('expense')}
+                    className={`py-2 rounded-lg text-xs font-bold border transition-all ${
+                      editRuleType === 'expense'
+                        ? 'bg-rose-500/10 text-rose-400 border-rose-500/30 ring-1 ring-sky-500'
+                        : 'bg-slate-800 text-slate-400 border-slate-700'
+                    }`}
+                  >
+                    Recurring Bill (Internet / School Dues)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditRuleType('transfer')}
+                    className={`py-2 rounded-lg text-xs font-bold border transition-all ${
+                      editRuleType === 'transfer'
+                        ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30 ring-1 ring-sky-500'
+                        : 'bg-slate-800 text-slate-400 border-slate-700'
+                    }`}
+                  >
+                    Recurring Transfer (Allowance)
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Bill / Transfer Title</label>
+                <input
+                  type="text"
+                  required
+                  value={editTransferNote}
+                  onChange={(e) => setEditTransferNote(e.target.value)}
+                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Payer / Source Wallet Account</label>
+                <select
+                  value={editSourceWalletId}
+                  onChange={(e) => setEditSourceWalletId(e.target.value)}
+                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                >
+                  {visibleWallets.map(w => (
+                    <option key={w.id} value={w.id}>{w.name} (₱{w.current_balance.toFixed(2)})</option>
+                  ))}
+                </select>
+              </div>
+
+              {editRuleType === 'transfer' && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Destination Account (Teen/Dependent)</label>
+                  <select
+                    value={editDestWalletId}
+                    onChange={(e) => setEditDestWalletId(e.target.value)}
+                    className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  >
+                    <option value="">-- Select Destination Account --</option>
+                    {visibleWallets.map(w => (
+                      <option key={w.id} value={w.id}>{w.name} (₱{w.current_balance.toFixed(2)})</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Associated Envelope Category</label>
+                <select
+                  value={editCategoryId}
+                  onChange={(e) => setEditCategoryId(e.target.value)}
+                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                >
+                  <option value="">-- None / Uncategorized --</option>
+                  {categories.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Recurring Amount (₱)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    value={editTransferAmount}
+                    onChange={(e) => setEditTransferAmount(e.target.value)}
+                    className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Frequency</label>
+                  <select
+                    value={editFrequency}
+                    onChange={(e) => setEditFrequency(e.target.value as RecurringFrequency)}
+                    className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  >
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="biweekly">Bi-Weekly</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="quarterly">Quarterly (Every 3 Mos)</option>
+                    <option value="semi_annual">Semi-Annual (Every 6 Mos)</option>
+                    <option value="annual">Annually (Every 1 Year)</option>
+                    <option value="custom_days">Custom (Every N Days)</option>
+                  </select>
+                </div>
+              </div>
+
+              {editFrequency === 'custom_days' && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Repeat Every (N Days)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="365"
+                    required
+                    value={editCustomDays}
+                    onChange={(e) => setEditCustomDays(e.target.value)}
+                    className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Next Payment / Execution Due Date</label>
+                <input
+                  type="date"
+                  required
+                  value={editNextRunDate}
+                  onChange={(e) => setEditNextRunDate(e.target.value)}
+                  className="w-full bg-slate-800 text-amber-300 text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
+                />
+              </div>
+
+              <div className="flex items-center space-x-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="editIsActiveCheck"
+                  checked={editIsActive}
+                  onChange={(e) => setEditIsActive(e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-700 text-indigo-600 focus:ring-indigo-500 bg-slate-800 cursor-pointer"
+                />
+                <label htmlFor="editIsActiveCheck" className="text-xs text-slate-300 cursor-pointer">
+                  Schedule rule is active (Uncheck to pause)
+                </label>
+              </div>
+
+              <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setEditingRecurring(null)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg transition-all shadow"
+                >
+                  Save Schedule Changes
                 </button>
               </div>
             </form>

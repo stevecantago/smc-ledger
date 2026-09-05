@@ -10,8 +10,9 @@ export type ActivityLogAction =
   | 'create_loan' | 'update_loan' | 'delete_loan' | 'pay_loan'
   | 'create_tx' | 'update_tx' | 'delete_tx'
   | 'create_category' | 'update_category' | 'delete_category'
-  | 'create_goal' | 'fund_goal' | 'delete_goal'
+  | 'create_goal' | 'update_goal' | 'fund_goal' | 'delete_goal'
   | 'create_member' | 'update_member' | 'delete_member'
+  | 'create_recurring' | 'update_recurring' | 'delete_recurring' | 'toggle_recurring'
   | 'auth_login' | 'auth_logout' | 'backup_export' | 'backup_restore';
 
 export interface Household {
