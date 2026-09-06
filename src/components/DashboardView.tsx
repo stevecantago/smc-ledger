@@ -2,17 +2,22 @@
 
 import React, { useEffect, useState } from 'react';
 import { useHousehold } from '../context/HouseholdContext';
-import { 
-  TrendingDown, TrendingUp, ArrowRightLeft, Wallet as WalletIcon, ShieldCheck, 
-  Landmark, Plus, AlertCircle, ChevronRight, ChevronDown, DollarSign, Clock, Calendar,
+import {
+  TrendingDown, TrendingUp, Wallet as WalletIcon, ShieldCheck,
+  Landmark, Plus, ChevronRight, ChevronDown, Clock, Calendar,
   Smartphone, CreditCard, Banknote, PiggyBank
 } from 'lucide-react';
-import { Loan } from '../types/database';
 import { CategoryIcon } from './CategoryIcon';
 import { getCreditCardAvailableCredit, getCreditCardUsedBalance } from '../lib/creditCardTransactions';
 import { getInitialLedgerCycleFilter, getNextLedgerCycle, LedgerCycleRange } from '../lib/billingCycles';
 import { getWalletTypeLabel, getWalletTypeSummary } from '../lib/walletTypes';
-import { buildDashboardWalletGroups, buildScheduleWalletGroups, DashboardWalletGroupId } from '../lib/dashboardGroups';
+import {
+  buildDashboardSummaryColumns,
+  buildDashboardWalletGroups,
+  buildScheduleWalletGroups,
+  DashboardSummaryCardId,
+  DashboardWalletGroupId,
+} from '../lib/dashboardGroups';
 
 const DASHBOARD_SCHEDULE_FILTER_KEY = 'smc_dashboard_schedule_filter';
 
@@ -37,15 +42,11 @@ interface DashboardViewProps {
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOpenAddTxModal }) => {
-  const { 
-    household, currentMember, members, wallets, categories, transactions, 
-    savingsGoals, loans, recurringTransfers, isAdmin, payLoanAmortization, fundSavingsGoal 
+  const {
+    household, currentMember, wallets, categories, transactions,
+    loans, recurringTransfers, isAdmin
   } = useHousehold();
 
-  const [payingLoan, setPayingLoan] = useState<Loan | null>(null);
-  const [payAmount, setPayAmount] = useState('');
-  const [selectedWalletId, setSelectedWalletId] = useState(wallets[0]?.id || '');
-  const [errorMsg, setErrorMsg] = useState('');
   const [expandedWalletSummaryCards, setExpandedWalletSummaryCards] = useState<Record<string, boolean>>({});
   const [showScheduleWallets, setShowScheduleWallets] = useState(false);
   const [expandedScheduleWallets, setExpandedScheduleWallets] = useState<Record<string, boolean>>({});
@@ -111,6 +112,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
   const walletGroups = buildScheduleWalletGroups(filteredRecurring, wallets);
   const totalFilteredOutflow = filteredRecurring.reduce((sum, r) => sum + r.amount, 0);
   const totalFilteredItemsCount = filteredRecurring.length;
+  const summaryColumns = buildDashboardSummaryColumns();
 
   const toggleWalletSummaryCard = (id: DashboardWalletGroupId) => {
     setExpandedWalletSummaryCards(prev => ({ ...prev, [id]: !prev[id] }));
@@ -120,9 +122,32 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
     setExpandedScheduleWallets(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const walletSummaryCards = [
+  const walletSummaryCards: Array<{
+    id: DashboardSummaryCardId;
+    title: string;
+    badge: string;
+    total: number;
+    totalClass: string;
+    borderClass: string;
+    badgeClass: string;
+    icon: React.ReactNode;
+    description: string;
+    walletGroupId?: DashboardWalletGroupId;
+  }> = [
     {
-      id: 'bank' as DashboardWalletGroupId,
+      id: 'total_purchasing_power',
+      title: 'Total Purchasing Power',
+      badge: 'Liquid + Credit',
+      total: totalCombinedAvailable,
+      totalClass: 'text-emerald-300',
+      borderClass: 'border-emerald-500/30',
+      badgeClass: 'bg-emerald-500/10 text-emerald-300',
+      icon: <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />,
+      description: 'Combined liquid funds & available credit',
+    },
+    {
+      id: 'bank',
+      walletGroupId: 'bank',
       title: 'Bank Accounts',
       badge: `${walletSummary.bankCount} Accounts`,
       total: totalBankBalance,
@@ -133,8 +158,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
       description: 'Total liquid bank savings',
     },
     {
-      id: 'e_wallet' as DashboardWalletGroupId,
-      title: 'E-Wallets',
+      id: 'e_wallet',
+      walletGroupId: 'e_wallet',
+      title: 'E Wallet Accounts',
       badge: `${walletSummary.eWalletCount} Accounts`,
       total: totalEWalletBalance,
       totalClass: 'text-indigo-400',
@@ -144,8 +170,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
       description: 'Total e-wallet balances',
     },
     {
-      id: 'e_wallet_savings' as DashboardWalletGroupId,
-      title: 'E Wallet Savings',
+      id: 'e_wallet_savings',
+      walletGroupId: 'e_wallet_savings',
+      title: 'E Wallet Savings Accounts',
       badge: `${walletSummary.eWalletSavingsCount} Accounts`,
       total: totalEWalletSavingsBalance,
       totalClass: 'text-teal-400',
@@ -155,7 +182,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
       description: 'Total e-wallet savings balances',
     },
     {
-      id: 'cash' as DashboardWalletGroupId,
+      id: 'cash',
+      walletGroupId: 'cash',
       title: 'Cash On Hand',
       badge: `${walletSummary.cashCount} Accounts`,
       total: totalCashBalance,
@@ -166,8 +194,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
       description: 'Total cash balances',
     },
     {
-      id: 'credit_card' as DashboardWalletGroupId,
-      title: 'Available Credit Lines',
+      id: 'credit_card',
+      walletGroupId: 'credit_card',
+      title: 'Available Credits',
       badge: `${walletSummary.creditCardCount} Cards`,
       total: totalAvailableCredit,
       totalClass: 'text-emerald-400',
@@ -178,25 +207,94 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
     },
   ];
 
-  const handlePayAmortizationSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMsg('');
-    if (!payingLoan) return;
+  const walletSummaryCardMap = new Map(walletSummaryCards.map(card => [card.id, card]));
+  const renderWalletSummaryCard = (cardId: DashboardSummaryCardId) => {
+    const card = walletSummaryCardMap.get(cardId);
+    if (!card) return null;
 
-    const amt = parseFloat(payAmount);
-    if (!amt || amt <= 0) {
-      setErrorMsg('Please enter a valid amortization payment amount.');
-      return;
-    }
+    const group = card.walletGroupId
+      ? dashboardWalletGroups.find(item => item.id === card.walletGroupId)
+      : null;
+    const isExpanded = card.walletGroupId ? !!expandedWalletSummaryCards[card.walletGroupId] : false;
 
-    const res = payLoanAmortization(payingLoan.id, amt, selectedWalletId);
-    if (!res.success) {
-      setErrorMsg(res.error || 'Failed to process amortization payment.');
-      return;
-    }
+    return (
+      <div key={card.id} className={`bg-slate-900/80 border ${card.borderClass} p-3.5 rounded-xl space-y-2`}>
+        {card.walletGroupId ? (
+          <button
+            type="button"
+            onClick={() => toggleWalletSummaryCard(card.walletGroupId!)}
+            aria-expanded={isExpanded}
+            className="w-full flex items-center justify-between gap-2 text-left text-xs text-slate-400"
+          >
+            <span className="flex min-w-0 items-center space-x-1">
+              {card.icon}
+              <span className="truncate">{card.title}</span>
+            </span>
+            <span className="flex shrink-0 items-center gap-1.5">
+              <span className={`text-[10px] ${card.badgeClass} font-mono px-1.5 py-0.2 rounded`}>
+                {card.badge}
+              </span>
+              {isExpanded ? (
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+              ) : (
+                <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+              )}
+            </span>
+          </button>
+        ) : (
+          <div className="flex items-center justify-between gap-2 text-xs text-slate-400">
+            <span className="flex min-w-0 items-center space-x-1">
+              {card.icon}
+              <span>{card.title}</span>
+            </span>
+            <span className={`text-[10px] ${card.badgeClass} font-mono px-1.5 py-0.2 rounded`}>
+              {card.badge}
+            </span>
+          </div>
+        )}
 
-    setPayAmount('');
-    setPayingLoan(null);
+        <div className={`text-lg font-bold font-mono ${card.totalClass}`}>
+          ₱{card.total.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+        </div>
+        <p className={`text-[10px] text-slate-400 ${card.id === 'cash' ? 'font-mono' : ''}`}>
+          {card.description}
+        </p>
+
+        {card.walletGroupId && isExpanded && (
+          <div className="pt-2 border-t border-slate-700/50 space-y-1.5">
+            {group && group.accounts.length > 0 ? (
+              group.accounts.map(account => (
+                <div key={account.id} className="flex items-start justify-between gap-2 rounded-md bg-slate-950/35 px-2 py-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="truncate text-[11px] font-semibold text-white">{account.name}</span>
+                      {account.isShared && (
+                        <span className="shrink-0 text-[9px] bg-sky-500/15 text-sky-300 px-1 py-0.2 rounded font-mono">
+                          Shared
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[9px] text-slate-500 uppercase font-mono">{account.typeLabel}</span>
+                  </div>
+                  <div className="shrink-0 text-right font-mono">
+                    <span className="block text-[11px] font-bold text-emerald-400">
+                      ₱{account.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </span>
+                    {account.secondaryBalance !== undefined && (
+                      <span className="block text-[9px] text-rose-400 font-sans">
+                        Used: ₱{account.secondaryBalance.toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-[10px] text-slate-500 italic">No accounts in this group.</p>
+            )}
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -214,13 +312,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
           </p>
         </div>
 
-        <button
-          onClick={onOpenAddTxModal}
-          className="flex items-center space-x-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white font-bold text-xs px-4 py-2.5 rounded-lg transition-all shadow-lg active:scale-95 shrink-0"
-        >
-          <Plus className="w-4 h-4" />
-          <span>+ Quick Log Transaction</span>
-        </button>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
+          <button
+            onClick={onOpenAddTxModal}
+            className="flex items-center justify-center space-x-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white font-bold text-xs px-4 py-2.5 rounded-lg transition-all shadow-lg active:scale-95"
+          >
+            <Plus className="w-4 h-4" />
+            <span>+ Quick Log Transaction</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('transactions')}
+            className="flex items-center justify-center space-x-2 bg-slate-900/70 hover:bg-slate-900 text-sky-200 border border-sky-500/30 font-bold text-xs px-4 py-2.5 rounded-lg transition-colors"
+          >
+            <WalletIcon className="w-4 h-4" />
+            <span>View / Manage Transactions</span>
+          </button>
+        </div>
       </div>
 
       {/* Primary KPI Metrics */}
@@ -311,94 +419,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
         </div>
 
         {/* Totals & Summary KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 items-start">
-          {walletSummaryCards.map(card => {
-            const group = dashboardWalletGroups.find(item => item.id === card.id);
-            const isExpanded = !!expandedWalletSummaryCards[card.id];
-
-            return (
-              <div key={card.id} className={`bg-slate-900/80 border ${card.borderClass} p-3.5 rounded-xl space-y-2`}>
-                <button
-                  type="button"
-                  onClick={() => toggleWalletSummaryCard(card.id)}
-                  aria-expanded={isExpanded}
-                  className="w-full flex items-center justify-between gap-2 text-left text-xs text-slate-400"
-                >
-                  <span className="flex min-w-0 items-center space-x-1">
-                    {card.icon}
-                    <span className="truncate">{card.title}</span>
-                  </span>
-                  <span className="flex shrink-0 items-center gap-1.5">
-                    <span className={`text-[10px] ${card.badgeClass} font-mono px-1.5 py-0.2 rounded`}>
-                      {card.badge}
-                    </span>
-                    {isExpanded ? (
-                      <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-                    ) : (
-                      <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-                    )}
-                  </span>
-                </button>
-
-                <div className={`text-lg font-bold font-mono ${card.totalClass}`}>
-                  ₱{card.total.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                </div>
-                <p className={`text-[10px] text-slate-400 ${card.id === 'cash' ? 'font-mono' : ''}`}>
-                  {card.description}
-                </p>
-
-                {isExpanded && (
-                  <div className="pt-2 border-t border-slate-700/50 space-y-1.5">
-                    {group && group.accounts.length > 0 ? (
-                      group.accounts.map(account => (
-                        <div key={account.id} className="flex items-start justify-between gap-2 rounded-md bg-slate-950/35 px-2 py-2">
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <span className="truncate text-[11px] font-semibold text-white">{account.name}</span>
-                              {account.isShared && (
-                                <span className="shrink-0 text-[9px] bg-sky-500/15 text-sky-300 px-1 py-0.2 rounded font-mono">
-                                  Shared
-                                </span>
-                              )}
-                            </div>
-                            <span className="text-[9px] text-slate-500 uppercase font-mono">{account.typeLabel}</span>
-                          </div>
-                          <div className="shrink-0 text-right font-mono">
-                            <span className="block text-[11px] font-bold text-emerald-400">
-                              ₱{account.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                            </span>
-                            {account.secondaryBalance !== undefined && (
-                              <span className="block text-[9px] text-rose-400 font-sans">
-                                Used: ₱{account.secondaryBalance.toLocaleString()}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-[10px] text-slate-500 italic">No accounts in this group.</p>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-
-          {/* Combined Total Purchasing Power */}
-          <div className="bg-slate-900/80 border border-emerald-500/30 p-3.5 rounded-xl space-y-1">
-            <div className="flex items-center justify-between text-xs text-slate-400">
-              <span className="flex items-center space-x-1">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Total Purchasing Power</span>
-              </span>
-              <span className="text-[10px] bg-emerald-500/10 text-emerald-300 font-mono px-1.5 py-0.2 rounded">
-                Liquid + Credit
-              </span>
-            </div>
-            <div className="text-lg font-bold font-mono text-emerald-300">
-              ₱{totalCombinedAvailable.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-            </div>
-            <p className="text-[10px] text-slate-400">Combined liquid funds & available credit</p>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+          <div className="space-y-3">
+            {summaryColumns.left.map(renderWalletSummaryCard)}
+          </div>
+          <div className="space-y-3">
+            {summaryColumns.right.map(renderWalletSummaryCard)}
           </div>
         </div>
       </div>
@@ -515,7 +541,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
           </div>
 
           {walletGroups.length > 0 && (
-            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-2">
               {walletGroups.map(({ wallet, items, totalOutflow }, index) => {
                 const groupKey = wallet?.id || `unknown-${index}`;
 
@@ -543,7 +569,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
             No recurring bills or transfers scheduled with next due dates falling within the selected date range ({recurringStartDate || 'Start'} to {recurringEndDate || 'End'}).
           </div>
         ) : showScheduleWallets ? (
-          <div className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {walletGroups.map(({ wallet, items, totalOutflow, availableBalance, hasSufficientFunds }, index) => {
               const groupKey = wallet?.id || `unknown-${index}`;
               const isExpanded = !!expandedScheduleWallets[groupKey];
@@ -596,7 +622,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
 
                   {/* List of Recurring Items for this Wallet */}
                   {isExpanded && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                    <div className="grid grid-cols-1 gap-3 pt-1">
                       {items.map(rule => {
                         const cat = rule.category_id ? categories.find(c => c.id === rule.category_id) : null;
                         const dst = rule.destination_wallet_id ? wallets.find(w => w.id === rule.destination_wallet_id) : null;
@@ -659,212 +685,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
         ) : null}
       </div>
 
-      {/* Two Column Grid: Loans Amortization & Recent Transactions */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
-        {/* Loans Amortization Schedule */}
-        <div className="bg-slate-800/80 border border-slate-700/70 rounded-xl p-5 space-y-4 shadow-lg">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Landmark className="w-4 h-4 text-amber-400" />
-              <h3 className="font-bold text-sm text-white">Loans & Amortization Schedule</h3>
-            </div>
-            <button
-              onClick={() => setActiveTab('loans')}
-              className="text-xs text-amber-400 hover:underline font-medium"
-            >
-              Manage Loans ➔
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {loans.map(loan => {
-              const paidCount = loan.paid_amortizations_count || 0;
-              const paidAmount = loan.amount_paid !== undefined && loan.amount_paid !== null ? loan.amount_paid : (paidCount * loan.monthly_amortization);
-              const percentPaid = loan.total_principal > 0 
-                ? Math.min(Math.round((paidAmount / loan.total_principal) * 100), 100) 
-                : 0;
-
-              const isBiMonthly = loan.payment_frequency === 'bi_monthly';
-
-              return (
-                <div key={loan.id} className="bg-slate-900/60 border border-slate-700/60 rounded-xl p-4 space-y-3">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h4 className="font-semibold text-xs text-white">{loan.name}</h4>
-                      <p className="text-[11px] text-slate-400">{loan.lender}</p>
-                    </div>
-                    {loan.next_due_date ? (
-                      <span className="text-[10px] font-bold text-amber-300 bg-amber-400/15 px-2 py-0.5 rounded border border-amber-400/25">
-                        Due: {loan.next_due_date}
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-medium text-slate-400 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">
-                        {isBiMonthly ? 'Bi-Monthly' : 'Monthly'}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex justify-between items-baseline text-xs font-mono">
-                    <div>
-                      <span className="text-slate-400 text-[10px]">Remaining Balance:</span>
-                      <p className="font-bold text-rose-400">₱{loan.remaining_balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-slate-400 text-[10px]">
-                        Required Amortization:
-                      </span>
-                      <p className="font-bold text-white">₱{loan.monthly_amortization.toLocaleString()}</p>
-                    </div>
-                  </div>
-
-                  {/* Progress */}
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-[10px]">
-                      <span className="text-slate-400">Paid: {paidCount} Amortizations (₱{paidAmount.toLocaleString()})</span>
-                      <span className="text-emerald-400 font-bold">{percentPaid}% Paid Off</span>
-                    </div>
-                    <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
-                      <div 
-                        className="h-full bg-gradient-to-r from-amber-500 to-emerald-400 rounded-full"
-                        style={{ width: `${percentPaid}%` }}
-                      />
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      setErrorMsg('');
-                      setPayingLoan(loan);
-                      setPayAmount(loan.monthly_amortization.toString());
-                      if (visibleWallets.length > 0) setSelectedWalletId(loan.source_wallet_id || visibleWallets[0].id);
-                    }}
-                    className="w-full text-center py-1.5 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-xs font-bold rounded-lg transition-colors flex items-center justify-center space-x-1"
-                  >
-                    <DollarSign className="w-3.5 h-3.5" />
-                    <span>Pay Required Amortization (₱{loan.monthly_amortization.toLocaleString()})</span>
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Recent Activity Log */}
-        <div className="bg-slate-800/80 border border-slate-700/70 rounded-xl p-5 space-y-4 shadow-lg">
-          <div className="flex items-center justify-between">
-            <h3 className="font-bold text-sm text-white">Recent Transactions Log</h3>
-            <button
-              onClick={() => setActiveTab('transactions')}
-              className="text-xs text-sky-400 hover:underline font-medium"
-            >
-              View Full Ledger ➔
-            </button>
-          </div>
-
-          <div className="space-y-2">
-            {transactions.slice(0, 5).map(tx => (
-              <div key={tx.id} className="bg-slate-900/60 border border-slate-700/40 p-3 rounded-lg flex items-center justify-between text-xs">
-                <div className="flex items-center space-x-3">
-                  <span className={`p-2 rounded-lg ${
-                    tx.type === 'expense' ? 'bg-rose-500/10 text-rose-400' :
-                    tx.type === 'income' ? 'bg-emerald-500/10 text-emerald-400' :
-                    'bg-indigo-500/10 text-indigo-400'
-                  }`}>
-                    {tx.type === 'expense' ? <TrendingDown className="w-4 h-4" /> :
-                     tx.type === 'income' ? <TrendingUp className="w-4 h-4" /> :
-                     <ArrowRightLeft className="w-4 h-4" />}
-                  </span>
-                  <div>
-                    <h4 className="font-medium text-white">{tx.note || 'Transaction'}</h4>
-                    <p className="text-[10px] text-slate-400">{tx.transaction_date}</p>
-                  </div>
-                </div>
-
-                <div className="text-right">
-                  <span className={`font-mono font-bold block ${
-                    tx.type === 'expense' ? 'text-rose-400' :
-                    tx.type === 'income' ? 'text-emerald-400' :
-                    'text-indigo-300'
-                  }`}>
-                    {tx.type === 'expense' ? '-' : tx.type === 'income' ? '+' : ''}
-                    ₱{tx.amount.toFixed(2)}
-                  </span>
-                  {(tx.fee || 0) > 0 && (
-                    <span className="text-[9px] text-amber-400 font-mono block">
-                      Fee: ₱{tx.fee?.toFixed(2)}
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-      </div>
-
-      {/* Pay Amortization Modal */}
-      {payingLoan && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6 space-y-5 shadow-2xl">
-            <h3 className="text-base font-bold text-white">Pay Amortization: {payingLoan.name}</h3>
-
-            {errorMsg && (
-              <div className="p-3 bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs rounded-lg flex items-center space-x-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{errorMsg}</span>
-              </div>
-            )}
-
-            <form onSubmit={handlePayAmortizationSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Amortization Payment Amount (₱ PHP)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  required
-                  value={payAmount}
-                  onChange={(e) => setPayAmount(e.target.value)}
-                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Source Wallet Account</label>
-                <select
-                  value={selectedWalletId}
-                  onChange={(e) => setSelectedWalletId(e.target.value)}
-                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                >
-                  {visibleWallets.map(w => (
-                    <option key={w.id} value={w.id}>
-                      {w.wallet_type === 'credit_card'
-                        ? `${w.name} (Available: ₱${getCreditCardAvailableCredit(w).toFixed(2)} | Used: ₱${getCreditCardUsedBalance(w).toFixed(2)})`
-                        : `${w.name} (₱${w.current_balance.toFixed(2)})`}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setPayingLoan(null)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg transition-all shadow"
-                >
-                  Confirm Amortization Payment
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildDashboardWalletGroups, buildScheduleWalletGroups } from './dashboardGroups';
+import { buildDashboardSummaryColumns, buildDashboardWalletGroups, buildScheduleWalletGroups } from './dashboardGroups';
 import { RecurringTransfer, Wallet } from '../types/database';
 
 const baseWallet: Wallet = {
@@ -74,5 +74,12 @@ describe('dashboard groups', () => {
       hasSufficientFunds: true,
     });
     expect(walletGroups[0].items.map(item => item.note)).toEqual(['Weekly Allowance', 'Prime Video']);
+  });
+
+  it('keeps dashboard summary cards in the requested two-column order', () => {
+    expect(buildDashboardSummaryColumns()).toEqual({
+      left: ['total_purchasing_power', 'bank', 'credit_card'],
+      right: ['cash', 'e_wallet', 'e_wallet_savings'],
+    });
   });
 });

@@ -3,6 +3,7 @@ import { getCreditCardAvailableCredit, getCreditCardUsedBalance } from './credit
 import { getWalletTypeLabel } from './walletTypes';
 
 export type DashboardWalletGroupId = Exclude<WalletType, never>;
+export type DashboardSummaryCardId = DashboardWalletGroupId | 'total_purchasing_power';
 
 export interface DashboardWalletAccountSummary {
   id: string;
@@ -25,6 +26,11 @@ export interface ScheduleWalletGroup {
   totalOutflow: number;
   availableBalance: number;
   hasSufficientFunds: boolean;
+}
+
+export interface DashboardSummaryColumns {
+  left: DashboardSummaryCardId[];
+  right: DashboardSummaryCardId[];
 }
 
 const WALLET_GROUP_ORDER: DashboardWalletGroupId[] = [
@@ -62,6 +68,13 @@ export function buildDashboardWalletGroups(wallets: Wallet[]): DashboardWalletGr
         };
       }),
   }));
+}
+
+export function buildDashboardSummaryColumns(): DashboardSummaryColumns {
+  return {
+    left: ['total_purchasing_power', 'bank', 'credit_card'],
+    right: ['cash', 'e_wallet', 'e_wallet_savings'],
+  };
 }
 
 export function buildScheduleWalletGroups(
