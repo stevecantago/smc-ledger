@@ -29,7 +29,7 @@ export function exportTransactionsToCsv(
   });
 
   const csvContent = [headers.join(','), ...rows].join('\n');
-  downloadBlob(csvContent, `SMCLedger_Transactions_${new Date().toISOString().split('T')[0]}.csv`, 'text/csv;charset=utf-8;');
+  downloadBlob(csvContent, `FamLedger_Transactions_${new Date().toISOString().split('T')[0]}.csv`, 'text/csv;charset=utf-8;');
 }
 
 export function exportBudgetSummaryToCsv(
@@ -63,7 +63,7 @@ export function exportBudgetSummaryToCsv(
   });
 
   const csvContent = [headers.join(','), ...rows].join('\n');
-  downloadBlob(csvContent, `SMCLedger_Budget_Summary_${now.getFullYear()}_${now.getMonth() + 1}.csv`, 'text/csv;charset=utf-8;');
+  downloadBlob(csvContent, `FamLedger_Budget_Summary_${now.getFullYear()}_${now.getMonth() + 1}.csv`, 'text/csv;charset=utf-8;');
 }
 
 function downloadBlob(content: string, filename: string, mimeType: string) {

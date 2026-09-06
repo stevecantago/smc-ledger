@@ -18,6 +18,7 @@ import {
   DashboardSummaryCardId,
   DashboardWalletGroupId,
 } from '../lib/dashboardGroups';
+import { getDisplayFirstName, getHouseholdDisplayName } from '../lib/householdNaming';
 
 const DASHBOARD_SCHEDULE_FILTER_KEY = 'smc_dashboard_schedule_filter';
 
@@ -43,7 +44,7 @@ interface DashboardViewProps {
 
 export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOpenAddTxModal }) => {
   const {
-    household, currentMember, wallets, categories, transactions,
+    currentMember, members, wallets, categories, transactions,
     loans, recurringTransfers, isAdmin
   } = useHousehold();
 
@@ -113,6 +114,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
   const totalFilteredOutflow = filteredRecurring.reduce((sum, r) => sum + r.amount, 0);
   const totalFilteredItemsCount = filteredRecurring.length;
   const summaryColumns = buildDashboardSummaryColumns();
+  const greetingName = getDisplayFirstName(currentMember.display_name);
+  const householdDisplayName = getHouseholdDisplayName(members);
 
   const toggleWalletSummaryCard = (id: DashboardWalletGroupId) => {
     setExpandedWalletSummaryCards(prev => ({ ...prev, [id]: !prev[id] }));
@@ -303,12 +306,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
       {/* Welcome Banner */}
       <div className="bg-gradient-to-r from-sky-900/90 via-slate-800 to-indigo-900/80 border border-slate-700/80 rounded-xl p-5 sm:p-6 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <span className="text-xs font-bold text-sky-400 uppercase tracking-wider font-mono">Family Finance Command Center</span>
           <h1 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight mt-0.5">
-            Hello, {currentMember.display_name}! 👋
+            Hello, {greetingName}! 👋
           </h1>
           <p className="text-xs text-slate-300 mt-1 max-w-xl">
-            Real-time balance tracking, envelope budgeting, loan amortization schedules, and sinking funds for the <strong className="text-white">{household.name}</strong>.
+            <strong className="text-white">{householdDisplayName}</strong>
           </p>
         </div>
 

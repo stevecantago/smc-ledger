@@ -9,6 +9,7 @@ import { supabase } from '../lib/supabase';
 import { clearAuthStorage } from '../lib/storageKeys';
 import { getCreditCardUsedBalance } from '../lib/creditCardTransactions';
 import { ProfileModal } from './ProfileModal';
+import { getHouseholdDisplayName } from '../lib/householdNaming';
 
 interface NavbarProps {
   activeTab: string;
@@ -17,9 +18,10 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenAddTxModal }) => {
-  const { household, currentMember, wallets, isAdmin, syncWarning, clearSyncWarning } = useHousehold();
+  const { currentMember, members, wallets, isAdmin, syncWarning, clearSyncWarning } = useHousehold();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const householdDisplayName = getHouseholdDisplayName(members);
 
   const visibleWallets = wallets.filter(w => isAdmin || w.is_shared || w.owner_id === currentMember.id);
   const liquidAssets = visibleWallets
@@ -44,7 +46,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
   ];
 
   const handleLogout = async () => {
-    if (!window.confirm('Are you sure you want to sign out of SMCLedger?')) return;
+    if (!window.confirm('Are you sure you want to sign out of FamLedger?')) return;
     try {
       if (supabase) {
         await supabase.auth.signOut();
@@ -68,18 +70,23 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
           <div className="flex items-center justify-between h-14 sm:h-16 gap-2">
             
             {/* Brand Logo & Household Name */}
-            <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
+            <button
+              type="button"
+              onClick={() => setActiveTab('dashboard')}
+              className="flex shrink-0 items-center space-x-2 rounded-xl text-left transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-sky-500/60 sm:space-x-3"
+              aria-label="Open dashboard"
+            >
               <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-sky-500/20">
                 <Home className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
               </div>
               <div>
                 <div className="flex items-center space-x-1">
-                  <span className="font-bold text-base sm:text-lg text-white tracking-tight">SMCLedger</span>
+                  <span className="font-bold text-base sm:text-lg text-white tracking-tight">FamLedger</span>
                   <span className="hidden xs:inline-block text-[9px] px-1 py-0.2 rounded bg-slate-800 text-slate-400 font-mono border border-slate-700">MVP</span>
                 </div>
-                <p className="text-[10px] sm:text-xs text-slate-400 font-medium truncate max-w-[110px] xs:max-w-[150px] sm:max-w-none">{household.name}</p>
+                <p className="text-[10px] sm:text-xs text-slate-400 font-medium truncate max-w-[110px] xs:max-w-[150px] sm:max-w-none">{householdDisplayName}</p>
               </div>
-            </div>
+            </button>
 
             {/* Quick Balance & Add Transaction (Desktop / Tablet) */}
             <div className="hidden md:flex items-center space-x-3">

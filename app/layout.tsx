@@ -10,7 +10,7 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "SMCLedger - Family Financial Tracker",
+  title: "FamLedger - Family Financial Tracker",
   description: "Multi-tenant, role-aware household financial ledger built with Supabase and Next.js.",
 };
 

@@ -68,7 +68,7 @@ export default function LoginPage() {
           <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-sky-500/20">
             <Home className="w-6 h-6 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Sign In to SMCLedger</h1>
+          <h1 className="text-2xl font-bold text-white tracking-tight">Sign In to FamLedger</h1>
           <p className="text-xs text-slate-400">Multi-Tenant Family Financial Ledger</p>
         </div>
 

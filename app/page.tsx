@@ -111,7 +111,7 @@ export default function Home() {
       </main>
 
       <footer className="border-t border-slate-800 py-6 text-center text-xs text-slate-500 mb-20 md:mb-0">
-        <p>SMCLedger • Multi-Tenant Family Financial Tracker (Next.js MVP 1.0.0)</p>
+        <p>FamLedger • Multi-Tenant Family Financial Tracker (Next.js MVP 1.0.0)</p>
       </footer>
     </div>
   );
