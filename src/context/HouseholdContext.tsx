@@ -30,7 +30,7 @@ import {
   hasPermission as hasRolePermission,
   isHeadParent as getIsHeadParent,
 } from '../lib/permissions';
-import { applyTransactionBalanceChange, reverseTransactionBalanceChange } from '../lib/creditCardTransactions';
+import { applyTransactionBalanceChange, normalizeCreditCardWalletBalance, reverseTransactionBalanceChange } from '../lib/creditCardTransactions';
 
 interface HouseholdContextType {
   household: Household;
@@ -234,7 +234,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           const savedWallets = localStorage.getItem(STORAGE_KEYS.wallets);
           if (savedWallets) {
             const parsed = JSON.parse(savedWallets);
-            if (Array.isArray(parsed) && parsed.length > 0) setWallets(parsed);
+            if (Array.isArray(parsed) && parsed.length > 0) setWallets(parsed.map(normalizeCreditCardWalletBalance));
           }
 
           const savedCategories = localStorage.getItem(STORAGE_KEYS.categories);
@@ -300,8 +300,9 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               // 2. Wallets
               const { data: remoteWallets, error: wErr } = await supabase.from('wallets').select('*');
               if (remoteWallets && remoteWallets.length > 0) {
-                setWallets(remoteWallets);
-                localStorage.setItem(STORAGE_KEYS.wallets, JSON.stringify(remoteWallets));
+                const normalizedRemoteWallets = remoteWallets.map(normalizeCreditCardWalletBalance);
+                setWallets(normalizedRemoteWallets);
+                localStorage.setItem(STORAGE_KEYS.wallets, JSON.stringify(normalizedRemoteWallets));
               } else if (!wErr && initialWallets.length > 0) {
                 await supabase.from('wallets').insert(initialWallets);
               }
@@ -515,8 +516,9 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         if (supabase) trackSupabaseWrite('Restore household members', supabase.from('household_members').upsert(parsed.members));
       }
       if (parsed.wallets && Array.isArray(parsed.wallets)) {
-        setWallets(parsed.wallets);
-        if (supabase) trackSupabaseWrite('Restore wallets', supabase.from('wallets').upsert(parsed.wallets));
+        const normalizedWallets = parsed.wallets.map(normalizeCreditCardWalletBalance);
+        setWallets(normalizedWallets);
+        if (supabase) trackSupabaseWrite('Restore wallets', supabase.from('wallets').upsert(normalizedWallets));
       }
       if (parsed.categories && Array.isArray(parsed.categories)) {
         setCategories(parsed.categories);
@@ -660,7 +662,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       name: data.name,
       wallet_type: data.wallet_type,
       is_shared: data.is_shared,
-      current_balance: data.initial_balance,
+      current_balance: data.wallet_type === 'credit_card' ? Math.abs(data.initial_balance) : data.initial_balance,
       credit_limit: data.credit_limit || null,
       created_at: new Date().toISOString(),
     };
@@ -676,11 +678,15 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const target = wallets.find(w => w.id === id);
     if (!target) return { success: false, error: 'Wallet account not found.' };
     if (!hasPermission('manage_wallets', target.owner_id)) return { success: false, error: 'Your role cannot edit this wallet or credit line.' };
-    setWallets(prev => prev.map(w => w.id === id ? { ...w, ...updates } : w));
+    const nextWalletType = updates.wallet_type || target.wallet_type;
+    const normalizedUpdates = updates.current_balance !== undefined && nextWalletType === 'credit_card'
+      ? { ...updates, current_balance: Math.abs(updates.current_balance) }
+      : updates;
+    setWallets(prev => prev.map(w => w.id === id ? { ...w, ...normalizedUpdates } : w));
     logActivity('update_wallet', `Updated account "${updates.name || target?.name || id}"`);
 
     return supabase
-      ? trackSupabaseWrite('Update wallet', supabase.from('wallets').update(updates).eq('id', id))
+      ? trackSupabaseWrite('Update wallet', supabase.from('wallets').update(normalizedUpdates).eq('id', id))
       : localSaveResult();
   };
 

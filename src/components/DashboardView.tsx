@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { Loan, Wallet } from '../types/database';
 import { CategoryIcon } from './CategoryIcon';
+import { getCreditCardAvailableCredit, getCreditCardUsedBalance } from '../lib/creditCardTransactions';
 
 interface DashboardViewProps {
   setActiveTab: (tab: string) => void;
@@ -54,7 +55,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
 
   const totalAvailableCredit = visibleWallets
     .filter(w => w.wallet_type === 'credit_card')
-    .reduce((sum, w) => sum + Math.max(0, (w.credit_limit || 0) - w.current_balance), 0);
+    .reduce((sum, w) => sum + getCreditCardAvailableCredit(w), 0);
 
   const totalCreditLimit = visibleWallets
     .filter(w => w.wallet_type === 'credit_card')
@@ -62,14 +63,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
 
   const totalUsedCredit = visibleWallets
     .filter(w => w.wallet_type === 'credit_card')
-    .reduce((sum, w) => sum + w.current_balance, 0);
+    .reduce((sum, w) => sum + getCreditCardUsedBalance(w), 0);
 
   const totalCombinedAvailable = totalBankBalance + totalEWalletBalance + totalCashBalance + totalAvailableCredit;
 
   // Outstanding Credit Card Debt
   const creditCardDebt = visibleWallets
     .filter(w => w.wallet_type === 'credit_card')
-    .reduce((acc, w) => acc + w.current_balance, 0);
+    .reduce((acc, w) => acc + getCreditCardUsedBalance(w), 0);
 
   // Net Assets = Cash/Bank/E-Wallet Liquid Assets minus Credit Line Balances
   const netAssets = liquidAssets - creditCardDebt;
@@ -336,7 +337,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
             {visibleWallets.map(w => {
               const isCC = w.wallet_type === 'credit_card';
-              const remainingCredit = (w.credit_limit || 0) - w.current_balance;
+              const usedCredit = getCreditCardUsedBalance(w);
+              const remainingCredit = getCreditCardAvailableCredit(w);
 
               return (
                 <div key={w.id} className="bg-slate-900/60 border border-slate-700/50 p-3.5 rounded-lg flex items-center justify-between">
@@ -357,7 +359,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
                           ₱{remainingCredit.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                         </span>
                         <span className="text-[10px] text-rose-400 block font-sans">
-                          Used: ₱{w.current_balance.toLocaleString()}
+                          Used: ₱{usedCredit.toLocaleString()}
                         </span>
                       </>
                     ) : (
@@ -471,8 +473,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
           <div className="space-y-4">
             {walletGroups.map(({ wallet, items, totalOutflow }) => {
               const isCC = wallet?.wallet_type === 'credit_card';
-              const currentBal = wallet?.current_balance || 0;
-              const availCredit = isCC ? ((wallet?.credit_limit || 0) - currentBal) : currentBal;
+              const currentBal = wallet ? getCreditCardUsedBalance(wallet) : 0;
+              const availCredit = wallet ? getCreditCardAvailableCredit(wallet) : 0;
               const hasSufficientFunds = isCC ? availCredit >= totalOutflow : currentBal >= totalOutflow;
 
               return (
@@ -752,7 +754,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
                 >
                   {visibleWallets.map(w => (
                     <option key={w.id} value={w.id}>
-                      {w.name} (₱{w.current_balance.toFixed(2)})
+                      {w.wallet_type === 'credit_card'
+                        ? `${w.name} (Available: ₱${getCreditCardAvailableCredit(w).toFixed(2)} | Used: ₱${getCreditCardUsedBalance(w).toFixed(2)})`
+                        : `${w.name} (₱${w.current_balance.toFixed(2)})`}
                     </option>
                   ))}
                 </select>

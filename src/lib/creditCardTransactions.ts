@@ -20,10 +20,25 @@ function findWallet(wallets: Wallet[], id: string | null | undefined): Wallet | 
   return id ? wallets.find(wallet => wallet.id === id) : undefined;
 }
 
+export function getCreditCardUsedBalance(wallet: Wallet): number {
+  return wallet.wallet_type === 'credit_card' ? Math.abs(wallet.current_balance) : wallet.current_balance;
+}
+
+export function getCreditCardAvailableCredit(wallet: Wallet): number {
+  if (wallet.wallet_type !== 'credit_card') return wallet.current_balance;
+  return Math.max(0, (wallet.credit_limit || 0) - getCreditCardUsedBalance(wallet));
+}
+
+export function normalizeCreditCardWalletBalance(wallet: Wallet): Wallet {
+  return wallet.wallet_type === 'credit_card'
+    ? { ...wallet, current_balance: getCreditCardUsedBalance(wallet) }
+    : wallet;
+}
+
 function assertCreditChargeAllowed(wallet: Wallet, chargeAmount: number): string | null {
   if (wallet.wallet_type !== 'credit_card') return null;
   const creditLimit = wallet.credit_limit || 0;
-  if (wallet.current_balance + chargeAmount > creditLimit) {
+  if (getCreditCardUsedBalance(wallet) + chargeAmount > creditLimit) {
     return 'Credit card charge exceeds available credit.';
   }
   return null;
@@ -31,7 +46,7 @@ function assertCreditChargeAllowed(wallet: Wallet, chargeAmount: number): string
 
 function assertCreditPaymentAllowed(wallet: Wallet, paymentAmount: number): string | null {
   if (wallet.wallet_type !== 'credit_card') return null;
-  if (paymentAmount > wallet.current_balance) {
+  if (paymentAmount > getCreditCardUsedBalance(wallet)) {
     return 'Credit card payment cannot exceed the used balance.';
   }
   return null;
@@ -50,12 +65,13 @@ function fail(error: string, wallets: Wallet[]): BalanceResult {
 }
 
 export function applyTransactionBalanceChange(wallets: Wallet[], input: TransactionBalanceInput): BalanceResult {
-  const sourceWallet = findWallet(wallets, input.wallet_id);
+  const normalizedWallets = wallets.map(normalizeCreditCardWalletBalance);
+  const sourceWallet = findWallet(normalizedWallets, input.wallet_id);
   if (!sourceWallet) return fail('Source wallet not found', wallets);
 
   const feeAmount = input.fee || 0;
   const totalAmount = input.amount + feeAmount;
-  let nextWallets = cloneWallets(wallets);
+  let nextWallets = cloneWallets(normalizedWallets);
 
   if (input.type === 'expense' || input.type === 'loan') {
     const creditError = assertCreditChargeAllowed(sourceWallet, totalAmount);
@@ -81,7 +97,7 @@ export function applyTransactionBalanceChange(wallets: Wallet[], input: Transact
   if (!input.destination_wallet_id) return fail('Destination wallet required for transfers', wallets);
   if (input.destination_wallet_id === input.wallet_id) return fail('Source and destination wallets cannot be the same.', wallets);
 
-  const destinationWallet = findWallet(wallets, input.destination_wallet_id);
+  const destinationWallet = findWallet(normalizedWallets, input.destination_wallet_id);
   if (!destinationWallet) return fail('Destination wallet not found', wallets);
 
   const sourceCreditError = assertCreditChargeAllowed(sourceWallet, totalAmount);
@@ -104,12 +120,13 @@ export function applyTransactionBalanceChange(wallets: Wallet[], input: Transact
 }
 
 export function reverseTransactionBalanceChange(wallets: Wallet[], input: TransactionBalanceInput): BalanceResult {
-  const sourceWallet = findWallet(wallets, input.wallet_id);
+  const normalizedWallets = wallets.map(normalizeCreditCardWalletBalance);
+  const sourceWallet = findWallet(normalizedWallets, input.wallet_id);
   if (!sourceWallet) return fail('Source wallet not found', wallets);
 
   const feeAmount = input.fee || 0;
   const totalAmount = input.amount + feeAmount;
-  let nextWallets = cloneWallets(wallets);
+  let nextWallets = cloneWallets(normalizedWallets);
 
   if (input.type === 'expense' || input.type === 'loan') {
     const nextBalance = sourceWallet.wallet_type === 'credit_card'
@@ -129,7 +146,7 @@ export function reverseTransactionBalanceChange(wallets: Wallet[], input: Transa
     return ok(nextWallets, [sourceWallet.id]);
   }
 
-  const destinationWallet = findWallet(wallets, input.destination_wallet_id);
+  const destinationWallet = findWallet(normalizedWallets, input.destination_wallet_id);
   if (!destinationWallet) return fail('Destination wallet not found', wallets);
 
   const nextSourceBalance = sourceWallet.wallet_type === 'credit_card'

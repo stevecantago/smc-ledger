@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useHousehold } from '../context/HouseholdContext';
 import { Target, Plus, Calendar, DollarSign, AlertCircle, Edit2, Trash2 } from 'lucide-react';
 import { SavingsGoal } from '../types/database';
+import { getCreditCardAvailableCredit, getCreditCardUsedBalance } from '../lib/creditCardTransactions';
 
 export const SavingsGoalsView: React.FC = () => {
   const { 
@@ -31,6 +32,9 @@ export const SavingsGoalsView: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState('');
 
   const visibleWallets = wallets.filter(w => isAdmin || w.is_shared || w.owner_id === currentMember.id);
+  const formatWalletOption = (wallet: typeof wallets[number]) => wallet.wallet_type === 'credit_card'
+    ? `${wallet.name} (Available: ₱${getCreditCardAvailableCredit(wallet).toFixed(2)} | Used: ₱${getCreditCardUsedBalance(wallet).toFixed(2)})`
+    : `${wallet.name} (₱${wallet.current_balance.toFixed(2)})`;
 
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -363,7 +367,7 @@ export const SavingsGoalsView: React.FC = () => {
                 >
                   {visibleWallets.map(w => (
                     <option key={w.id} value={w.id}>
-                      {w.name} (₱{w.current_balance.toFixed(2)})
+                      {formatWalletOption(w)}
                     </option>
                   ))}
                 </select>

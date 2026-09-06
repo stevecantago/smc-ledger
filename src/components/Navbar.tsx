@@ -9,6 +9,7 @@ import { HouseholdRole } from '../types/database';
 import { AuthModal } from './AuthModal';
 import { supabase } from '../lib/supabase';
 import { clearAuthStorage } from '../lib/storageKeys';
+import { getCreditCardUsedBalance } from '../lib/creditCardTransactions';
 
 interface NavbarProps {
   activeTab: string;
@@ -26,7 +27,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
     .reduce((acc, w) => acc + w.current_balance, 0);
   const creditDebt = visibleWallets
     .filter(w => w.wallet_type === 'credit_card')
-    .reduce((acc, w) => acc + w.current_balance, 0);
+    .reduce((acc, w) => acc + getCreditCardUsedBalance(w), 0);
 
   const totalNetWorth = liquidAssets - creditDebt;
 

@@ -9,6 +9,7 @@ import {
 import { Transaction, TransactionType } from '../types/database';
 import { exportTransactionsToCsv } from '../lib/exportCsv';
 import { getTransactionSubmissionAction } from '../lib/transactionFlow';
+import { getCreditCardAvailableCredit, getCreditCardUsedBalance } from '../lib/creditCardTransactions';
 
 interface TransactionsViewProps {
   showModal: boolean;
@@ -67,9 +68,9 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
       return `${wallet.name} (Balance: ₱${wallet.current_balance.toFixed(2)})`;
     }
 
-    const limit = wallet.credit_limit || 0;
-    const available = Math.max(0, limit - wallet.current_balance);
-    return `${wallet.name} (Available: ₱${available.toFixed(2)} | Used: ₱${wallet.current_balance.toFixed(2)})`;
+    const available = getCreditCardAvailableCredit(wallet);
+    const used = getCreditCardUsedBalance(wallet);
+    return `${wallet.name} (Available: ₱${available.toFixed(2)} | Used: ₱${used.toFixed(2)})`;
   };
 
   const getDaysOffset = (freq: string, customInterval?: number | null) => {

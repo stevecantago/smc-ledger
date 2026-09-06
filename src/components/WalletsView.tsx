@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useHousehold } from '../context/HouseholdContext';
 import { Banknote, CreditCard, Edit2, Landmark, Lock, Plus, Shield, Smartphone, Trash2, Wallet as WalletIcon } from 'lucide-react';
 import { Wallet, WalletType } from '../types/database';
+import { getCreditCardAvailableCredit, getCreditCardUsedBalance } from '../lib/creditCardTransactions';
 
 interface WalletsViewProps {
   onLogCardExpense?: (walletId: string) => void;
@@ -58,7 +59,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
       wallet_type: walletType,
       is_shared: canManageWallets ? isShared : false,
       owner_id: currentMember.id,
-      initial_balance: parseFloat(initialBalance) || 0,
+      initial_balance: walletType === 'credit_card' ? Math.abs(parseFloat(initialBalance) || 0) : (parseFloat(initialBalance) || 0),
       credit_limit: walletType === 'credit_card' ? (parseFloat(creditLimit) || 0) : null,
     });
 
@@ -81,7 +82,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
     const result = updateWallet(editingWallet.id, {
       name: editName.trim(),
       wallet_type: editType,
-      current_balance: parseFloat(editBalance) || 0,
+      current_balance: editType === 'credit_card' ? Math.abs(parseFloat(editBalance) || 0) : (parseFloat(editBalance) || 0),
       credit_limit: editType === 'credit_card' ? (parseFloat(editCreditLimit) || 0) : null,
       is_shared: editIsShared,
     });
@@ -138,8 +139,8 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
           const owner = members.find(member => member.id === wallet.owner_id);
           const isCreditCard = wallet.wallet_type === 'credit_card';
           const creditLimitValue = wallet.credit_limit || 0;
-          const usedBalance = wallet.current_balance;
-          const availableCredit = Math.max(0, creditLimitValue - usedBalance);
+          const usedBalance = getCreditCardUsedBalance(wallet);
+          const availableCredit = getCreditCardAvailableCredit(wallet);
           const utilPercent = isCreditCard && creditLimitValue > 0 ? Math.min(Math.round((usedBalance / creditLimitValue) * 100), 100) : 0;
 
           return (
@@ -249,7 +250,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
                           setEditingWallet(wallet);
                           setEditName(wallet.name);
                           setEditType(wallet.wallet_type);
-                          setEditBalance(wallet.current_balance.toString());
+                          setEditBalance(getCreditCardUsedBalance(wallet).toString());
                           setEditCreditLimit((wallet.credit_limit || 0).toString());
                           setEditIsShared(wallet.is_shared);
                         }}

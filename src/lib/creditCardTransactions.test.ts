@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { applyTransactionBalanceChange, reverseTransactionBalanceChange } from './creditCardTransactions';
+import {
+  applyTransactionBalanceChange,
+  getCreditCardAvailableCredit,
+  getCreditCardUsedBalance,
+  reverseTransactionBalanceChange,
+} from './creditCardTransactions';
 import { Wallet } from '../types/database';
 
 const bank: Wallet = {
@@ -92,5 +97,37 @@ describe('credit card transaction balance rules', () => {
 
     expect(result.success).toBe(true);
     expect(result.wallets.find(w => w.id === card.id)?.current_balance).toBe(1000);
+  });
+
+  it('normalizes a legacy negative credit card balance before applying a new expense', () => {
+    const result = applyTransactionBalanceChange([bank, { ...card, current_balance: -450 }], {
+      wallet_id: card.id,
+      type: 'expense',
+      amount: 300,
+      fee: 0,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.wallets.find(w => w.id === card.id)?.current_balance).toBe(750);
+  });
+
+  it('shows legacy negative credit card balances as positive used balance and reduced available credit', () => {
+    const legacyCard = { ...card, current_balance: -450, credit_limit: 10000 };
+
+    expect(getCreditCardUsedBalance(legacyCard)).toBe(450);
+    expect(getCreditCardAvailableCredit(legacyCard)).toBe(9550);
+  });
+
+  it('normalizes a legacy negative credit card balance before applying a payment', () => {
+    const result = applyTransactionBalanceChange([bank, { ...card, current_balance: -450 }], {
+      wallet_id: bank.id,
+      destination_wallet_id: card.id,
+      type: 'transfer',
+      amount: 200,
+      fee: 0,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.wallets.find(w => w.id === card.id)?.current_balance).toBe(250);
   });
 });
