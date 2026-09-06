@@ -564,7 +564,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     email: string | null | undefined,
     authenticatedUserId: string | null | undefined
   ): boolean => {
-    const found = resolveAuthenticatedMember(members, email);
+    const found = resolveAuthenticatedMember(members, email, authenticatedUserId);
     if (!found) return false;
 
     const linked = linkMemberToAuthenticatedUser(found, authenticatedUserId);
@@ -1271,7 +1271,10 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const updateMember = (id: string, updates: { display_name?: string; role?: HouseholdRole; role_id?: string | null; email?: string }) => {
-    if (!hasPermission('manage_members')) return { success: false, error: 'Your role cannot edit household members.' };
+    const isSelfProfileUpdate = currentMember.id === id && !('role' in updates) && !('role_id' in updates);
+    if (!isSelfProfileUpdate && !hasPermission('manage_members')) {
+      return { success: false, error: 'Your role cannot edit household members.' };
+    }
 
     const target = members.find(m => m.id === id);
     if (!target) return { success: false, error: 'Member record not found.' };
