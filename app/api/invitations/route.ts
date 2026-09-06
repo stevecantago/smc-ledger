@@ -4,6 +4,13 @@ import { validateInvitationRequest } from '../../../src/lib/authFlow';
 import { getPasswordResetRedirectUrl } from '../../../src/lib/authRedirects';
 import type { HouseholdMember, HouseholdRole } from '../../../src/types/database';
 import { getEffectiveRoleId } from '../../../src/lib/permissions';
+import {
+  getHouseholdMemberSelectColumns,
+  isMissingCustomRoleSchemaError,
+  isMissingMemberRoleIdColumnError,
+  omitMemberRoleId,
+  retryMemberWriteWithoutRoleId,
+} from '../../../src/lib/memberRoleSync';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -17,6 +24,10 @@ function getBearerToken(request: NextRequest): string | null {
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ success: false, error: message }, { status });
+}
+
+function hasLegacyInvitePermission(member: Pick<HouseholdMember, 'role'>): boolean {
+  return member.role === 'admin' || member.role === 'parent_member';
 }
 
 export async function POST(request: NextRequest) {
@@ -57,39 +68,59 @@ export async function POST(request: NextRequest) {
     return jsonError('Household ID is required.', 400);
   }
 
-  const { data: adminMembershipsByUserId, error: adminLookupError } = await adminClient
+  let memberRoleIdColumnAvailable = true;
+  let adminLookupByUserId = await adminClient
     .from('household_members')
-    .select('id, role, role_id, household_id, email, user_id')
+    .select(getHouseholdMemberSelectColumns(true))
     .eq('household_id', householdId)
     .eq('user_id', userData.user.id);
 
-  if (adminLookupError) {
-    return jsonError(adminLookupError.message, 500);
+  if (isMissingMemberRoleIdColumnError(adminLookupByUserId.error)) {
+    memberRoleIdColumnAvailable = false;
+    adminLookupByUserId = await adminClient
+      .from('household_members')
+      .select(getHouseholdMemberSelectColumns(false))
+      .eq('household_id', householdId)
+      .eq('user_id', userData.user.id);
   }
 
-  let adminMembership = adminMembershipsByUserId?.[0] ?? null;
+  if (adminLookupByUserId.error) {
+    return jsonError(adminLookupByUserId.error.message, 500);
+  }
+
+  let adminMembership = adminLookupByUserId.data?.[0] ?? null;
 
   if (!adminMembership && userData.user.email) {
-    const { data: adminMembershipsByEmail, error: emailLookupError } = await adminClient
+    let adminLookupByEmail = await adminClient
       .from('household_members')
-      .select('id, role, role_id, household_id, email, user_id')
+      .select(getHouseholdMemberSelectColumns(memberRoleIdColumnAvailable))
       .eq('household_id', householdId)
       .is('user_id', null)
       .ilike('email', userData.user.email);
 
-    if (emailLookupError) {
-      return jsonError(emailLookupError.message, 500);
+    if (isMissingMemberRoleIdColumnError(adminLookupByEmail.error)) {
+      memberRoleIdColumnAvailable = false;
+      adminLookupByEmail = await adminClient
+        .from('household_members')
+        .select(getHouseholdMemberSelectColumns(false))
+        .eq('household_id', householdId)
+        .is('user_id', null)
+        .ilike('email', userData.user.email);
     }
 
-    adminMembership = adminMembershipsByEmail?.[0] ?? null;
+    if (adminLookupByEmail.error) {
+      return jsonError(adminLookupByEmail.error.message, 500);
+    }
+
+    adminMembership = adminLookupByEmail.data?.[0] ?? null;
   }
 
   if (!adminMembership) {
     return jsonError('Only household admins can invite family members.', 403);
   }
 
-  const adminRoleId = getEffectiveRoleId(adminMembership as HouseholdMember);
-  const { data: adminRole } = await adminClient
+  const adminRoleId = getEffectiveRoleId(adminMembership as unknown as HouseholdMember);
+  const { data: adminRole, error: adminRoleError } = await adminClient
     .from('household_roles')
     .select('is_head_parent')
     .eq('id', adminRoleId)
@@ -102,16 +133,26 @@ export async function POST(request: NextRequest) {
     .eq('permission_key', 'manage_members')
     .maybeSingle();
 
-  if (permissionError) {
-    return jsonError(permissionError.message, 500);
+  if (adminRoleError && !isMissingCustomRoleSchemaError(adminRoleError)) {
+    return jsonError(adminRoleError.message, 500);
   }
 
-  if (!adminRole?.is_head_parent && memberPermission?.level !== 'allowed') {
+  if (permissionError) {
+    if (!isMissingCustomRoleSchemaError(permissionError)) {
+      return jsonError(permissionError.message, 500);
+    }
+
+    if (!hasLegacyInvitePermission(adminMembership as unknown as HouseholdMember)) {
+      return jsonError('Your role cannot invite family members.', 403);
+    }
+  }
+
+  if (!permissionError && !adminRole?.is_head_parent && memberPermission?.level !== 'allowed') {
     return jsonError('Your role cannot invite family members.', 403);
   }
 
   const requestedRoleId = typeof body.roleId === 'string' ? body.roleId.trim() : '';
-  const { data: requestedRole, error: requestedRoleError } = requestedRoleId
+  const requestedRoleLookup = requestedRoleId
     ? await adminClient
       .from('household_roles')
       .select('id, base_role')
@@ -119,17 +160,19 @@ export async function POST(request: NextRequest) {
       .eq('id', requestedRoleId)
       .maybeSingle()
     : { data: null, error: null };
+  const requestedRole = requestedRoleLookup.data;
+  const requestedRoleError = requestedRoleLookup.error;
 
-  if (requestedRoleError) {
+  if (requestedRoleError && !isMissingCustomRoleSchemaError(requestedRoleError)) {
     return jsonError(requestedRoleError.message, 500);
   }
 
-  if (requestedRoleId && !requestedRole) {
+  if (requestedRoleId && !requestedRole && !isMissingCustomRoleSchemaError(requestedRoleError)) {
     return jsonError('Selected household role was not found.', 400);
   }
 
   const selectedBaseRole = (requestedRole?.base_role || body.role) as HouseholdRole;
-  const selectedRoleId = requestedRole?.id || null;
+  const selectedRoleId = requestedRole?.id || requestedRoleId || null;
   const validation = validateInvitationRequest({
     displayName: String(body.displayName || ''),
     email: String(body.email || ''),
@@ -184,11 +227,20 @@ export async function POST(request: NextRequest) {
     created_at: new Date().toISOString(),
   };
 
-  const { data: insertedMember, error: insertError } = await adminClient
-    .from('household_members')
-    .insert([newMember])
-    .select('*')
-    .single();
+  const insertMember = await retryMemberWriteWithoutRoleId(
+    () => adminClient
+      .from('household_members')
+      .insert([newMember])
+      .select('*')
+      .single(),
+    () => adminClient
+      .from('household_members')
+      .insert([omitMemberRoleId(newMember)])
+      .select('*')
+      .single()
+  );
+  const insertedMember = insertMember.data;
+  const insertError = insertMember.error;
 
   if (insertError) {
     return jsonError(insertError.message, 500);
@@ -196,6 +248,9 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     success: true,
-    member: insertedMember,
+    member: {
+      ...insertedMember,
+      role_id: selectedRoleId,
+    },
   });
 }

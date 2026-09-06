@@ -33,6 +33,7 @@ import {
 import { applyTransactionBalanceChange, normalizeCreditCardWalletBalance, reverseTransactionBalanceChange } from '../lib/creditCardTransactions';
 import { getWalletDeleteBlocker } from '../lib/walletDeletion';
 import { syncLoanAndOptionalSchedule } from '../lib/loanScheduleSync';
+import { omitMemberRoleId, retryMemberWriteWithoutRoleId } from '../lib/memberRoleSync';
 
 interface HouseholdContextType {
   household: Household;
@@ -296,7 +297,11 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
                 setMembers(remoteMembers);
                 localStorage.setItem(STORAGE_KEYS.members, JSON.stringify(remoteMembers));
               } else if (!mErr && initialMembers.length > 0) {
-                await supabase.from('household_members').insert(initialMembers);
+                const db = supabase;
+                await retryMemberWriteWithoutRoleId(
+                  () => db.from('household_members').insert(initialMembers),
+                  () => db.from('household_members').insert(initialMembers.map(omitMemberRoleId))
+                );
               }
 
               // 2. Wallets
@@ -515,7 +520,16 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       if (parsed.members && Array.isArray(parsed.members)) {
         setMembers(parsed.members);
-        if (supabase) trackSupabaseWrite('Restore household members', supabase.from('household_members').upsert(parsed.members));
+        if (supabase) {
+          const db = supabase;
+          trackSupabaseWrite(
+            'Restore household members',
+            retryMemberWriteWithoutRoleId(
+              () => db.from('household_members').upsert(parsed.members),
+              () => db.from('household_members').upsert(parsed.members.map(omitMemberRoleId))
+            )
+          );
+        }
       }
       if (parsed.wallets && Array.isArray(parsed.wallets)) {
         const normalizedWallets = parsed.wallets.map(normalizeCreditCardWalletBalance);
@@ -1318,8 +1332,16 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       return localSaveResult();
     }
 
-    return supabase
-      ? trackSupabaseWrite('Create member', supabase.from('household_members').insert([newMember]))
+    const db = supabase;
+
+    return db
+      ? trackSupabaseWrite(
+        'Create member',
+        retryMemberWriteWithoutRoleId(
+          () => db.from('household_members').insert([newMember]),
+          () => db.from('household_members').insert([omitMemberRoleId(newMember)])
+        )
+      )
       : localSaveResult();
   };
 
@@ -1347,8 +1369,16 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     logActivity('update_member', `Updated member record "${updates.display_name || target.display_name}"`);
 
-    return supabase
-      ? trackSupabaseWrite('Update member', supabase.from('household_members').update(updates).eq('id', id))
+    const db = supabase;
+
+    return db
+      ? trackSupabaseWrite(
+        'Update member',
+        retryMemberWriteWithoutRoleId(
+          () => db.from('household_members').update(updates).eq('id', id),
+          () => db.from('household_members').update(omitMemberRoleId(updates)).eq('id', id)
+        )
+      )
       : localSaveResult();
   };
 
