@@ -7,6 +7,8 @@ export const STORAGE_KEYS = {
   goals: 'smc_goals',
   loans: 'smc_loans',
   recurring: 'smc_recurring',
+  roles: 'smc_roles',
+  rolePermissions: 'smc_role_permissions',
   activityLogs: 'smc_activity_logs',
 } as const;
 
@@ -20,6 +22,8 @@ export const HOUSEHOLD_STORAGE_KEYS = [
   STORAGE_KEYS.goals,
   STORAGE_KEYS.loans,
   STORAGE_KEYS.recurring,
+  STORAGE_KEYS.roles,
+  STORAGE_KEYS.rolePermissions,
   STORAGE_KEYS.activityLogs,
 ] as const;
 

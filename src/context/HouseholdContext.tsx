@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { 
   Household, HouseholdMember, Wallet, Category, Transaction, SavingsGoal, 
   Loan, RecurringTransfer, HouseholdRole, RecurringRuleType, RecurringFrequency, LoanPaymentFrequency,
-  ActivityLogEntry, ActivityLogAction
+  ActivityLogEntry, ActivityLogAction, HouseholdCustomRole, RolePermission, PermissionKey, PermissionLevel
 } from '../types/database';
 import {
   initialHousehold,
@@ -15,11 +15,22 @@ import {
   initialSavingsGoals,
   initialLoans,
   initialRecurringTransfers,
+  initialCustomRoles,
+  initialRolePermissions,
   supabase
 } from '../lib/supabase';
 import { linkMemberToAuthenticatedUser, resolveAuthenticatedMember } from '../lib/authProfile';
 import { getSyncFailureWarning, getSyncStatus, MutationResult } from '../lib/persistence';
 import { AUTH_STORAGE_KEYS, STORAGE_KEYS, clearAuthStorage, clearHouseholdStorage } from '../lib/storageKeys';
+import {
+  canDeleteRole,
+  canUpdateRolePermission,
+  getEffectiveRoleId,
+  getPermissionLevel,
+  hasPermission as hasRolePermission,
+  isHeadParent as getIsHeadParent,
+} from '../lib/permissions';
+import { applyTransactionBalanceChange, reverseTransactionBalanceChange } from '../lib/creditCardTransactions';
 
 interface HouseholdContextType {
   household: Household;
@@ -32,10 +43,14 @@ interface HouseholdContextType {
   loans: Loan[];
   recurringTransfers: RecurringTransfer[];
   activityLogs: ActivityLogEntry[];
+  customRoles: HouseholdCustomRole[];
+  rolePermissions: RolePermission[];
   isAdmin: boolean;
+  isHeadParent: boolean;
   syncWarning: string | null;
   clearSyncWarning: () => void;
   resetDemoData: () => MutationResult;
+  hasPermission: (key: PermissionKey, ownerMemberId?: string | null) => boolean;
   
   // Role & User Switching
   switchMember: (memberId: string) => void;
@@ -133,9 +148,16 @@ interface HouseholdContextType {
   deleteRecurringTransfer: (id: string) => MutationResult;
 
   // Family Roster CRUD Actions
-  addMember: (displayName: string, role: HouseholdRole, email?: string, authenticatedUserId?: string | null, options?: { memberId?: string; syncToSupabase?: boolean }) => MutationResult;
-  updateMember: (id: string, updates: { display_name?: string; role?: HouseholdRole; email?: string }) => MutationResult;
+  addMember: (displayName: string, role: HouseholdRole, email?: string, authenticatedUserId?: string | null, options?: { memberId?: string; roleId?: string | null; syncToSupabase?: boolean }) => MutationResult;
+  updateMember: (id: string, updates: { display_name?: string; role?: HouseholdRole; role_id?: string | null; email?: string }) => MutationResult;
   deleteMember: (id: string) => MutationResult;
+
+  // Role Permissions CRUD
+  addCustomRole: (data: { name: string; base_role: HouseholdRole; source_role_id?: string | null }) => MutationResult;
+  updateCustomRole: (id: string, updates: { name?: string; base_role?: HouseholdRole; is_head_parent?: boolean }) => MutationResult;
+  duplicateCustomRole: (id: string) => MutationResult;
+  deleteCustomRole: (id: string) => MutationResult;
+  updateRolePermission: (roleId: string, permissionKey: PermissionKey, level: PermissionLevel) => MutationResult;
   
   // Security Checks
   canEditTransaction: (tx: Transaction) => boolean;
@@ -157,6 +179,8 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [loans, setLoans] = useState<Loan[]>(initialLoans);
   const [recurringTransfers, setRecurringTransfers] = useState<RecurringTransfer[]>(initialRecurringTransfers);
   const [activityLogs, setActivityLogs] = useState<ActivityLogEntry[]>([]);
+  const [customRoles, setCustomRoles] = useState<HouseholdCustomRole[]>(initialCustomRoles);
+  const [rolePermissions, setRolePermissions] = useState<RolePermission[]>(initialRolePermissions);
   const [syncWarning, setSyncWarning] = useState<string | null>(null);
 
   const clearSyncWarning = () => setSyncWarning(null);
@@ -243,6 +267,18 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             if (Array.isArray(parsed) && parsed.length > 0) setRecurringTransfers(parsed);
           }
 
+          const savedRoles = localStorage.getItem(STORAGE_KEYS.roles);
+          if (savedRoles) {
+            const parsed = JSON.parse(savedRoles);
+            if (Array.isArray(parsed) && parsed.length > 0) setCustomRoles(parsed);
+          }
+
+          const savedRolePermissions = localStorage.getItem(STORAGE_KEYS.rolePermissions);
+          if (savedRolePermissions) {
+            const parsed = JSON.parse(savedRolePermissions);
+            if (Array.isArray(parsed) && parsed.length > 0) setRolePermissions(parsed);
+          }
+
           const savedLogs = localStorage.getItem(STORAGE_KEYS.activityLogs);
           if (savedLogs) {
             const parsed = JSON.parse(savedLogs);
@@ -309,7 +345,24 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
                 localStorage.setItem(STORAGE_KEYS.recurring, JSON.stringify(remoteRecurring));
               }
 
-              // 8. Activity Logs
+              // 8. Role Permissions
+              const { data: remoteRoles, error: rolesErr } = await supabase.from('household_roles').select('*').order('created_at', { ascending: true });
+              if (remoteRoles && remoteRoles.length > 0) {
+                setCustomRoles(remoteRoles);
+                localStorage.setItem(STORAGE_KEYS.roles, JSON.stringify(remoteRoles));
+              } else if (!rolesErr && initialCustomRoles.length > 0) {
+                await supabase.from('household_roles').upsert(initialCustomRoles);
+              }
+
+              const { data: remoteRolePermissions, error: rolePermsErr } = await supabase.from('role_permissions').select('*');
+              if (remoteRolePermissions && remoteRolePermissions.length > 0) {
+                setRolePermissions(remoteRolePermissions);
+                localStorage.setItem(STORAGE_KEYS.rolePermissions, JSON.stringify(remoteRolePermissions));
+              } else if (!rolePermsErr && initialRolePermissions.length > 0) {
+                await supabase.from('role_permissions').upsert(initialRolePermissions);
+              }
+
+              // 9. Activity Logs
               const { data: remoteLogs } = await supabase.from('activity_logs').select('*').order('created_at', { ascending: false });
               if (remoteLogs && remoteLogs.length > 0) {
                 setActivityLogs(remoteLogs);
@@ -379,6 +432,18 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   }, [activityLogs, isHydrated]);
 
+  useEffect(() => {
+    if (isHydrated && typeof window !== 'undefined' && customRoles.length > 0) {
+      localStorage.setItem(STORAGE_KEYS.roles, JSON.stringify(customRoles));
+    }
+  }, [customRoles, isHydrated]);
+
+  useEffect(() => {
+    if (isHydrated && typeof window !== 'undefined' && rolePermissions.length > 0) {
+      localStorage.setItem(STORAGE_KEYS.rolePermissions, JSON.stringify(rolePermissions));
+    }
+  }, [rolePermissions, isHydrated]);
+
   // Activity Logger Helper
   const logActivity = (action: ActivityLogAction, description: string, details?: any) => {
     const entry: ActivityLogEntry = {
@@ -401,11 +466,18 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Full Data Export Helper
   const exportFullHouseholdBackup = () => {
+    if (!hasPermission('export_backup')) {
+      setSyncWarning('Your role cannot export household backups.');
+      return;
+    }
+
     const data = {
       version: '1.0.0',
       exported_at: new Date().toISOString(),
       household,
       members,
+      customRoles,
+      rolePermissions,
       wallets,
       categories,
       transactions,
@@ -428,6 +500,10 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Full Data Restoration Helper
   const restoreFullHouseholdBackup = (jsonContent: string): { success: boolean; error?: string } => {
+    if (!hasPermission('restore_backup')) {
+      return { success: false, error: 'Your role cannot restore household backups.' };
+    }
+
     try {
       const parsed = JSON.parse(jsonContent);
       if (!parsed || typeof parsed !== 'object') {
@@ -461,6 +537,14 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (parsed.recurringTransfers && Array.isArray(parsed.recurringTransfers)) {
         setRecurringTransfers(parsed.recurringTransfers);
         if (supabase) trackSupabaseWrite('Restore recurring transfers', supabase.from('recurring_transfers').upsert(parsed.recurringTransfers));
+      }
+      if (parsed.customRoles && Array.isArray(parsed.customRoles)) {
+        setCustomRoles(parsed.customRoles);
+        if (supabase) trackSupabaseWrite('Restore household roles', supabase.from('household_roles').upsert(parsed.customRoles));
+      }
+      if (parsed.rolePermissions && Array.isArray(parsed.rolePermissions)) {
+        setRolePermissions(parsed.rolePermissions);
+        if (supabase) trackSupabaseWrite('Restore role permissions', supabase.from('role_permissions').upsert(parsed.rolePermissions));
       }
       if (parsed.activityLogs && Array.isArray(parsed.activityLogs)) {
         setActivityLogs(parsed.activityLogs);
@@ -519,20 +603,42 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   }, [members]);
 
-  // Head Admin and Member (Parent/Guardian) have parent administrative privileges
-  const isAdmin = currentMember.role === 'admin' || currentMember.role === 'parent_member';
+  const isHeadParent = getIsHeadParent(currentMember, customRoles);
+  const hasPermission = (key: PermissionKey, ownerMemberId?: string | null) =>
+    hasRolePermission(currentMember, rolePermissions, key, ownerMemberId, customRoles);
+  const isAdmin = isHeadParent || ([
+    'manage_wallets',
+    'manage_categories',
+    'manage_goals',
+    'fund_goals',
+    'manage_loans',
+    'pay_loans',
+    'manage_schedules',
+    'manage_members',
+    'send_password_resets',
+    'view_activity_logs',
+    'export_backup',
+    'restore_backup',
+    'reset_demo_data',
+    'manage_roles',
+  ] as PermissionKey[]).some(permissionKey => hasPermission(permissionKey));
 
   const canEditTransaction = (tx: Transaction): boolean => {
-    if (isAdmin) return true;
-    if (tx.payer_id !== currentMember.id) return false;
-    const createdAtTime = new Date(tx.created_at).getTime();
-    const nowTime = Date.now();
-    const diffHours = (nowTime - createdAtTime) / (1000 * 60 * 60);
+    const level = getPermissionLevel(currentMember, rolePermissions, 'update_transactions', customRoles);
+    if (level === 'restricted' || level === 'read_only') return false;
+    if (level === 'own_only' && tx.payer_id !== currentMember.id) return false;
+    if (isHeadParent || level === 'allowed') return true;
+    const diffHours = (Date.now() - new Date(tx.created_at).getTime()) / (1000 * 60 * 60);
     return diffHours <= 24;
   };
 
   const canDeleteTransaction = (tx: Transaction): boolean => {
-    return canEditTransaction(tx);
+    const level = getPermissionLevel(currentMember, rolePermissions, 'delete_transactions', customRoles);
+    if (level === 'restricted' || level === 'read_only') return false;
+    if (level === 'own_only' && tx.payer_id !== currentMember.id) return false;
+    if (isHeadParent || level === 'allowed') return true;
+    const diffHours = (Date.now() - new Date(tx.created_at).getTime()) / (1000 * 60 * 60);
+    return diffHours <= 24;
   };
 
   const switchMember = (memberId: string) => {
@@ -544,9 +650,8 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Wallets CRUD
   const addWallet = (data: { name: string; wallet_type: Wallet['wallet_type']; is_shared: boolean; owner_id?: string | null; initial_balance: number; credit_limit?: number | null }) => {
-    if (!isAdmin && data.is_shared) {
-      alert("Only Household Parents/Admins can create shared wallets.");
-      return { success: false, error: 'Only Household Parents/Admins can create shared wallets.' };
+    if (!hasPermission('manage_wallets', data.owner_id || currentMember.id)) {
+      return { success: false, error: 'Your role cannot create this wallet or credit line.' };
     }
     const newWallet: Wallet = {
       id: `wallet-${Date.now()}`,
@@ -568,8 +673,9 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const updateWallet = (id: string, updates: { name?: string; wallet_type?: Wallet['wallet_type']; current_balance?: number; credit_limit?: number | null; is_shared?: boolean }) => {
-    if (!isAdmin) return { success: false, error: 'Only Household Parents/Admins can edit wallet accounts.' };
     const target = wallets.find(w => w.id === id);
+    if (!target) return { success: false, error: 'Wallet account not found.' };
+    if (!hasPermission('manage_wallets', target.owner_id)) return { success: false, error: 'Your role cannot edit this wallet or credit line.' };
     setWallets(prev => prev.map(w => w.id === id ? { ...w, ...updates } : w));
     logActivity('update_wallet', `Updated account "${updates.name || target?.name || id}"`);
 
@@ -579,8 +685,9 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const deleteWallet = (id: string) => {
-    if (!isAdmin) return { success: false, error: 'Only Household Parents/Admins can delete wallet accounts.' };
     const target = wallets.find(w => w.id === id);
+    if (!target) return { success: false, error: 'Wallet account not found.' };
+    if (!hasPermission('manage_wallets', target.owner_id)) return { success: false, error: 'Your role cannot delete this wallet or credit line.' };
     setWallets(prev => prev.filter(w => w.id !== id));
     logActivity('delete_wallet', `Deleted account "${target?.name || id}"`);
 
@@ -591,10 +698,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Categories CRUD
   const addCategory = (data: { name: string; icon_slug: string; monthly_budget_limit: number }) => {
-    if (!isAdmin) {
-      alert("Only Household Parents/Admins can create categories.");
-      return { success: false, error: 'Only Household Parents/Admins can create categories.' };
-    }
+    if (!hasPermission('manage_categories')) return { success: false, error: 'Your role cannot create envelope categories.' };
     const newCat: Category = {
       id: `cat-${Date.now()}`,
       household_id: household.id,
@@ -612,7 +716,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const updateCategory = (id: string, updates: { name?: string; icon_slug?: string; monthly_budget_limit?: number }) => {
-    if (!isAdmin) return { success: false, error: 'Only Household Parents/Admins can edit category envelopes.' };
+    if (!hasPermission('manage_categories')) return { success: false, error: 'Your role cannot edit envelope categories.' };
     setCategories(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
     logActivity('update_category', `Updated category envelope "${updates.name || id}"`);
 
@@ -626,7 +730,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const deleteCategory = (id: string) => {
-    if (!isAdmin) return { success: false, error: 'Only Household Parents/Admins can delete category envelopes.' };
+    if (!hasPermission('manage_categories')) return { success: false, error: 'Your role cannot delete envelope categories.' };
     const target = categories.find(c => c.id === id);
     setCategories(prev => prev.filter(c => c.id !== id));
     logActivity('delete_category', `Deleted envelope category "${target?.name || id}"`);
@@ -648,40 +752,16 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     note?: string; 
     receipt_url?: string 
   }) => {
+    if (!hasPermission('create_transactions')) {
+      return { success: false, error: 'Your role cannot log transactions.' };
+    }
+
     const sourceWallet = wallets.find(w => w.id === data.wallet_id);
     if (!sourceWallet) return { success: false, error: 'Source wallet not found' };
 
     const feeAmount = data.fee || 0;
-    let updatedWallets = [...wallets];
-
-    if (data.type === 'expense' || data.type === 'loan') {
-      const totalOutflow = data.amount + feeAmount;
-      const newBal = sourceWallet.current_balance - totalOutflow;
-      updatedWallets = updatedWallets.map(w => w.id === data.wallet_id ? { ...w, current_balance: newBal } : w);
-      updateWalletBalanceInSupabase(data.wallet_id, newBal);
-    } else if (data.type === 'income') {
-      const netInflow = data.amount - feeAmount;
-      const newBal = sourceWallet.current_balance + netInflow;
-      updatedWallets = updatedWallets.map(w => w.id === data.wallet_id ? { ...w, current_balance: newBal } : w);
-      updateWalletBalanceInSupabase(data.wallet_id, newBal);
-    } else if (data.type === 'transfer') {
-      if (!data.destination_wallet_id) return { success: false, error: 'Destination wallet required for transfers' };
-      const destWallet = wallets.find(w => w.id === data.destination_wallet_id);
-      if (!destWallet) return { success: false, error: 'Destination wallet not found' };
-
-      const totalDeducted = data.amount + feeAmount;
-      const newSrcBal = sourceWallet.current_balance - totalDeducted;
-      const newDstBal = destWallet.current_balance + data.amount;
-
-      updatedWallets = updatedWallets.map(w => {
-        if (w.id === data.wallet_id) return { ...w, current_balance: newSrcBal };
-        if (w.id === data.destination_wallet_id) return { ...w, current_balance: newDstBal };
-        return w;
-      });
-
-      updateWalletBalanceInSupabase(data.wallet_id, newSrcBal);
-      updateWalletBalanceInSupabase(data.destination_wallet_id, newDstBal);
-    }
+    const balanceResult = applyTransactionBalanceChange(wallets, data);
+    if (!balanceResult.success) return { success: false, error: balanceResult.error };
 
     const newTx: Transaction = {
       id: `tx-${Date.now()}`,
@@ -699,7 +779,11 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       created_at: new Date().toISOString(),
     };
 
-    setWallets(updatedWallets);
+    setWallets(balanceResult.wallets);
+    balanceResult.changedWalletIds.forEach(walletId => {
+      const changedWallet = balanceResult.wallets.find(wallet => wallet.id === walletId);
+      if (changedWallet) updateWalletBalanceInSupabase(walletId, changedWallet.current_balance);
+    });
     setTransactions(prev => [newTx, ...prev]);
     logActivity('create_tx', `Logged ${data.type.toUpperCase()} transaction of ₱${data.amount} (${data.note || 'No note'})`);
 
@@ -738,44 +822,14 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       };
     }
 
-    const feeAmount = target.fee || 0;
-    let updatedWallets = [...wallets];
+    const balanceResult = reverseTransactionBalanceChange(wallets, target);
+    if (!balanceResult.success) return { success: false, error: balanceResult.error };
 
-    if (target.type === 'expense' || target.type === 'loan') {
-      const totalOutflow = target.amount + feeAmount;
-      const sourceWallet = wallets.find(w => w.id === target.wallet_id);
-      if (sourceWallet) {
-        const newBal = sourceWallet.current_balance + totalOutflow;
-        updatedWallets = updatedWallets.map(w => w.id === target.wallet_id ? { ...w, current_balance: newBal } : w);
-        updateWalletBalanceInSupabase(target.wallet_id, newBal);
-      }
-    } else if (target.type === 'income') {
-      const netInflow = target.amount - feeAmount;
-      const sourceWallet = wallets.find(w => w.id === target.wallet_id);
-      if (sourceWallet) {
-        const newBal = sourceWallet.current_balance - netInflow;
-        updatedWallets = updatedWallets.map(w => w.id === target.wallet_id ? { ...w, current_balance: newBal } : w);
-        updateWalletBalanceInSupabase(target.wallet_id, newBal);
-      }
-    } else if (target.type === 'transfer') {
-      const totalDeducted = target.amount + feeAmount;
-      const sourceWallet = wallets.find(w => w.id === target.wallet_id);
-      const destWallet = target.destination_wallet_id ? wallets.find(w => w.id === target.destination_wallet_id) : null;
-
-      let newSrcBal = sourceWallet ? sourceWallet.current_balance + totalDeducted : 0;
-      let newDstBal = destWallet ? destWallet.current_balance - target.amount : 0;
-
-      updatedWallets = updatedWallets.map(w => {
-        if (w.id === target.wallet_id) return { ...w, current_balance: newSrcBal };
-        if (w.id === target.destination_wallet_id) return { ...w, current_balance: newDstBal };
-        return w;
-      });
-
-      if (target.wallet_id) updateWalletBalanceInSupabase(target.wallet_id, newSrcBal);
-      if (target.destination_wallet_id) updateWalletBalanceInSupabase(target.destination_wallet_id, newDstBal);
-    }
-
-    setWallets(updatedWallets);
+    setWallets(balanceResult.wallets);
+    balanceResult.changedWalletIds.forEach(walletId => {
+      const changedWallet = balanceResult.wallets.find(wallet => wallet.id === walletId);
+      if (changedWallet) updateWalletBalanceInSupabase(walletId, changedWallet.current_balance);
+    });
     setTransactions(prev => prev.filter(t => t.id !== id));
     logActivity('delete_tx', `Deleted transaction "${target.note || id}" of ₱${target.amount}`);
 
@@ -786,10 +840,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Savings Goals CRUD
   const addSavingsGoal = (data: { name: string; target_amount: number; target_date?: string }) => {
-    if (!isAdmin) {
-      alert("Only Household Parents/Admins can create savings goals.");
-      return { success: false, error: 'Only Household Parents/Admins can create savings goals.' };
-    }
+    if (!hasPermission('manage_goals')) return { success: false, error: 'Your role cannot create savings goals.' };
     const newGoal: SavingsGoal = {
       id: `goal-${Date.now()}`,
       household_id: household.id,
@@ -808,7 +859,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const updateSavingsGoal = (id: string, updates: { name?: string; target_amount?: number; target_date?: string | null }) => {
-    if (!isAdmin) return { success: false, error: 'Only Household Parents/Admins can edit savings goals.' };
+    if (!hasPermission('manage_goals')) return { success: false, error: 'Your role cannot edit savings goals.' };
     setSavingsGoals(prev => prev.map(g => g.id === id ? { ...g, ...updates } : g));
     logActivity('update_goal', `Updated savings goal "${updates.name || id}"`);
 
@@ -818,7 +869,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const deleteSavingsGoal = (id: string) => {
-    if (!isAdmin) return { success: false, error: 'Only Household Parents/Admins can delete savings goals.' };
+    if (!hasPermission('manage_goals')) return { success: false, error: 'Your role cannot delete savings goals.' };
     const target = savingsGoals.find(g => g.id === id);
     setSavingsGoals(prev => prev.filter(g => g.id !== id));
     logActivity('delete_goal', `Deleted savings goal "${target?.name || id}"`);
@@ -829,6 +880,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const fundSavingsGoal = (goalId: string, amount: number, walletId: string) => {
+    if (!hasPermission('fund_goals')) return { success: false, error: 'Your role cannot fund savings goals.' };
     const sourceWallet = wallets.find(w => w.id === walletId);
     if (!sourceWallet) return { success: false, error: 'Wallet not found' };
     if (sourceWallet.current_balance < amount) {
@@ -876,10 +928,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     second_due_day_of_month?: number | null;
     next_due_date?: string | null;
   }) => {
-    if (!isAdmin) {
-      alert("Only Household Parents/Admins can create loan records.");
-      return { success: false, error: 'Only Household Parents/Admins can create loan records.' };
-    }
+    if (!hasPermission('manage_loans')) return { success: false, error: 'Your role cannot create loan records.' };
 
     const paidCount = data.paid_amortizations_count || 0;
     const paid = data.amount_paid !== undefined && data.amount_paid !== null ? data.amount_paid : (paidCount * data.monthly_amortization);
@@ -947,7 +996,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     second_due_day_of_month?: number | null;
     next_due_date?: string | null;
   }) => {
-    if (!isAdmin) return { success: false, error: 'Only Household Parents/Admins can edit loan records.' };
+    if (!hasPermission('manage_loans')) return { success: false, error: 'Your role cannot edit loan records.' };
     const target = loans.find(l => l.id === id);
     const updated = { ...target, ...updates } as Loan;
     setLoans(prev => prev.map(l => l.id === id ? updated : l));
@@ -987,7 +1036,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const deleteLoan = (id: string) => {
-    if (!isAdmin) return { success: false, error: 'Only Household Parents/Admins can delete loan records.' };
+    if (!hasPermission('manage_loans')) return { success: false, error: 'Your role cannot delete loan records.' };
     const target = loans.find(l => l.id === id);
     setLoans(prev => prev.filter(l => l.id !== id));
     logActivity('delete_loan', `Deleted loan record "${target?.name || id}"`);
@@ -1004,13 +1053,24 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const payLoanAmortization = (loanId: string, amount: number, walletId: string) => {
+    if (!hasPermission('pay_loans')) return { success: false, error: 'Your role cannot pay loan amortizations.' };
     const targetLoan = loans.find(l => l.id === loanId);
     if (!targetLoan) return { success: false, error: 'Loan record not found' };
 
     const sourceWallet = wallets.find(w => w.id === walletId);
     if (!sourceWallet) return { success: false, error: 'Source wallet account not found' };
 
-    if (sourceWallet.current_balance < amount) {
+    const balancePreview = applyTransactionBalanceChange(wallets, {
+      wallet_id: walletId,
+      type: 'expense',
+      amount,
+      fee: 0,
+    });
+    if (!balancePreview.success) {
+      return { success: false, error: balancePreview.error };
+    }
+
+    if (sourceWallet.wallet_type !== 'credit_card' && sourceWallet.current_balance < amount) {
       return { success: false, error: 'Insufficient wallet balance for amortization payment' };
     }
 
@@ -1032,10 +1092,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const newRemaining = totalAmort 
       ? Math.max(0, (totalAmort - newPaidCount) * targetLoan.monthly_amortization) 
       : Math.max(0, targetLoan.remaining_balance - amount);
-      
-    const newWalletBal = sourceWallet.current_balance - amount;
 
-    setWallets(prev => prev.map(w => w.id === walletId ? { ...w, current_balance: newWalletBal } : w));
     setLoans(prev => prev.map(l => l.id === loanId ? { 
       ...l, 
       paid_amortizations_count: newPaidCount,
@@ -1074,7 +1131,6 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         source_wallet_id: walletId,
       }).eq('id', loanId))
       : localSaveResult();
-    updateWalletBalanceInSupabase(walletId, newWalletBal);
     return syncResult;
   };
 
@@ -1105,10 +1161,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     next_run_date?: string | null;
     note: string 
   }) => {
-    if (!isAdmin) {
-      alert("Only Household Parents/Admins can configure recurring bill & transfer rules.");
-      return { success: false, error: 'Only Household Parents/Admins can configure recurring bill & transfer rules.' };
-    }
+    if (!hasPermission('manage_schedules')) return { success: false, error: 'Your role cannot configure recurring schedule rules.' };
     const daysOffset = getDaysOffset(data.frequency, data.custom_interval_days);
     const calculatedNextRun = new Date(Date.now() + daysOffset * 86400000).toISOString().split('T')[0];
     const newRule: RecurringTransfer = {
@@ -1148,7 +1201,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     note?: string;
     is_active?: boolean;
   }) => {
-    if (!isAdmin) return { success: false, error: 'Only Household Parents/Admins can edit recurring schedule rules.' };
+    if (!hasPermission('manage_schedules')) return { success: false, error: 'Your role cannot edit recurring schedule rules.' };
     const target = recurringTransfers.find(r => r.id === id);
     setRecurringTransfers(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
     logActivity('update_recurring', `Updated recurring schedule rule "${updates.note || target?.note || id}" (Next Due: ${updates.next_run_date || target?.next_run_date})`);
@@ -1159,7 +1212,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const toggleRecurringTransfer = (id: string) => {
-    if (!isAdmin) return { success: false, error: 'Only Household Parents/Admins can edit recurring schedule rules.' };
+    if (!hasPermission('manage_schedules')) return { success: false, error: 'Your role cannot edit recurring schedule rules.' };
     const target = recurringTransfers.find(r => r.id === id);
     const newActiveState = target ? !target.is_active : true;
     setRecurringTransfers(prev => prev.map(r => r.id === id ? { ...r, is_active: newActiveState } : r));
@@ -1171,7 +1224,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const deleteRecurringTransfer = (id: string) => {
-    if (!isAdmin) return { success: false, error: 'Only Household Parents/Admins can delete recurring schedule rules.' };
+    if (!hasPermission('manage_schedules')) return { success: false, error: 'Your role cannot delete recurring schedule rules.' };
     const target = recurringTransfers.find(r => r.id === id);
     setRecurringTransfers(prev => prev.filter(r => r.id !== id));
     logActivity('delete_recurring', `Deleted recurring schedule rule "${target?.note || id}"`);
@@ -1186,17 +1239,15 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     role: HouseholdRole,
     email?: string,
     authenticatedUserId?: string | null,
-    options?: { memberId?: string; syncToSupabase?: boolean }
+    options?: { memberId?: string; roleId?: string | null; syncToSupabase?: boolean }
   ) => {
-    if (!isAdmin) {
-      alert("Only Household Parents/Admins can add or invite new members.");
-      return { success: false, error: 'Only Household Parents/Admins can add or invite new members.' };
-    }
+    if (!hasPermission('manage_members')) return { success: false, error: 'Your role cannot add or invite household members.' };
     const newMember: HouseholdMember = {
       id: options?.memberId || `member-${Date.now()}`,
       household_id: household.id,
       user_id: authenticatedUserId || null,
       role: role,
+      role_id: options?.roleId || null,
       display_name: displayName,
       email: email || undefined,
       created_at: new Date().toISOString(),
@@ -1213,10 +1264,8 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       : localSaveResult();
   };
 
-  const updateMember = (id: string, updates: { display_name?: string; role?: HouseholdRole; email?: string }) => {
-    if (!isAdmin) {
-      return { success: false, error: 'Only Household Parents/Admins can edit family roster members.' };
-    }
+  const updateMember = (id: string, updates: { display_name?: string; role?: HouseholdRole; role_id?: string | null; email?: string }) => {
+    if (!hasPermission('manage_members')) return { success: false, error: 'Your role cannot edit household members.' };
 
     const target = members.find(m => m.id === id);
     if (!target) return { success: false, error: 'Member record not found.' };
@@ -1242,9 +1291,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const deleteMember = (id: string) => {
-    if (!isAdmin) {
-      return { success: false, error: 'Only Household Parents/Admins can remove family roster members.' };
-    }
+    if (!hasPermission('manage_members')) return { success: false, error: 'Your role cannot remove household members.' };
 
     if (currentMember.id === id) {
       return { success: false, error: 'Cannot remove your own active logged-in member profile. Switch to another Admin profile first.' };
@@ -1269,6 +1316,10 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const resetDemoData = (): MutationResult => {
+    if (!hasPermission('reset_demo_data')) {
+      return { success: false, error: 'Your role cannot reset demo data.' };
+    }
+
     if (typeof window !== 'undefined') {
       clearHouseholdStorage(window.localStorage);
     }
@@ -1282,9 +1333,146 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setLoans(initialLoans);
     setRecurringTransfers(initialRecurringTransfers);
     setActivityLogs([]);
+    setCustomRoles(initialCustomRoles);
+    setRolePermissions(initialRolePermissions);
     setSyncWarning(null);
 
     return { success: true, syncStatus: 'local_only' };
+  };
+
+  const addCustomRole = (data: { name: string; base_role: HouseholdRole; source_role_id?: string | null }): MutationResult => {
+    if (!hasPermission('manage_roles')) return { success: false, error: 'Your role cannot create custom roles.' };
+    const name = data.name.trim();
+    if (!name) return { success: false, error: 'Role name is required.' };
+
+    const newRole: HouseholdCustomRole = {
+      id: `role-${Date.now()}`,
+      household_id: household.id,
+      name,
+      base_role: data.base_role,
+      is_head_parent: data.base_role === 'admin',
+      is_default: false,
+      created_at: new Date().toISOString(),
+    };
+
+    const sourcePermissions = rolePermissions.filter(permission => permission.role_id === (data.source_role_id || getEffectiveRoleId(currentMember)));
+    const permissionsToCreate = (sourcePermissions.length > 0 ? sourcePermissions : initialRolePermissions.filter(permission => permission.role_id === 'role-teen-dependent')).map(permission => ({
+      ...permission,
+      id: `${newRole.id}-${permission.permission_key}`,
+      household_id: household.id,
+      role_id: newRole.id,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }));
+
+    setCustomRoles(prev => [...prev, newRole]);
+    setRolePermissions(prev => [...prev, ...permissionsToCreate]);
+    logActivity('update_member', `Created custom role "${newRole.name}"`);
+
+    if (supabase) {
+      trackSupabaseWrite('Create custom role', supabase.from('household_roles').insert([newRole]));
+      trackSupabaseWrite('Create role permissions', supabase.from('role_permissions').insert(permissionsToCreate));
+    }
+
+    return localSaveResult();
+  };
+
+  const updateCustomRole = (id: string, updates: { name?: string; base_role?: HouseholdRole; is_head_parent?: boolean }): MutationResult => {
+    if (!hasPermission('manage_roles')) return { success: false, error: 'Your role cannot edit custom roles.' };
+    const target = customRoles.find(role => role.id === id);
+    if (!target) return { success: false, error: 'Role not found.' };
+
+    const nextRole = {
+      ...target,
+      ...updates,
+      name: updates.name !== undefined ? updates.name.trim() : target.name,
+    };
+    if (!nextRole.name) return { success: false, error: 'Role name is required.' };
+
+    if (target.is_head_parent && updates.is_head_parent === false) {
+      const otherHeadParentRoleIds = customRoles.filter(role => role.id !== id && role.is_head_parent).map(role => role.id);
+      const hasOtherAssignedHeadParent = members.some(member => otherHeadParentRoleIds.includes(getEffectiveRoleId(member)));
+      if (!hasOtherAssignedHeadParent) return { success: false, error: 'At least one Head Parent role must remain assigned.' };
+    }
+
+    setCustomRoles(prev => prev.map(role => role.id === id ? nextRole : role));
+    logActivity('update_member', `Updated custom role "${nextRole.name}"`);
+
+    return supabase
+      ? trackSupabaseWrite('Update custom role', supabase.from('household_roles').update({
+        name: nextRole.name,
+        base_role: nextRole.base_role,
+        is_head_parent: nextRole.is_head_parent,
+      }).eq('id', id))
+      : localSaveResult();
+  };
+
+  const duplicateCustomRole = (id: string): MutationResult => {
+    const source = customRoles.find(role => role.id === id);
+    if (!source) return { success: false, error: 'Role not found.' };
+    return addCustomRole({
+      name: `${source.name} Copy`,
+      base_role: source.base_role,
+      source_role_id: source.id,
+    });
+  };
+
+  const deleteCustomRole = (id: string): MutationResult => {
+    if (!hasPermission('manage_roles')) return { success: false, error: 'Your role cannot delete custom roles.' };
+    const validation = canDeleteRole(id, members, customRoles);
+    if (!validation.success) return validation;
+
+    const target = customRoles.find(role => role.id === id);
+    setCustomRoles(prev => prev.filter(role => role.id !== id));
+    setRolePermissions(prev => prev.filter(permission => permission.role_id !== id));
+    logActivity('update_member', `Deleted custom role "${target?.name || id}"`);
+
+    if (supabase) {
+      trackSupabaseWrite('Delete role permissions', supabase.from('role_permissions').delete().eq('role_id', id));
+      trackSupabaseWrite('Delete custom role', supabase.from('household_roles').delete().eq('id', id));
+    }
+
+    return localSaveResult();
+  };
+
+  const updateRolePermission = (roleId: string, permissionKey: PermissionKey, level: PermissionLevel): MutationResult => {
+    if (!hasPermission('manage_roles')) return { success: false, error: 'Your role cannot update role permissions.' };
+
+    const validation = canUpdateRolePermission({
+      roleId,
+      permissionKey,
+      nextLevel: level,
+      roles: customRoles,
+      members,
+      permissions: rolePermissions,
+    });
+    if (!validation.success) return validation;
+
+    const now = new Date().toISOString();
+    const existing = rolePermissions.find(permission => permission.role_id === roleId && permission.permission_key === permissionKey);
+    const nextPermission: RolePermission = existing ? {
+      ...existing,
+      level,
+      updated_at: now,
+    } : {
+      id: `${roleId}-${permissionKey}`,
+      household_id: household.id,
+      role_id: roleId,
+      permission_key: permissionKey,
+      level,
+      created_at: now,
+      updated_at: now,
+    };
+
+    setRolePermissions(prev => existing
+      ? prev.map(permission => permission.id === nextPermission.id ? nextPermission : permission)
+      : [...prev, nextPermission]
+    );
+    logActivity('update_member', `Updated permission "${permissionKey}" for role "${roleId}"`);
+
+    return supabase
+      ? trackSupabaseWrite('Update role permission', supabase.from('role_permissions').upsert([nextPermission]))
+      : localSaveResult();
   };
 
   return (
@@ -1299,10 +1487,14 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       loans,
       recurringTransfers,
       activityLogs,
+      customRoles,
+      rolePermissions,
       isAdmin,
+      isHeadParent,
       syncWarning,
       clearSyncWarning,
       resetDemoData,
+      hasPermission,
       switchMember,
       logActivity,
       exportFullHouseholdBackup,
@@ -1332,6 +1524,11 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       addMember,
       updateMember,
       deleteMember,
+      addCustomRole,
+      updateCustomRole,
+      duplicateCustomRole,
+      deleteCustomRole,
+      updateRolePermission,
       canEditTransaction,
       canDeleteTransaction,
     }}>

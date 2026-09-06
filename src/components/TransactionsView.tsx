@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useHousehold } from '../context/HouseholdContext';
 import { 
   TrendingDown, TrendingUp, ArrowRightLeft, Landmark, Search, Filter, Trash2, Edit3, Clock, 
@@ -13,9 +13,13 @@ import { getTransactionSubmissionAction } from '../lib/transactionFlow';
 interface TransactionsViewProps {
   showModal: boolean;
   setShowModal: (open: boolean) => void;
+  draft?: {
+    type?: TransactionType;
+    walletId?: string;
+  } | null;
 }
 
-export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, setShowModal }) => {
+export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, setShowModal, draft }) => {
   const { 
     transactions, wallets, categories, loans, recurringTransfers, members, currentMember, isAdmin,
     addTransaction, updateTransaction, deleteTransaction, canEditTransaction,
@@ -45,6 +49,28 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
   const [errorMsg, setErrorMsg] = useState('');
 
   const visibleWallets = wallets.filter(w => isAdmin || w.is_shared || w.owner_id === currentMember.id);
+  const selectedWallet = wallets.find(w => w.id === walletId);
+  const selectedDestinationWallet = wallets.find(w => w.id === destWalletId);
+
+  useEffect(() => {
+    if (!showModal || !draft) return;
+    if (draft.type) setTxType(draft.type);
+    if (draft.walletId) setWalletId(draft.walletId);
+    setSelectedRecurringId('');
+    setSelectedLoanId('');
+    setShowCustomNote(false);
+    setErrorMsg('');
+  }, [draft, showModal]);
+
+  const formatWalletOption = (wallet: typeof wallets[number]) => {
+    if (wallet.wallet_type !== 'credit_card') {
+      return `${wallet.name} (Balance: ₱${wallet.current_balance.toFixed(2)})`;
+    }
+
+    const limit = wallet.credit_limit || 0;
+    const available = Math.max(0, limit - wallet.current_balance);
+    return `${wallet.name} (Available: ₱${available.toFixed(2)} | Used: ₱${wallet.current_balance.toFixed(2)})`;
+  };
 
   const getDaysOffset = (freq: string, customInterval?: number | null) => {
     switch (freq) {
@@ -781,7 +807,9 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
 
               {/* Source Wallet */}
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Source Wallet Account</label>
+                <label className="block text-xs font-medium text-slate-300 mb-1">
+                  {selectedWallet?.wallet_type === 'credit_card' && txType === 'expense' ? 'Credit Card to Charge' : 'Source Wallet Account'}
+                </label>
                 <select
                   value={walletId}
                   onChange={(e) => setWalletId(e.target.value)}
@@ -789,10 +817,15 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                 >
                   {visibleWallets.map(w => (
                     <option key={w.id} value={w.id}>
-                      {w.name} (₱{w.current_balance.toFixed(2)})
+                      {formatWalletOption(w)}
                     </option>
                   ))}
                 </select>
+                {selectedWallet?.wallet_type === 'credit_card' && (
+                  <p className="mt-1 text-[11px] text-purple-300">
+                    Card expenses increase used balance. Transfers into this card reduce used balance.
+                  </p>
+                )}
               </div>
 
               {/* Category for Expense */}
@@ -824,10 +857,15 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                     <option value="">-- Select Destination Account --</option>
                     {visibleWallets.map(w => (
                       <option key={w.id} value={w.id}>
-                        {w.name} (₱{w.current_balance.toFixed(2)})
+                        {formatWalletOption(w)}
                       </option>
                     ))}
                   </select>
+                  {selectedDestinationWallet?.wallet_type === 'credit_card' && (
+                    <p className="mt-1 text-[11px] text-purple-300">
+                      This transfer will pay down the selected credit card used balance.
+                    </p>
+                  )}
                 </div>
               )}
 

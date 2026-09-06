@@ -2,16 +2,18 @@
 
 import React, { useState } from 'react';
 import { useHousehold } from '../context/HouseholdContext';
-import { 
-  Users, ShieldCheck, UserCheck, Plus, CheckCircle, Clock, AlertTriangle, Edit2, Trash2, Shield, HeartHandshake, KeyRound, Mail, Lock, CheckCircle2 
+import {
+  Users, ShieldCheck, UserCheck, Plus, AlertTriangle, Edit2, Trash2, HeartHandshake, KeyRound, Mail, Lock, CheckCircle2
 } from 'lucide-react';
 import { HouseholdRole, HouseholdMember } from '../types/database';
 import { supabase } from '../lib/supabase';
 import { getPasswordResetRedirectUrl } from '../lib/authRedirects';
+import { RolePermissionsMatrix } from './RolePermissionsMatrix';
+import { getEffectiveRoleId } from '../lib/permissions';
 
 export const MembersView: React.FC = () => {
   const { 
-    members, currentMember, isAdmin, wallets, transactions, 
+    members, currentMember, isAdmin, customRoles, hasPermission, wallets, transactions,
     addMember, updateMember, deleteMember 
   } = useHousehold();
 
@@ -23,13 +25,13 @@ export const MembersView: React.FC = () => {
   // Add Member State
   const [newDisplayName, setNewDisplayName] = useState('');
   const [newEmail, setNewEmail] = useState('');
-  const [newRole, setNewRole] = useState<HouseholdRole>('member');
+  const [newRoleId, setNewRoleId] = useState('role-teen-dependent');
   const [errorMsg, setErrorMsg] = useState('');
 
   // Edit Member State
   const [editDisplayName, setEditDisplayName] = useState('');
   const [editEmail, setEditEmail] = useState('');
-  const [editRole, setEditRole] = useState<HouseholdRole>('member');
+  const [editRoleId, setEditRoleId] = useState('role-teen-dependent');
 
   // Change Password State
   const [newPassword, setNewPassword] = useState('');
@@ -39,6 +41,9 @@ export const MembersView: React.FC = () => {
 
   // Admin Reset Email Status
   const [resetEmailMsg, setResetEmailMsg] = useState<{ memberId: string; text: string } | null>(null);
+  const canManageMembers = hasPermission('manage_members');
+  const canSendPasswordResets = hasPermission('send_password_resets');
+  const selectedInviteRole = customRoles.find(role => role.id === newRoleId) || customRoles[0];
 
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,7 +83,8 @@ export const MembersView: React.FC = () => {
           householdId: currentMember.household_id,
           displayName: newDisplayName.trim(),
           email: newEmail.trim(),
-          role: newRole,
+          role: selectedInviteRole?.base_role || 'member',
+          roleId: selectedInviteRole?.id || null,
         }),
       });
 
@@ -93,7 +99,7 @@ export const MembersView: React.FC = () => {
         invitedMember.role,
         invitedMember.email,
         invitedMember.user_id,
-        { memberId: invitedMember.id, syncToSupabase: false }
+        { memberId: invitedMember.id, roleId: invitedMember.role_id || selectedInviteRole?.id || null, syncToSupabase: false }
       );
       if (!result.success) {
         throw new Error(result.error || 'Invitation was sent, but the local roster was not updated.');
@@ -122,7 +128,8 @@ export const MembersView: React.FC = () => {
     const res = updateMember(editingMember.id, {
       display_name: editDisplayName.trim(),
       email: editEmail.trim() || undefined,
-      role: editRole,
+      role: customRoles.find(role => role.id === editRoleId)?.base_role || 'member',
+      role_id: editRoleId,
     });
 
     if (!res.success) {
@@ -256,7 +263,7 @@ export const MembersView: React.FC = () => {
             <span>Change My Password</span>
           </button>
 
-          {isAdmin && (
+          {canManageMembers && (
             <button
               onClick={() => {
                 setErrorMsg('');
@@ -343,7 +350,7 @@ export const MembersView: React.FC = () => {
                     <span>Change My Password</span>
                   </button>
                 ) : (
-                  isAdmin && hasEmail ? (
+                  canSendPasswordResets && hasEmail ? (
                     <button
                       onClick={() => handleAdminSendResetEmail(m)}
                       className="text-xs text-sky-400 hover:underline font-medium flex items-center space-x-1"
@@ -356,7 +363,7 @@ export const MembersView: React.FC = () => {
                 )}
 
                 {/* Admin Edit / Delete Actions */}
-                {isAdmin && (
+                {canManageMembers && (
                   <div className="flex items-center space-x-1">
                     <button
                       onClick={() => {
@@ -364,7 +371,7 @@ export const MembersView: React.FC = () => {
                         setEditingMember(m);
                         setEditDisplayName(m.display_name);
                         setEditEmail(m.email || '');
-                        setEditRole(m.role);
+                        setEditRoleId(getEffectiveRoleId(m));
                       }}
                       title="Edit Member Profile & Role"
                       className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-amber-400/10 rounded transition-colors"
@@ -388,58 +395,7 @@ export const MembersView: React.FC = () => {
         })}
       </div>
 
-      {/* Permissions Matrix */}
-      <div className="bg-slate-800/80 border border-slate-700/70 rounded-xl p-5 space-y-4">
-        <h3 className="text-sm font-bold text-white flex items-center space-x-2">
-          <Shield className="w-4 h-4 text-amber-400" />
-          <span>Role Permissions Matrix</span>
-        </h3>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="bg-slate-900/80 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-700">
-                <th className="py-2.5 px-3">Permission Scope</th>
-                <th className="py-2.5 px-3 text-center text-amber-400">Admin (Head Parent)</th>
-                <th className="py-2.5 px-3 text-center text-purple-400">Member (Parent/Guardian)</th>
-                <th className="py-2.5 px-3 text-center text-sky-400">Member (Teen/Dependent)</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-700/60 text-slate-300">
-              <tr>
-                <td className="py-2.5 px-3 font-medium">Log Expense / Income / Transfer</td>
-                <td className="py-2.5 px-3 text-center text-emerald-400 font-bold">Allowed</td>
-                <td className="py-2.5 px-3 text-center text-emerald-400 font-bold">Allowed</td>
-                <td className="py-2.5 px-3 text-center text-emerald-400 font-bold">Allowed</td>
-              </tr>
-              <tr>
-                <td className="py-2.5 px-3 font-medium">Change Personal Account Password</td>
-                <td className="py-2.5 px-3 text-center text-emerald-400 font-bold">Allowed</td>
-                <td className="py-2.5 px-3 text-center text-emerald-400 font-bold">Allowed</td>
-                <td className="py-2.5 px-3 text-center text-emerald-400 font-bold">Allowed</td>
-              </tr>
-              <tr>
-                <td className="py-2.5 px-3 font-medium">Send Password Reset Emails to Members</td>
-                <td className="py-2.5 px-3 text-center text-emerald-400 font-bold">Allowed</td>
-                <td className="py-2.5 px-3 text-center text-emerald-400 font-bold">Allowed</td>
-                <td className="py-2.5 px-3 text-center text-slate-500">Restricted</td>
-              </tr>
-              <tr>
-                <td className="py-2.5 px-3 font-medium">Manage Envelope Budgets & Limits</td>
-                <td className="py-2.5 px-3 text-center text-emerald-400 font-bold">Allowed</td>
-                <td className="py-2.5 px-3 text-center text-emerald-400 font-bold">Allowed</td>
-                <td className="py-2.5 px-3 text-center text-slate-500">Read-Only</td>
-              </tr>
-              <tr>
-                <td className="py-2.5 px-3 font-medium">Create/Delete Wallets & Credit Lines</td>
-                <td className="py-2.5 px-3 text-center text-emerald-400 font-bold">Allowed</td>
-                <td className="py-2.5 px-3 text-center text-emerald-400 font-bold">Allowed</td>
-                <td className="py-2.5 px-3 text-center text-slate-500 font-medium">Personal Only</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <RolePermissionsMatrix />
 
       {/* Change Password Modal */}
       {showChangePasswordModal && (
@@ -556,13 +512,13 @@ export const MembersView: React.FC = () => {
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">Assigned Household Role</label>
                 <select
-                  value={newRole}
-                  onChange={(e) => setNewRole(e.target.value as HouseholdRole)}
+                  value={newRoleId}
+                  onChange={(e) => setNewRoleId(e.target.value)}
                   className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
                 >
-                  <option value="parent_member">Member (Parent/Guardian)</option>
-                  <option value="admin">Admin (Head Parent)</option>
-                  <option value="member">Member (Teen/Dependent)</option>
+                  {customRoles.map(role => (
+                    <option key={role.id} value={role.id}>{role.name}</option>
+                  ))}
                 </select>
               </div>
 
@@ -625,13 +581,13 @@ export const MembersView: React.FC = () => {
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">Assigned Household Role</label>
                 <select
-                  value={editRole}
-                  onChange={(e) => setEditRole(e.target.value as HouseholdRole)}
+                  value={editRoleId}
+                  onChange={(e) => setEditRoleId(e.target.value)}
                   className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
                 >
-                  <option value="parent_member">Member (Parent/Guardian)</option>
-                  <option value="admin">Admin (Head Parent)</option>
-                  <option value="member">Member (Teen/Dependent)</option>
+                  {customRoles.map(role => (
+                    <option key={role.id} value={role.id}>{role.name}</option>
+                  ))}
                 </select>
               </div>
 

@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { Household, HouseholdMember, Wallet, Category, Transaction, SavingsGoal, Loan, RecurringTransfer } from '../types/database';
+import { DEFAULT_ROLE_PERMISSIONS, DEFAULT_ROLES } from './permissions';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -23,6 +24,7 @@ export const initialMembers: HouseholdMember[] = [
     household_id: 'hh-101',
     user_id: null,
     role: 'admin',
+    role_id: 'role-admin-head-parent',
     display_name: 'Steve Cantago (Head Admin Parent)',
     email: 'steve.cantago@gmail.com',
     created_at: new Date().toISOString(),
@@ -214,3 +216,6 @@ export const initialLoans: Loan[] = [
 ];
 
 export const initialRecurringTransfers: RecurringTransfer[] = [];
+
+export const initialCustomRoles = DEFAULT_ROLES;
+export const initialRolePermissions = DEFAULT_ROLE_PERMISSIONS;

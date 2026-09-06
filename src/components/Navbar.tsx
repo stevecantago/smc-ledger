@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useHousehold } from '../context/HouseholdContext';
 import { 
-  ShieldCheck, UserCheck, Wallet as WalletIcon, Home, PlusCircle, Users, Landmark, Target, Plus, HeartHandshake, KeyRound, LogOut, History, AlertCircle, X
+  ShieldCheck, UserCheck, Wallet as WalletIcon, Home, PlusCircle, Users, Landmark, Target, Plus, HeartHandshake, KeyRound, LogOut, History, AlertCircle, X, Clock
 } from 'lucide-react';
 import { HouseholdRole } from '../types/database';
 import { AuthModal } from './AuthModal';
@@ -36,6 +36,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
     { id: 'transactions', label: 'Ledger', icon: PlusCircle },
     { id: 'budgets', label: 'Envelopes', icon: ShieldCheck },
     { id: 'loans', label: 'Loans', icon: Landmark },
+    { id: 'schedules', label: 'Schedules', icon: Clock },
     { id: 'goals', label: 'Goals', icon: Target },
     { id: 'members', label: 'Roster', icon: Users },
     { id: 'activity', label: 'Activity Log', icon: History },

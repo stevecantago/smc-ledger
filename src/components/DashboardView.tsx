@@ -456,6 +456,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
             <span className="text-xl font-bold font-mono text-rose-400 block">
               ₱{totalFilteredOutflow.toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </span>
+            <button onClick={() => setActiveTab('schedules')} className="mt-1 text-[11px] font-medium text-indigo-300 hover:underline">
+              Manage Schedules ➔
+            </button>
           </div>
         </div>
 
