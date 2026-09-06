@@ -5,6 +5,8 @@ import { useHousehold } from '../context/HouseholdContext';
 import { Target, Plus, Calendar, DollarSign, AlertCircle, Edit2, Trash2 } from 'lucide-react';
 import { SavingsGoal } from '../types/database';
 import { getCreditCardAvailableCredit, getCreditCardUsedBalance } from '../lib/creditCardTransactions';
+import { getSavingsGoalProgress } from '../lib/savingsGoalProgress';
+import { getWalletTypeLabel } from '../lib/walletTypes';
 
 export const SavingsGoalsView: React.FC = () => {
   const { 
@@ -20,11 +22,13 @@ export const SavingsGoalsView: React.FC = () => {
   const [name, setName] = useState('');
   const [targetAmount, setTargetAmount] = useState('');
   const [targetDate, setTargetDate] = useState('');
+  const [goalWalletId, setGoalWalletId] = useState('');
 
   // Edit Form
   const [editName, setEditName] = useState('');
   const [editTarget, setEditTarget] = useState('');
   const [editDate, setEditDate] = useState('');
+  const [editGoalWalletId, setEditGoalWalletId] = useState('');
 
   // Fund Form
   const [fundAmount, setFundAmount] = useState('');
@@ -32,9 +36,15 @@ export const SavingsGoalsView: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState('');
 
   const visibleWallets = wallets.filter(w => isAdmin || w.is_shared || w.owner_id === currentMember.id);
+  const trackableWallets = visibleWallets.filter(wallet => wallet.wallet_type !== 'credit_card');
+  const contributionSourceWallets = fundingGoal?.wallet_id
+    ? visibleWallets.filter(wallet => wallet.id !== fundingGoal.wallet_id)
+    : visibleWallets;
   const formatWalletOption = (wallet: typeof wallets[number]) => wallet.wallet_type === 'credit_card'
     ? `${wallet.name} (Available: ₱${getCreditCardAvailableCredit(wallet).toFixed(2)} | Used: ₱${getCreditCardUsedBalance(wallet).toFixed(2)})`
     : `${wallet.name} (₱${wallet.current_balance.toFixed(2)})`;
+  const formatTrackableWalletOption = (wallet: typeof wallets[number]) =>
+    `${wallet.name} - ${getWalletTypeLabel(wallet.wallet_type)} (₱${wallet.current_balance.toFixed(2)})`;
 
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,11 +54,13 @@ export const SavingsGoalsView: React.FC = () => {
       name: name.trim(),
       target_amount: parseFloat(targetAmount) || 0,
       target_date: targetDate || undefined,
+      wallet_id: goalWalletId || null,
     });
 
     setName('');
     setTargetAmount('');
     setTargetDate('');
+    setGoalWalletId('');
     setShowAddModal(false);
   };
 
@@ -60,6 +72,7 @@ export const SavingsGoalsView: React.FC = () => {
       name: editName.trim(),
       target_amount: parseFloat(editTarget) || 0,
       target_date: editDate || null,
+      wallet_id: editGoalWalletId || null,
     });
 
     setEditingGoal(null);
@@ -120,8 +133,9 @@ export const SavingsGoalsView: React.FC = () => {
       {/* Goal Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {savingsGoals.map(goal => {
-          const percent = Math.min(Math.round((goal.current_amount / goal.target_amount) * 100), 100);
-          const remaining = goal.target_amount - goal.current_amount;
+          const progress = getSavingsGoalProgress(goal, wallets);
+          const percent = progress.percent;
+          const remaining = progress.remainingAmount;
 
           return (
             <div key={goal.id} className="bg-slate-800/90 border border-slate-700/80 rounded-xl p-5 space-y-4 shadow-lg flex flex-col justify-between">
@@ -136,6 +150,11 @@ export const SavingsGoalsView: React.FC = () => {
                       {goal.target_date && (
                         <p className="text-[11px] text-slate-400 flex items-center mt-0.5">
                           <Calendar className="w-3 h-3 mr-1 text-slate-500" /> Target: {goal.target_date}
+                        </p>
+                      )}
+                      {progress.linkedWallet && (
+                        <p className="text-[11px] text-emerald-300 flex items-center mt-0.5">
+                          <DollarSign className="w-3 h-3 mr-1 text-emerald-400" /> Tracks: {progress.linkedWallet.name}
                         </p>
                       )}
                     </div>
@@ -154,6 +173,7 @@ export const SavingsGoalsView: React.FC = () => {
                             setEditName(goal.name);
                             setEditTarget(goal.target_amount.toString());
                             setEditDate(goal.target_date || '');
+                            setEditGoalWalletId(goal.wallet_id || '');
                           }}
                           title="Edit Savings Goal"
                           className="p-1 text-slate-400 hover:text-amber-400 hover:bg-amber-400/10 rounded transition-colors"
@@ -175,7 +195,7 @@ export const SavingsGoalsView: React.FC = () => {
                 {/* Progress Bar */}
                 <div className="space-y-1.5 pt-2">
                   <div className="flex justify-between text-xs font-mono">
-                    <span className="text-emerald-400 font-bold">₱{goal.current_amount.toLocaleString()}</span>
+                    <span className="text-emerald-400 font-bold">₱{progress.currentAmount.toLocaleString()}</span>
                     <span className="text-slate-400">Target: ₱{goal.target_amount.toLocaleString()}</span>
                   </div>
 
@@ -197,7 +217,8 @@ export const SavingsGoalsView: React.FC = () => {
                 onClick={() => {
                   setErrorMsg('');
                   setFundingGoal(goal);
-                  if (visibleWallets.length > 0) setSelectedWalletId(visibleWallets[0].id);
+                  const firstSourceWallet = visibleWallets.find(wallet => wallet.id !== goal.wallet_id);
+                  setSelectedWalletId(firstSourceWallet?.id || '');
                 }}
                 className="w-full mt-2 bg-indigo-600/90 hover:bg-indigo-500 text-white font-semibold text-xs py-2 rounded-lg transition-all shadow flex items-center justify-center space-x-1"
               >
@@ -249,6 +270,22 @@ export const SavingsGoalsView: React.FC = () => {
                   onChange={(e) => setTargetDate(e.target.value)}
                   className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Wallet to Track</label>
+                <select
+                  value={goalWalletId}
+                  onChange={(e) => setGoalWalletId(e.target.value)}
+                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                >
+                  <option value="">No linked wallet yet</option>
+                  {trackableWallets.map(wallet => (
+                    <option key={wallet.id} value={wallet.id}>
+                      {formatTrackableWalletOption(wallet)}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-800">
@@ -311,6 +348,22 @@ export const SavingsGoalsView: React.FC = () => {
                 />
               </div>
 
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Wallet to Track</label>
+                <select
+                  value={editGoalWalletId}
+                  onChange={(e) => setEditGoalWalletId(e.target.value)}
+                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                >
+                  <option value="">No linked wallet yet</option>
+                  {trackableWallets.map(wallet => (
+                    <option key={wallet.id} value={wallet.id}>
+                      {formatTrackableWalletOption(wallet)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-800">
                 <button
                   type="button"
@@ -365,7 +418,10 @@ export const SavingsGoalsView: React.FC = () => {
                   onChange={(e) => setSelectedWalletId(e.target.value)}
                   className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
                 >
-                  {visibleWallets.map(w => (
+                  {contributionSourceWallets.length === 0 && (
+                    <option value="">No source account available</option>
+                  )}
+                  {contributionSourceWallets.map(w => (
                     <option key={w.id} value={w.id}>
                       {formatWalletOption(w)}
                     </option>
@@ -383,6 +439,7 @@ export const SavingsGoalsView: React.FC = () => {
                 </button>
                 <button
                   type="submit"
+                  disabled={contributionSourceWallets.length === 0}
                   className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg transition-all shadow"
                 >
                   Confirm Contribution

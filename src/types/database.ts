@@ -114,6 +114,7 @@ export interface Transaction {
 export interface SavingsGoal {
   id: string;
   household_id: string;
+  wallet_id?: string | null;
   name: string;
   target_amount: number;
   current_amount: number;

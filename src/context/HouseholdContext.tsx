@@ -79,8 +79,8 @@ interface HouseholdContextType {
   deleteTransaction: (id: string) => MutationResult;
 
   // Savings Goals CRUD
-  addSavingsGoal: (goal: { name: string; target_amount: number; target_date?: string }) => MutationResult;
-  updateSavingsGoal: (id: string, updates: { name?: string; target_amount?: number; target_date?: string | null }) => MutationResult;
+  addSavingsGoal: (goal: { name: string; target_amount: number; target_date?: string; wallet_id?: string | null }) => MutationResult;
+  updateSavingsGoal: (id: string, updates: { name?: string; target_amount?: number; target_date?: string | null; wallet_id?: string | null }) => MutationResult;
   deleteSavingsGoal: (id: string) => MutationResult;
   fundSavingsGoal: (goalId: string, amount: number, walletId: string) => MutationResult;
   
@@ -850,14 +850,16 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   // Savings Goals CRUD
-  const addSavingsGoal = (data: { name: string; target_amount: number; target_date?: string }) => {
+  const addSavingsGoal = (data: { name: string; target_amount: number; target_date?: string; wallet_id?: string | null }) => {
     if (!hasPermission('manage_goals')) return { success: false, error: 'Your role cannot create savings goals.' };
+    const linkedWallet = data.wallet_id ? wallets.find(wallet => wallet.id === data.wallet_id) : null;
     const newGoal: SavingsGoal = {
       id: `goal-${Date.now()}`,
       household_id: household.id,
+      wallet_id: data.wallet_id || null,
       name: data.name,
       target_amount: data.target_amount,
-      current_amount: 0,
+      current_amount: linkedWallet ? linkedWallet.current_balance : 0,
       target_date: data.target_date || null,
       created_at: new Date().toISOString(),
     };
@@ -869,13 +871,17 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       : localSaveResult();
   };
 
-  const updateSavingsGoal = (id: string, updates: { name?: string; target_amount?: number; target_date?: string | null }) => {
+  const updateSavingsGoal = (id: string, updates: { name?: string; target_amount?: number; target_date?: string | null; wallet_id?: string | null }) => {
     if (!hasPermission('manage_goals')) return { success: false, error: 'Your role cannot edit savings goals.' };
-    setSavingsGoals(prev => prev.map(g => g.id === id ? { ...g, ...updates } : g));
+    const linkedWallet = updates.wallet_id ? wallets.find(wallet => wallet.id === updates.wallet_id) : null;
+    const normalizedUpdates = linkedWallet
+      ? { ...updates, current_amount: linkedWallet.current_balance }
+      : updates;
+    setSavingsGoals(prev => prev.map(g => g.id === id ? { ...g, ...normalizedUpdates } : g));
     logActivity('update_goal', `Updated savings goal "${updates.name || id}"`);
 
     return supabase
-      ? trackSupabaseWrite('Update savings goal', supabase.from('savings_goals').update(updates).eq('id', id))
+      ? trackSupabaseWrite('Update savings goal', supabase.from('savings_goals').update(normalizedUpdates).eq('id', id))
       : localSaveResult();
   };
 
@@ -892,34 +898,59 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const fundSavingsGoal = (goalId: string, amount: number, walletId: string) => {
     if (!hasPermission('fund_goals')) return { success: false, error: 'Your role cannot fund savings goals.' };
+    const targetGoal = savingsGoals.find(g => g.id === goalId);
+    if (!targetGoal) return { success: false, error: 'Savings goal not found' };
+
     const sourceWallet = wallets.find(w => w.id === walletId);
     if (!sourceWallet) return { success: false, error: 'Wallet not found' };
     if (sourceWallet.current_balance < amount) {
       return { success: false, error: 'Insufficient funds in selected wallet' };
     }
 
-    const newWalletBal = sourceWallet.current_balance - amount;
-    const targetGoal = savingsGoals.find(g => g.id === goalId);
-    const newGoalAmount = targetGoal ? targetGoal.current_amount + amount : amount;
+    if (targetGoal.wallet_id) {
+      const trackedWallet = wallets.find(w => w.id === targetGoal.wallet_id);
+      if (!trackedWallet) return { success: false, error: 'Tracked savings wallet not found' };
+      if (trackedWallet.id === walletId) {
+        return { success: false, error: 'Choose a different source account than the tracked savings wallet.' };
+      }
 
-    setWallets(prev => prev.map(w => w.id === walletId ? { ...w, current_balance: newWalletBal } : w));
+      const newGoalAmount = trackedWallet.current_balance + amount;
+      const txResult = addTransaction({
+        wallet_id: walletId,
+        destination_wallet_id: trackedWallet.id,
+        type: 'transfer',
+        amount: amount,
+        transaction_date: new Date().toISOString().split('T')[0],
+        note: `Contribution to goal: ${targetGoal.name}`,
+      });
+
+      if (!txResult.success) return txResult;
+
+      setSavingsGoals(prev => prev.map(g => g.id === goalId ? { ...g, current_amount: newGoalAmount } : g));
+      logActivity('fund_goal', `Transferred ₱${amount} into tracked savings wallet "${trackedWallet.name}" for goal "${targetGoal.name}"`);
+
+      return supabase
+        ? trackSupabaseWrite('Fund savings goal', supabase.from('savings_goals').update({ current_amount: newGoalAmount }).eq('id', goalId))
+        : localSaveResult();
+    }
+
+    const newGoalAmount = targetGoal.current_amount + amount;
     setSavingsGoals(prev => prev.map(g => g.id === goalId ? { ...g, current_amount: newGoalAmount } : g));
 
-    addTransaction({
+    const txResult = addTransaction({
       wallet_id: walletId,
       type: 'expense',
       amount: amount,
       transaction_date: new Date().toISOString().split('T')[0],
       note: `Contribution to goal: ${targetGoal?.name || goalId}`,
     });
+    if (!txResult.success) return txResult;
 
     logActivity('fund_goal', `Funded ₱${amount} into savings goal "${targetGoal?.name || goalId}"`);
 
-    const syncResult = supabase
+    return supabase
       ? trackSupabaseWrite('Fund savings goal', supabase.from('savings_goals').update({ current_amount: newGoalAmount }).eq('id', goalId))
       : localSaveResult();
-    updateWalletBalanceInSupabase(walletId, newWalletBal);
-    return syncResult;
   };
 
   // Loans CRUD
