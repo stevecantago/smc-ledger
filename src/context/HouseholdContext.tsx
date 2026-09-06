@@ -31,6 +31,7 @@ import {
   isHeadParent as getIsHeadParent,
 } from '../lib/permissions';
 import { applyTransactionBalanceChange, normalizeCreditCardWalletBalance, reverseTransactionBalanceChange } from '../lib/creditCardTransactions';
+import { getWalletDeleteBlocker } from '../lib/walletDeletion';
 
 interface HouseholdContextType {
   household: Household;
@@ -318,7 +319,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
               // 4. Transactions
               const { data: remoteTx } = await supabase.from('transactions').select('*').order('created_at', { ascending: false });
-              if (remoteTx && remoteTx.length > 0) {
+              if (remoteTx) {
                 setTransactions(remoteTx);
                 localStorage.setItem(STORAGE_KEYS.transactions, JSON.stringify(remoteTx));
               }
@@ -694,6 +695,9 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const target = wallets.find(w => w.id === id);
     if (!target) return { success: false, error: 'Wallet account not found.' };
     if (!hasPermission('manage_wallets', target.owner_id)) return { success: false, error: 'Your role cannot delete this wallet or credit line.' };
+    const blocker = getWalletDeleteBlocker(id, transactions);
+    if (!blocker.success) return blocker;
+
     setWallets(prev => prev.filter(w => w.id !== id));
     logActivity('delete_wallet', `Deleted account "${target?.name || id}"`);
 

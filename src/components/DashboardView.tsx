@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useHousehold } from '../context/HouseholdContext';
 import { 
   TrendingDown, TrendingUp, ArrowRightLeft, Wallet as WalletIcon, ShieldCheck, 
@@ -10,6 +10,24 @@ import {
 import { Loan, Wallet } from '../types/database';
 import { CategoryIcon } from './CategoryIcon';
 import { getCreditCardAvailableCredit, getCreditCardUsedBalance } from '../lib/creditCardTransactions';
+import { getInitialLedgerCycleFilter, getNextLedgerCycle, LedgerCycleRange } from '../lib/billingCycles';
+
+const DASHBOARD_SCHEDULE_FILTER_KEY = 'smc_dashboard_schedule_filter';
+
+function getSavedScheduleFilter(): LedgerCycleRange | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const saved = window.localStorage.getItem(DASHBOARD_SCHEDULE_FILTER_KEY);
+    if (!saved) return null;
+    const parsed = JSON.parse(saved);
+    if (typeof parsed?.startDate === 'string' && typeof parsed?.endDate === 'string') {
+      return parsed;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
 
 interface DashboardViewProps {
   setActiveTab: (tab: string) => void;
@@ -28,10 +46,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
   const [errorMsg, setErrorMsg] = useState('');
 
   // Date Range Filter State for Recurring Bills & Transfers
-  const todayStr = new Date().toISOString().split('T')[0];
-  const defaultEndStr = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
-  const [recurringStartDate, setRecurringStartDate] = useState<string>(todayStr);
-  const [recurringEndDate, setRecurringEndDate] = useState<string>(defaultEndStr);
+  const initialCycle = getInitialLedgerCycleFilter(new Date(), getSavedScheduleFilter());
+  const [recurringStartDate, setRecurringStartDate] = useState<string>(initialCycle.startDate);
+  const [recurringEndDate, setRecurringEndDate] = useState<string>(initialCycle.endDate);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(DASHBOARD_SCHEDULE_FILTER_KEY, JSON.stringify({
+      startDate: recurringStartDate,
+      endDate: recurringEndDate,
+    }));
+  }, [recurringStartDate, recurringEndDate]);
 
   const visibleWallets = wallets.filter(w => isAdmin || w.is_shared || w.owner_id === currentMember.id);
 
@@ -385,7 +410,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
               <h3 className="font-bold text-sm text-white">Recurring Bills & Transfers Schedule</h3>
             </div>
             <p className="text-[11px] text-slate-400 mt-0.5">
-              Filter upcoming recurring bills & transfers by date range and view required wallet outflow totals.
+              Filter upcoming recurring bills & transfers by your 5th-19th and 20th-4th billing cycles.
             </p>
           </div>
 
@@ -411,16 +436,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
               />
             </div>
 
-            {/* Quick Presets */}
             <button
               type="button"
               onClick={() => {
-                setRecurringStartDate(todayStr);
-                setRecurringEndDate(defaultEndStr);
+                const nextCycle = getNextLedgerCycle({
+                  startDate: recurringStartDate,
+                  endDate: recurringEndDate,
+                });
+                setRecurringStartDate(nextCycle.startDate);
+                setRecurringEndDate(nextCycle.endDate);
               }}
               className="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-[11px] font-semibold rounded-lg transition-colors"
             >
-              Next 30 Days
+              Next Cycle
             </button>
 
             <button
