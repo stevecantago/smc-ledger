@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { validateInvitationRequest } from '../../../src/lib/authFlow';
+import { getPasswordResetRedirectUrl } from '../../../src/lib/authRedirects';
 import type { HouseholdMember, HouseholdRole } from '../../../src/types/database';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -111,7 +112,7 @@ export async function POST(request: NextRequest) {
     return jsonError('A household member already uses that email address.', 409);
   }
 
-  const inviteRedirect = `${request.nextUrl.origin}/reset-password`;
+  const inviteRedirect = getPasswordResetRedirectUrl(request.nextUrl.origin);
   const { data: inviteData, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
     validation.email,
     {

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { HouseholdRole, HouseholdMember } from '../types/database';
 import { supabase } from '../lib/supabase';
+import { getPasswordResetRedirectUrl } from '../lib/authRedirects';
 
 export const MembersView: React.FC = () => {
   const { 
@@ -187,7 +188,7 @@ export const MembersView: React.FC = () => {
     try {
       if (supabase) {
         const { error } = await supabase.auth.resetPasswordForEmail(member.email, {
-          redirectTo: `${window.location.origin}/reset-password`,
+          redirectTo: getPasswordResetRedirectUrl(window.location.origin),
         });
         if (error) throw error;
       }
