@@ -494,13 +494,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
         </div>
 
         {/* Overall Filter Summary Banner */}
-        <div className="bg-slate-900/70 border border-slate-700/60 p-4 rounded-xl text-xs">
-          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-            <div className="flex items-center space-x-3">
+        <div className="bg-slate-900/70 border border-slate-700/60 p-4 rounded-xl text-xs space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_auto] gap-4 items-start lg:items-center">
+            <div className="flex items-center space-x-3 min-w-0">
               <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
                 <Calendar className="w-4 h-4" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <span className="text-slate-400">Date Range Filter: </span>
                 <strong className="text-amber-300 font-mono">
                   {recurringStartDate || 'Earliest'} ➔ {recurringEndDate || 'Latest'}
@@ -511,13 +511,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
               </div>
             </div>
 
-            <div className="flex items-center gap-4 self-stretch lg:self-auto">
+            <div className="flex flex-col sm:flex-row sm:items-center lg:justify-end gap-3 lg:min-w-[360px]">
               {walletGroups.length > 0 && (
                 <button
                   type="button"
                   onClick={() => setShowScheduleWallets(prev => !prev)}
                   aria-expanded={showScheduleWallets}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-2 text-[11px] font-semibold text-indigo-200 hover:bg-indigo-500/15"
+                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-2 text-[11px] font-semibold text-indigo-200 hover:bg-indigo-500/15"
                 >
                   {showScheduleWallets ? (
                     <ChevronDown className="w-3.5 h-3.5" />
@@ -528,7 +528,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
                 </button>
               )}
 
-              <div className="text-right">
+              <div className="text-left sm:text-right">
                 <span className="text-[10px] text-slate-400 uppercase font-mono tracking-wider block">Total Scheduled Outflow</span>
                 <span className="text-xl font-bold font-mono text-rose-400 block">
                   ₱{totalFilteredOutflow.toLocaleString('en-US', { minimumFractionDigits: 2 })}
@@ -540,149 +540,126 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
             </div>
           </div>
 
-          {walletGroups.length > 0 && (
-            <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-2">
-              {walletGroups.map(({ wallet, items, totalOutflow }, index) => {
+          {walletGroups.length === 0 ? (
+            <div className="bg-slate-950/35 border border-slate-800 rounded-xl p-8 text-center text-slate-500 italic text-xs">
+              No recurring bills or transfers scheduled with next due dates falling within the selected date range ({recurringStartDate || 'Start'} to {recurringEndDate || 'End'}).
+            </div>
+          ) : showScheduleWallets ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {walletGroups.map(({ wallet, items, totalOutflow, availableBalance, hasSufficientFunds }, index) => {
                 const groupKey = wallet?.id || `unknown-${index}`;
+                const isExpanded = !!expandedScheduleWallets[groupKey];
 
                 return (
-                  <div key={groupKey} className="rounded-lg bg-slate-950/35 px-3 py-2">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-[11px] font-semibold text-white">{wallet?.name || 'Unknown Paying Account'}</p>
-                        <p className="text-[10px] text-slate-500">{items.length} scheduled items</p>
+                  <div key={groupKey} className="bg-slate-950/35 border border-slate-700/70 rounded-xl p-4 space-y-3 shadow-md">
+                    {/* Wallet Group Header */}
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                      <button
+                        type="button"
+                        onClick={() => toggleScheduleWallet(groupKey)}
+                        aria-expanded={isExpanded}
+                        className="flex min-w-0 items-center space-x-2.5 text-left"
+                      >
+                        <div className="p-2 rounded-lg bg-slate-800 border border-slate-700">
+                          <WalletIcon className="w-4 h-4 text-sky-400" />
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="font-bold text-sm text-white flex items-center space-x-2">
+                            {isExpanded ? (
+                              <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                            ) : (
+                              <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                            )}
+                            <span className="truncate">{wallet?.name || 'Unknown Paying Account'}</span>
+                            <span className="shrink-0 text-[10px] text-slate-400 font-mono uppercase bg-slate-800 px-1.5 py-0.2 rounded border border-slate-700">
+                              {wallet ? getWalletTypeLabel(wallet.wallet_type) : 'Account'}
+                            </span>
+                          </h4>
+                          <p className="text-[11px] text-slate-400 flex flex-wrap items-center gap-2 mt-0.5">
+                            <span>Account Available: <strong className="text-slate-200 font-mono">₱{availableBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong></span>
+                            <span>{items.length} scheduled items</span>
+                            {!hasSufficientFunds && (
+                              <span className="text-[10px] font-bold text-rose-400 bg-rose-500/15 px-1.5 py-0.2 rounded border border-rose-500/30">
+                                Insufficient Available Balance!
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      </button>
+
+                      {/* Group Outflow Total */}
+                      <div className="text-left sm:text-right">
+                        <span className="text-[10px] text-slate-400 uppercase font-mono tracking-wider block">Paying Account Outflow Total</span>
+                        <span className="text-base font-bold font-mono text-rose-400 block">
+                          ₱{totalOutflow.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </span>
                       </div>
-                      <span className="shrink-0 text-[11px] font-bold font-mono text-rose-400">
-                        ₱{totalOutflow.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                      </span>
                     </div>
+
+                    {/* List of Recurring Items for this Wallet */}
+                    {isExpanded && (
+                      <div className="grid grid-cols-1 gap-3 pt-1">
+                        {items.map(rule => {
+                          const cat = rule.category_id ? categories.find(c => c.id === rule.category_id) : null;
+                          const dst = rule.destination_wallet_id ? wallets.find(w => w.id === rule.destination_wallet_id) : null;
+                          const loan = rule.loan_id ? loans.find(l => l.id === rule.loan_id) : null;
+
+                          return (
+                            <div key={rule.id} className="bg-slate-800/80 border border-slate-700/60 p-3 rounded-lg flex items-start justify-between gap-2 text-xs">
+                              <div className="space-y-1">
+                                <div className="flex items-center space-x-2">
+                                  <span className="font-semibold text-white">{rule.note}</span>
+                                  <span className={`text-[9px] font-bold font-mono px-1.5 py-0.2 rounded uppercase ${
+                                    rule.rule_type === 'expense' ? 'bg-rose-500/10 text-rose-400' :
+                                    rule.rule_type === 'loan_payment' ? 'bg-amber-500/10 text-amber-400' :
+                                    'bg-indigo-500/10 text-indigo-400'
+                                  }`}>
+                                    {rule.rule_type === 'loan_payment' ? 'LOAN PAYMENT' : rule.rule_type}
+                                  </span>
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400">
+                                  {rule.rule_type === 'transfer' && dst && (
+                                    <span>➔ Destination: <strong className="text-indigo-300">{dst.name}</strong></span>
+                                  )}
+
+                                  {loan ? (
+                                    <span className="inline-flex items-center text-[10px] font-semibold text-amber-300 bg-amber-500/15 px-2 py-0.2 rounded border border-amber-500/30">
+                                      <Landmark className="w-3 h-3 mr-1 text-amber-400" />
+                                      {loan.name}
+                                    </span>
+                                  ) : cat ? (
+                                    <span className="inline-flex items-center text-[10px] font-semibold text-sky-300 bg-sky-500/15 px-2 py-0.2 rounded border border-sky-500/30">
+                                      <CategoryIcon slug={cat.icon_slug} className="w-3 h-3 mr-1" />
+                                      {cat.name}
+                                    </span>
+                                  ) : null}
+                                </div>
+
+                                <div className="text-[11px] font-bold text-amber-300 font-mono flex items-center pt-0.5">
+                                  <Calendar className="w-3.5 h-3.5 mr-1 text-amber-400" /> Next Due Date: {rule.next_run_date}
+                                </div>
+                              </div>
+
+                              <div className="text-right font-mono shrink-0">
+                                <span className="font-bold text-sm text-rose-400 block">
+                                  ₱{rule.amount.toFixed(2)}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-sans block uppercase">
+                                  {rule.frequency === 'bimonthly' ? 'BI-MONTHLY' : rule.frequency}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 );
               })}
             </div>
-          )}
+          ) : null}
         </div>
-
-        {/* Grouped by Paying Wallet Account */}
-        {walletGroups.length === 0 ? (
-          <div className="bg-slate-900/40 border border-slate-700/40 rounded-xl p-8 text-center text-slate-500 italic text-xs">
-            No recurring bills or transfers scheduled with next due dates falling within the selected date range ({recurringStartDate || 'Start'} to {recurringEndDate || 'End'}).
-          </div>
-        ) : showScheduleWallets ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {walletGroups.map(({ wallet, items, totalOutflow, availableBalance, hasSufficientFunds }, index) => {
-              const groupKey = wallet?.id || `unknown-${index}`;
-              const isExpanded = !!expandedScheduleWallets[groupKey];
-
-              return (
-                <div key={groupKey} className="bg-slate-900/80 border border-slate-700/70 rounded-xl p-4 space-y-3 shadow-md">
-                  {/* Wallet Group Header */}
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
-                    <button
-                      type="button"
-                      onClick={() => toggleScheduleWallet(groupKey)}
-                      aria-expanded={isExpanded}
-                      className="flex min-w-0 items-center space-x-2.5 text-left"
-                    >
-                      <div className="p-2 rounded-lg bg-slate-800 border border-slate-700">
-                        <WalletIcon className="w-4 h-4 text-sky-400" />
-                      </div>
-                      <div className="min-w-0">
-                        <h4 className="font-bold text-sm text-white flex items-center space-x-2">
-                          {isExpanded ? (
-                            <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400" />
-                          ) : (
-                            <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400" />
-                          )}
-                          <span className="truncate">{wallet?.name || 'Unknown Paying Account'}</span>
-                          <span className="shrink-0 text-[10px] text-slate-400 font-mono uppercase bg-slate-800 px-1.5 py-0.2 rounded border border-slate-700">
-                            {wallet ? getWalletTypeLabel(wallet.wallet_type) : 'Account'}
-                          </span>
-                        </h4>
-                        <p className="text-[11px] text-slate-400 flex flex-wrap items-center gap-2 mt-0.5">
-                          <span>Account Available: <strong className="text-slate-200 font-mono">₱{availableBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong></span>
-                          <span>{items.length} scheduled items</span>
-                          {!hasSufficientFunds && (
-                            <span className="text-[10px] font-bold text-rose-400 bg-rose-500/15 px-1.5 py-0.2 rounded border border-rose-500/30">
-                              Insufficient Available Balance!
-                            </span>
-                          )}
-                        </p>
-                      </div>
-                    </button>
-
-                    {/* Group Outflow Total */}
-                    <div className="text-left sm:text-right">
-                      <span className="text-[10px] text-slate-400 uppercase font-mono tracking-wider block">Paying Account Outflow Total</span>
-                      <span className="text-base font-bold font-mono text-rose-400 block">
-                        ₱{totalOutflow.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* List of Recurring Items for this Wallet */}
-                  {isExpanded && (
-                    <div className="grid grid-cols-1 gap-3 pt-1">
-                      {items.map(rule => {
-                        const cat = rule.category_id ? categories.find(c => c.id === rule.category_id) : null;
-                        const dst = rule.destination_wallet_id ? wallets.find(w => w.id === rule.destination_wallet_id) : null;
-                        const loan = rule.loan_id ? loans.find(l => l.id === rule.loan_id) : null;
-
-                        return (
-                          <div key={rule.id} className="bg-slate-800/80 border border-slate-700/60 p-3 rounded-lg flex items-start justify-between gap-2 text-xs">
-                            <div className="space-y-1">
-                              <div className="flex items-center space-x-2">
-                                <span className="font-semibold text-white">{rule.note}</span>
-                                <span className={`text-[9px] font-bold font-mono px-1.5 py-0.2 rounded uppercase ${
-                                  rule.rule_type === 'expense' ? 'bg-rose-500/10 text-rose-400' :
-                                  rule.rule_type === 'loan_payment' ? 'bg-amber-500/10 text-amber-400' :
-                                  'bg-indigo-500/10 text-indigo-400'
-                                }`}>
-                                  {rule.rule_type === 'loan_payment' ? 'LOAN PAYMENT' : rule.rule_type}
-                                </span>
-                              </div>
-
-                              <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400">
-                                {rule.rule_type === 'transfer' && dst && (
-                                  <span>➔ Destination: <strong className="text-indigo-300">{dst.name}</strong></span>
-                                )}
-
-                                {loan ? (
-                                  <span className="inline-flex items-center text-[10px] font-semibold text-amber-300 bg-amber-500/15 px-2 py-0.2 rounded border border-amber-500/30">
-                                    <Landmark className="w-3 h-3 mr-1 text-amber-400" />
-                                    {loan.name}
-                                  </span>
-                                ) : cat ? (
-                                  <span className="inline-flex items-center text-[10px] font-semibold text-sky-300 bg-sky-500/15 px-2 py-0.2 rounded border border-sky-500/30">
-                                    <CategoryIcon slug={cat.icon_slug} className="w-3 h-3 mr-1" />
-                                    {cat.name}
-                                  </span>
-                                ) : null}
-                              </div>
-
-                              <div className="text-[11px] font-bold text-amber-300 font-mono flex items-center pt-0.5">
-                                <Calendar className="w-3.5 h-3.5 mr-1 text-amber-400" /> Next Due Date: {rule.next_run_date}
-                              </div>
-                            </div>
-
-                            <div className="text-right font-mono shrink-0">
-                              <span className="font-bold text-sm text-rose-400 block">
-                                ₱{rule.amount.toFixed(2)}
-                              </span>
-                              <span className="text-[10px] text-slate-400 font-sans block uppercase">
-                                {rule.frequency === 'bimonthly' ? 'BI-MONTHLY' : rule.frequency}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        ) : null}
       </div>
 
     </div>
