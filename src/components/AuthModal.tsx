@@ -1,10 +1,12 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { useHousehold } from '../context/HouseholdContext';
 import { ShieldCheck, Mail, Lock, KeyRound, AlertCircle, CheckCircle2, User, ArrowRight, LogOut } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { resolveAuthenticatedMember } from '../lib/authProfile';
+import { AUTH_STORAGE_KEYS, clearAuthStorage } from '../lib/storageKeys';
+import { getSecureLoginRequest } from '../lib/authFlow';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -12,11 +14,9 @@ interface AuthModalProps {
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
-  const router = useRouter();
   const { currentMember, members, switchMember } = useHousehold();
   const [email, setEmail] = useState('steve.cantago@gmail.com');
   const [password, setPassword] = useState('');
-  const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -29,12 +29,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
       }
       onClose();
       if (typeof window !== 'undefined') {
-        window.localStorage.clear();
+        clearAuthStorage(window.localStorage);
         window.location.href = '/login';
       }
     } catch (err) {
       onClose();
       if (typeof window !== 'undefined') {
+        clearAuthStorage(window.localStorage);
         window.location.href = '/login';
       }
     }
@@ -47,68 +48,37 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
     try {
       if (typeof window !== 'undefined') {
-        localStorage.setItem('smc_authenticated_email', email);
+        clearAuthStorage(window.localStorage);
+      }
+
+      if (!supabase) {
+        throw new Error('Supabase is not configured. Use local demo mode from the dashboard.');
+      }
+
+      const loginRequest = getSecureLoginRequest({ email, password });
+      if (!loginRequest.success) {
+        throw new Error(loginRequest.error);
       }
 
       if (supabase) {
-        if (isSignUp) {
-          const { error } = await supabase.auth.signUp({
-            email,
-            password: password || 'DefaultPassword123!',
-          });
-          if (error) {
-            if (error.message?.toLowerCase().includes('rate limit')) {
-              setMessage({ type: 'success', text: 'Email rate limit reached. Profile bound locally!' });
-            } else {
-              throw error;
-            }
-          } else {
-            setMessage({ type: 'success', text: `Account created for ${email}. Check your inbox.` });
-          }
-        } else {
-          if (password) {
-            const { error } = await supabase.auth.signInWithPassword({ email, password });
-            if (error) {
-              if (error.message?.toLowerCase().includes('rate limit')) {
-                setMessage({ type: 'success', text: 'Email rate limit reached. Signed in as Head Admin!' });
-              } else {
-                throw error;
-              }
-            }
-          } else {
-            // Magic link OTP auth
-            const { error } = await supabase.auth.signInWithOtp({ email });
-            if (error) {
-              if (error.message?.toLowerCase().includes('rate limit')) {
-                setMessage({ type: 'success', text: 'Email rate limit reached. Signed in as Head Admin!' });
-              } else {
-                throw error;
-              }
-            } else {
-              setMessage({ type: 'success', text: `Magic sign-in link sent to ${email}!` });
-            }
-          }
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: loginRequest.email,
+          password: loginRequest.password,
+        });
+        if (error) {
+          throw error;
         }
-      }
-
-      // Automatically bind Steve Cantago or matching profile
-      const matchingMember = members.find(m => m.email?.toLowerCase() === email.toLowerCase());
-      if (matchingMember) {
+        const matchingMember = resolveAuthenticatedMember(members, data.session?.user?.email);
+        if (!matchingMember) {
+          throw new Error('Authenticated user is not linked to a household member.');
+        }
+        localStorage.setItem(AUTH_STORAGE_KEYS[0], data.session.user.email || '');
         switchMember(matchingMember.id);
         setMessage({ type: 'success', text: `Authenticated as ${matchingMember.display_name} (${matchingMember.role.toUpperCase()})` });
         setTimeout(() => onClose(), 1200);
-      } else {
-        const steveMember = members.find(m => m.id === 'member-steve-admin');
-        if (steveMember) {
-          switchMember(steveMember.id);
-          setMessage({ type: 'success', text: `Authenticated as ${steveMember.display_name}` });
-          setTimeout(() => onClose(), 1200);
-        }
       }
     } catch (err: any) {
-      setMessage({ type: 'error', text: err.message || 'Authentication failed. Switched to local profile.' });
-      const matchingMember = members.find(m => m.email?.toLowerCase() === email.toLowerCase()) || members[0];
-      if (matchingMember) switchMember(matchingMember.id);
+      setMessage({ type: 'error', text: err.message || 'Authentication failed.' });
     } finally {
       setLoading(false);
     }
@@ -182,27 +152,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1">Password (Optional for Magic Link)</label>
+            <label className="block text-xs font-medium text-slate-300 mb-1">Password</label>
             <div className="relative">
               <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
               <input
                 type="password"
+                required
+                minLength={6}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter password or leave blank for magic link"
+                placeholder="Enter your password"
                 className="w-full bg-slate-800 text-white text-xs pl-9 pr-3 py-2.5 rounded-lg border border-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500"
               />
             </div>
-          </div>
-
-          <div className="flex items-center justify-between text-xs pt-1">
-            <button
-              type="button"
-              onClick={() => setIsSignUp(!isSignUp)}
-              className="text-sky-400 hover:underline font-medium"
-            >
-              {isSignUp ? 'Already registered? Sign In' : 'Need an account? Register'}
-            </button>
           </div>
 
           <div className="pt-2 border-t border-slate-800 flex items-center justify-end space-x-3">
@@ -218,7 +180,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
               disabled={loading}
               className="px-4 py-2.5 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white text-xs font-bold rounded-lg transition-all shadow flex items-center space-x-1.5 disabled:opacity-50"
             >
-              <span>{loading ? 'Authenticating...' : (isSignUp ? 'Create Admin Account' : 'Sign In as Head Admin')}</span>
+              <span>{loading ? 'Authenticating...' : 'Sign In'}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>

@@ -6,9 +6,9 @@ import {
   Loan, RecurringTransfer, HouseholdRole, RecurringRuleType, RecurringFrequency, LoanPaymentFrequency,
   ActivityLogEntry, ActivityLogAction
 } from '../types/database';
-import { 
-  initialHousehold, 
-  initialMembers, 
+import {
+  initialHousehold,
+  initialMembers,
   initialWallets, 
   initialCategories, 
   initialTransactions, 
@@ -17,6 +17,9 @@ import {
   initialRecurringTransfers,
   supabase
 } from '../lib/supabase';
+import { linkMemberToAuthenticatedUser, resolveAuthenticatedMember } from '../lib/authProfile';
+import { getSyncFailureWarning, getSyncStatus, MutationResult } from '../lib/persistence';
+import { AUTH_STORAGE_KEYS, STORAGE_KEYS, clearAuthStorage, clearHouseholdStorage } from '../lib/storageKeys';
 
 interface HouseholdContextType {
   household: Household;
@@ -30,36 +33,39 @@ interface HouseholdContextType {
   recurringTransfers: RecurringTransfer[];
   activityLogs: ActivityLogEntry[];
   isAdmin: boolean;
+  syncWarning: string | null;
+  clearSyncWarning: () => void;
+  resetDemoData: () => MutationResult;
   
   // Role & User Switching
   switchMember: (memberId: string) => void;
   
   // Activity Logging & Backup/Restoration
-  logActivity: (action: ActivityLogAction, description: string, details?: any) => void;
+  logActivity: (action: ActivityLogAction, description: string, details?: any) => MutationResult;
   exportFullHouseholdBackup: () => void;
   restoreFullHouseholdBackup: (jsonContent: string) => { success: boolean; error?: string };
 
   // Wallets CRUD
-  addWallet: (wallet: { name: string; wallet_type: Wallet['wallet_type']; is_shared: boolean; owner_id?: string | null; initial_balance: number; credit_limit?: number | null }) => void;
-  updateWallet: (id: string, updates: { name?: string; wallet_type?: Wallet['wallet_type']; current_balance?: number; credit_limit?: number | null; is_shared?: boolean }) => { success: boolean; error?: string };
-  deleteWallet: (id: string) => { success: boolean; error?: string };
+  addWallet: (wallet: { name: string; wallet_type: Wallet['wallet_type']; is_shared: boolean; owner_id?: string | null; initial_balance: number; credit_limit?: number | null }) => MutationResult;
+  updateWallet: (id: string, updates: { name?: string; wallet_type?: Wallet['wallet_type']; current_balance?: number; credit_limit?: number | null; is_shared?: boolean }) => MutationResult;
+  deleteWallet: (id: string) => MutationResult;
 
   // Categories CRUD
-  addCategory: (category: { name: string; icon_slug: string; monthly_budget_limit: number }) => void;
-  updateCategory: (id: string, updates: { name?: string; icon_slug?: string; monthly_budget_limit?: number }) => { success: boolean; error?: string };
-  updateCategoryLimit: (id: string, limit: number) => void;
-  deleteCategory: (id: string) => { success: boolean; error?: string };
+  addCategory: (category: { name: string; icon_slug: string; monthly_budget_limit: number }) => MutationResult;
+  updateCategory: (id: string, updates: { name?: string; icon_slug?: string; monthly_budget_limit?: number }) => MutationResult;
+  updateCategoryLimit: (id: string, limit: number) => MutationResult;
+  deleteCategory: (id: string) => MutationResult;
 
   // Transactions CRUD
-  addTransaction: (tx: { wallet_id: string; destination_wallet_id?: string | null; category_id?: string | null; type: Transaction['type']; amount: number; fee?: number | null; transaction_date: string; note?: string; receipt_url?: string }) => { success: boolean; error?: string };
-  updateTransaction: (id: string, updates: Partial<Transaction>) => { success: boolean; error?: string };
-  deleteTransaction: (id: string) => { success: boolean; error?: string };
+  addTransaction: (tx: { wallet_id: string; destination_wallet_id?: string | null; category_id?: string | null; type: Transaction['type']; amount: number; fee?: number | null; transaction_date: string; note?: string; receipt_url?: string }) => MutationResult;
+  updateTransaction: (id: string, updates: Partial<Transaction>) => MutationResult;
+  deleteTransaction: (id: string) => MutationResult;
 
   // Savings Goals CRUD
-  addSavingsGoal: (goal: { name: string; target_amount: number; target_date?: string }) => void;
-  updateSavingsGoal: (id: string, updates: { name?: string; target_amount?: number; target_date?: string | null }) => { success: boolean; error?: string };
-  deleteSavingsGoal: (id: string) => { success: boolean; error?: string };
-  fundSavingsGoal: (goalId: string, amount: number, walletId: string) => { success: boolean; error?: string };
+  addSavingsGoal: (goal: { name: string; target_amount: number; target_date?: string }) => MutationResult;
+  updateSavingsGoal: (id: string, updates: { name?: string; target_amount?: number; target_date?: string | null }) => MutationResult;
+  deleteSavingsGoal: (id: string) => MutationResult;
+  fundSavingsGoal: (goalId: string, amount: number, walletId: string) => MutationResult;
   
   // Loans CRUD
   addLoan: (loan: { 
@@ -77,7 +83,7 @@ interface HouseholdContextType {
     due_day_of_month?: number;
     second_due_day_of_month?: number | null;
     next_due_date?: string | null;
-  }) => void;
+  }) => MutationResult;
   updateLoan: (id: string, updates: { 
     name?: string; 
     lender?: string; 
@@ -93,9 +99,9 @@ interface HouseholdContextType {
     due_day_of_month?: number;
     second_due_day_of_month?: number | null;
     next_due_date?: string | null;
-  }) => { success: boolean; error?: string };
-  deleteLoan: (id: string) => { success: boolean; error?: string };
-  payLoanAmortization: (loanId: string, amount: number, walletId: string) => { success: boolean; error?: string };
+  }) => MutationResult;
+  deleteLoan: (id: string) => MutationResult;
+  payLoanAmortization: (loanId: string, amount: number, walletId: string) => MutationResult;
   
   // Recurring Transfers & Bills CRUD
   addRecurringTransfer: (rule: { 
@@ -109,7 +115,7 @@ interface HouseholdContextType {
     custom_interval_days?: number | null;
     next_run_date?: string | null;
     note: string 
-  }) => void;
+  }) => MutationResult;
   updateRecurringTransfer: (id: string, updates: { 
     rule_type?: RecurringRuleType;
     source_wallet_id?: string; 
@@ -122,14 +128,14 @@ interface HouseholdContextType {
     next_run_date?: string;
     note?: string;
     is_active?: boolean;
-  }) => { success: boolean; error?: string };
-  toggleRecurringTransfer: (id: string) => void;
-  deleteRecurringTransfer: (id: string) => { success: boolean; error?: string };
+  }) => MutationResult;
+  toggleRecurringTransfer: (id: string) => MutationResult;
+  deleteRecurringTransfer: (id: string) => MutationResult;
 
   // Family Roster CRUD Actions
-  addMember: (displayName: string, role: HouseholdRole, email?: string) => void;
-  updateMember: (id: string, updates: { display_name?: string; role?: HouseholdRole; email?: string }) => { success: boolean; error?: string };
-  deleteMember: (id: string) => { success: boolean; error?: string };
+  addMember: (displayName: string, role: HouseholdRole, email?: string, authenticatedUserId?: string | null, options?: { memberId?: string; syncToSupabase?: boolean }) => MutationResult;
+  updateMember: (id: string, updates: { display_name?: string; role?: HouseholdRole; email?: string }) => MutationResult;
+  deleteMember: (id: string) => MutationResult;
   
   // Security Checks
   canEditTransaction: (tx: Transaction) => boolean;
@@ -151,11 +157,41 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [loans, setLoans] = useState<Loan[]>(initialLoans);
   const [recurringTransfers, setRecurringTransfers] = useState<RecurringTransfer[]>(initialRecurringTransfers);
   const [activityLogs, setActivityLogs] = useState<ActivityLogEntry[]>([]);
+  const [syncWarning, setSyncWarning] = useState<string | null>(null);
+
+  const clearSyncWarning = () => setSyncWarning(null);
+  const localSaveResult = (): MutationResult => ({
+    success: true,
+    syncStatus: getSyncStatus(Boolean(supabase)),
+  });
+
+  const trackSupabaseWrite = <T,>(
+    operation: string,
+    request: PromiseLike<{ error?: unknown } | T>
+  ): MutationResult => {
+    if (!supabase) return { success: true, syncStatus: getSyncStatus(false) };
+
+    Promise.resolve(request)
+      .then((result) => {
+        const maybeError = result && typeof result === 'object' && 'error' in result
+          ? (result as { error?: unknown }).error
+          : null;
+
+        if (maybeError) {
+          setSyncWarning(getSyncFailureWarning(operation, maybeError));
+        }
+      })
+      .catch(error => {
+        setSyncWarning(getSyncFailureWarning(operation, error));
+      });
+
+    return { success: true, syncStatus: getSyncStatus(true) };
+  };
 
   // Helper to sync single wallet balance to Supabase
   const updateWalletBalanceInSupabase = (walletId: string, newBalance: number) => {
     if (supabase) {
-      Promise.resolve(supabase.from('wallets').update({ current_balance: newBalance }).eq('id', walletId)).catch(() => {});
+      trackSupabaseWrite('Update wallet balance', supabase.from('wallets').update({ current_balance: newBalance }).eq('id', walletId));
     }
   };
 
@@ -165,59 +201,52 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (typeof window !== 'undefined') {
         try {
           // Local storage hydration for instant offline render
-          const savedMembers = localStorage.getItem('smc_members');
+          const savedMembers = localStorage.getItem(STORAGE_KEYS.members);
           if (savedMembers) {
             const parsed = JSON.parse(savedMembers);
             if (Array.isArray(parsed) && parsed.length > 0) setMembers(parsed);
           }
 
-          const savedWallets = localStorage.getItem('smc_wallets');
+          const savedWallets = localStorage.getItem(STORAGE_KEYS.wallets);
           if (savedWallets) {
             const parsed = JSON.parse(savedWallets);
             if (Array.isArray(parsed) && parsed.length > 0) setWallets(parsed);
           }
 
-          const savedCategories = localStorage.getItem('smc_categories');
+          const savedCategories = localStorage.getItem(STORAGE_KEYS.categories);
           if (savedCategories) {
             const parsed = JSON.parse(savedCategories);
             if (Array.isArray(parsed) && parsed.length > 0) setCategories(parsed);
           }
 
-          const savedTransactions = localStorage.getItem('smc_transactions');
+          const savedTransactions = localStorage.getItem(STORAGE_KEYS.transactions);
           if (savedTransactions) {
             const parsed = JSON.parse(savedTransactions);
             if (Array.isArray(parsed) && parsed.length > 0) setTransactions(parsed);
           }
 
-          const savedGoals = localStorage.getItem('smc_goals');
+          const savedGoals = localStorage.getItem(STORAGE_KEYS.goals);
           if (savedGoals) {
             const parsed = JSON.parse(savedGoals);
             if (Array.isArray(parsed) && parsed.length > 0) setSavingsGoals(parsed);
           }
 
-          const savedLoans = localStorage.getItem('smc_loans');
+          const savedLoans = localStorage.getItem(STORAGE_KEYS.loans);
           if (savedLoans) {
             const parsed = JSON.parse(savedLoans);
             if (Array.isArray(parsed) && parsed.length > 0) setLoans(parsed);
           }
 
-          const savedRecurring = localStorage.getItem('smc_recurring');
+          const savedRecurring = localStorage.getItem(STORAGE_KEYS.recurring);
           if (savedRecurring) {
             const parsed = JSON.parse(savedRecurring);
             if (Array.isArray(parsed) && parsed.length > 0) setRecurringTransfers(parsed);
           }
 
-          const savedLogs = localStorage.getItem('smc_activity_logs');
+          const savedLogs = localStorage.getItem(STORAGE_KEYS.activityLogs);
           if (savedLogs) {
             const parsed = JSON.parse(savedLogs);
             if (Array.isArray(parsed) && parsed.length > 0) setActivityLogs(parsed);
-          }
-
-          const storedEmail = localStorage.getItem('smc_authenticated_email');
-          if (storedEmail) {
-            const mList = savedMembers ? JSON.parse(savedMembers) : initialMembers;
-            const found = mList.find((m: HouseholdMember) => m.email?.toLowerCase() === storedEmail.toLowerCase());
-            if (found) setCurrentMember(found);
           }
 
           // Full Supabase Remote Database Hydration for ALL entities
@@ -227,7 +256,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               const { data: remoteMembers, error: mErr } = await supabase.from('household_members').select('*');
               if (remoteMembers && remoteMembers.length > 0) {
                 setMembers(remoteMembers);
-                localStorage.setItem('smc_members', JSON.stringify(remoteMembers));
+                localStorage.setItem(STORAGE_KEYS.members, JSON.stringify(remoteMembers));
               } else if (!mErr && initialMembers.length > 0) {
                 await supabase.from('household_members').insert(initialMembers);
               }
@@ -236,7 +265,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               const { data: remoteWallets, error: wErr } = await supabase.from('wallets').select('*');
               if (remoteWallets && remoteWallets.length > 0) {
                 setWallets(remoteWallets);
-                localStorage.setItem('smc_wallets', JSON.stringify(remoteWallets));
+                localStorage.setItem(STORAGE_KEYS.wallets, JSON.stringify(remoteWallets));
               } else if (!wErr && initialWallets.length > 0) {
                 await supabase.from('wallets').insert(initialWallets);
               }
@@ -245,7 +274,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               const { data: remoteCategories, error: cErr } = await supabase.from('categories').select('*');
               if (remoteCategories && remoteCategories.length > 0) {
                 setCategories(remoteCategories);
-                localStorage.setItem('smc_categories', JSON.stringify(remoteCategories));
+                localStorage.setItem(STORAGE_KEYS.categories, JSON.stringify(remoteCategories));
               } else if (!cErr && initialCategories.length > 0) {
                 await supabase.from('categories').insert(initialCategories);
               }
@@ -254,21 +283,21 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               const { data: remoteTx } = await supabase.from('transactions').select('*').order('created_at', { ascending: false });
               if (remoteTx && remoteTx.length > 0) {
                 setTransactions(remoteTx);
-                localStorage.setItem('smc_transactions', JSON.stringify(remoteTx));
+                localStorage.setItem(STORAGE_KEYS.transactions, JSON.stringify(remoteTx));
               }
 
               // 5. Savings Goals
               const { data: remoteGoals } = await supabase.from('savings_goals').select('*');
               if (remoteGoals && remoteGoals.length > 0) {
                 setSavingsGoals(remoteGoals);
-                localStorage.setItem('smc_goals', JSON.stringify(remoteGoals));
+                localStorage.setItem(STORAGE_KEYS.goals, JSON.stringify(remoteGoals));
               }
 
               // 6. Loans
               const { data: remoteLoans, error: lErr } = await supabase.from('loans').select('*');
               if (remoteLoans && remoteLoans.length > 0) {
                 setLoans(remoteLoans);
-                localStorage.setItem('smc_loans', JSON.stringify(remoteLoans));
+                localStorage.setItem(STORAGE_KEYS.loans, JSON.stringify(remoteLoans));
               } else if (!lErr && initialLoans.length > 0) {
                 await supabase.from('loans').insert(initialLoans);
               }
@@ -277,17 +306,18 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               const { data: remoteRecurring } = await supabase.from('recurring_transfers').select('*');
               if (remoteRecurring && remoteRecurring.length > 0) {
                 setRecurringTransfers(remoteRecurring);
-                localStorage.setItem('smc_recurring', JSON.stringify(remoteRecurring));
+                localStorage.setItem(STORAGE_KEYS.recurring, JSON.stringify(remoteRecurring));
               }
 
               // 8. Activity Logs
               const { data: remoteLogs } = await supabase.from('activity_logs').select('*').order('created_at', { ascending: false });
               if (remoteLogs && remoteLogs.length > 0) {
                 setActivityLogs(remoteLogs);
-                localStorage.setItem('smc_activity_logs', JSON.stringify(remoteLogs));
+                localStorage.setItem(STORAGE_KEYS.activityLogs, JSON.stringify(remoteLogs));
               }
             } catch (sErr) {
               console.log('Supabase remote table sync fallback active:', sErr);
+              setSyncWarning('Supabase sync is unavailable; using saved local data for now.');
             }
           }
         } catch (err) {
@@ -303,49 +333,49 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // 2. Persist State Changes to Local Storage
   useEffect(() => {
     if (isHydrated && typeof window !== 'undefined' && members.length > 0) {
-      localStorage.setItem('smc_members', JSON.stringify(members));
+      localStorage.setItem(STORAGE_KEYS.members, JSON.stringify(members));
     }
   }, [members, isHydrated]);
 
   useEffect(() => {
     if (isHydrated && typeof window !== 'undefined' && wallets.length > 0) {
-      localStorage.setItem('smc_wallets', JSON.stringify(wallets));
+      localStorage.setItem(STORAGE_KEYS.wallets, JSON.stringify(wallets));
     }
   }, [wallets, isHydrated]);
 
   useEffect(() => {
     if (isHydrated && typeof window !== 'undefined' && categories.length > 0) {
-      localStorage.setItem('smc_categories', JSON.stringify(categories));
+      localStorage.setItem(STORAGE_KEYS.categories, JSON.stringify(categories));
     }
   }, [categories, isHydrated]);
 
   useEffect(() => {
     if (isHydrated && typeof window !== 'undefined') {
-      localStorage.setItem('smc_transactions', JSON.stringify(transactions));
+      localStorage.setItem(STORAGE_KEYS.transactions, JSON.stringify(transactions));
     }
   }, [transactions, isHydrated]);
 
   useEffect(() => {
     if (isHydrated && typeof window !== 'undefined') {
-      localStorage.setItem('smc_goals', JSON.stringify(savingsGoals));
+      localStorage.setItem(STORAGE_KEYS.goals, JSON.stringify(savingsGoals));
     }
   }, [savingsGoals, isHydrated]);
 
   useEffect(() => {
     if (isHydrated && typeof window !== 'undefined' && loans.length > 0) {
-      localStorage.setItem('smc_loans', JSON.stringify(loans));
+      localStorage.setItem(STORAGE_KEYS.loans, JSON.stringify(loans));
     }
   }, [loans, isHydrated]);
 
   useEffect(() => {
     if (isHydrated && typeof window !== 'undefined') {
-      localStorage.setItem('smc_recurring', JSON.stringify(recurringTransfers));
+      localStorage.setItem(STORAGE_KEYS.recurring, JSON.stringify(recurringTransfers));
     }
   }, [recurringTransfers, isHydrated]);
 
   useEffect(() => {
     if (isHydrated && typeof window !== 'undefined' && activityLogs.length > 0) {
-      localStorage.setItem('smc_activity_logs', JSON.stringify(activityLogs));
+      localStorage.setItem(STORAGE_KEYS.activityLogs, JSON.stringify(activityLogs));
     }
   }, [activityLogs, isHydrated]);
 
@@ -363,9 +393,10 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
     setActivityLogs(prev => [entry, ...prev]);
 
-    if (supabase) {
-      Promise.resolve(supabase.from('activity_logs').insert([entry])).catch(() => {});
-    }
+    const syncResult = supabase
+      ? trackSupabaseWrite('Create activity log', supabase.from('activity_logs').insert([entry]))
+      : { success: true, syncStatus: getSyncStatus(false) };
+    return syncResult;
   };
 
   // Full Data Export Helper
@@ -405,35 +436,35 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       if (parsed.members && Array.isArray(parsed.members)) {
         setMembers(parsed.members);
-        if (supabase) Promise.resolve(supabase.from('household_members').upsert(parsed.members)).catch(() => {});
+        if (supabase) trackSupabaseWrite('Restore household members', supabase.from('household_members').upsert(parsed.members));
       }
       if (parsed.wallets && Array.isArray(parsed.wallets)) {
         setWallets(parsed.wallets);
-        if (supabase) Promise.resolve(supabase.from('wallets').upsert(parsed.wallets)).catch(() => {});
+        if (supabase) trackSupabaseWrite('Restore wallets', supabase.from('wallets').upsert(parsed.wallets));
       }
       if (parsed.categories && Array.isArray(parsed.categories)) {
         setCategories(parsed.categories);
-        if (supabase) Promise.resolve(supabase.from('categories').upsert(parsed.categories)).catch(() => {});
+        if (supabase) trackSupabaseWrite('Restore categories', supabase.from('categories').upsert(parsed.categories));
       }
       if (parsed.transactions && Array.isArray(parsed.transactions)) {
         setTransactions(parsed.transactions);
-        if (supabase) Promise.resolve(supabase.from('transactions').upsert(parsed.transactions)).catch(() => {});
+        if (supabase) trackSupabaseWrite('Restore transactions', supabase.from('transactions').upsert(parsed.transactions));
       }
       if (parsed.savingsGoals && Array.isArray(parsed.savingsGoals)) {
         setSavingsGoals(parsed.savingsGoals);
-        if (supabase) Promise.resolve(supabase.from('savings_goals').upsert(parsed.savingsGoals)).catch(() => {});
+        if (supabase) trackSupabaseWrite('Restore savings goals', supabase.from('savings_goals').upsert(parsed.savingsGoals));
       }
       if (parsed.loans && Array.isArray(parsed.loans)) {
         setLoans(parsed.loans);
-        if (supabase) Promise.resolve(supabase.from('loans').upsert(parsed.loans)).catch(() => {});
+        if (supabase) trackSupabaseWrite('Restore loans', supabase.from('loans').upsert(parsed.loans));
       }
       if (parsed.recurringTransfers && Array.isArray(parsed.recurringTransfers)) {
         setRecurringTransfers(parsed.recurringTransfers);
-        if (supabase) Promise.resolve(supabase.from('recurring_transfers').upsert(parsed.recurringTransfers)).catch(() => {});
+        if (supabase) trackSupabaseWrite('Restore recurring transfers', supabase.from('recurring_transfers').upsert(parsed.recurringTransfers));
       }
       if (parsed.activityLogs && Array.isArray(parsed.activityLogs)) {
         setActivityLogs(parsed.activityLogs);
-        if (supabase) Promise.resolve(supabase.from('activity_logs').upsert(parsed.activityLogs)).catch(() => {});
+        if (supabase) trackSupabaseWrite('Restore activity logs', supabase.from('activity_logs').upsert(parsed.activityLogs));
       }
 
       logActivity('backup_restore', `Restored full household dataset from uploaded backup file.`);
@@ -443,22 +474,44 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
 
+  const activateAuthenticatedMember = (
+    email: string | null | undefined,
+    authenticatedUserId: string | null | undefined
+  ): boolean => {
+    const found = resolveAuthenticatedMember(members, email);
+    if (!found) return false;
+
+    const linked = linkMemberToAuthenticatedUser(found, authenticatedUserId);
+    setCurrentMember(linked);
+
+    if (linked.user_id !== found.user_id) {
+      setMembers(prev => prev.map(member => member.id === linked.id ? linked : member));
+      if (supabase) {
+        trackSupabaseWrite(
+          'Link member to authenticated user',
+          supabase.from('household_members').update({ user_id: linked.user_id }).eq('id', linked.id)
+        );
+      }
+    }
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(AUTH_STORAGE_KEYS[0], linked.email || '');
+    }
+
+    return true;
+  };
+
   // Bind Supabase Auth listener
   useEffect(() => {
     if (supabase) {
       supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session?.user?.email) {
-          const userEmail = session.user.email;
-          const found = members.find(m => m.email?.toLowerCase() === userEmail.toLowerCase());
-          if (found) setCurrentMember(found);
-        }
+        activateAuthenticatedMember(session?.user?.email, session?.user?.id);
       });
 
       const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-        if (session?.user?.email) {
-          const userEmail = session.user.email;
-          const found = members.find(m => m.email?.toLowerCase() === userEmail.toLowerCase());
-          if (found) setCurrentMember(found);
+        const isLinked = activateAuthenticatedMember(session?.user?.email, session?.user?.id);
+        if (!session || !isLinked) {
+          clearAuthStorage(window.localStorage);
         }
       });
 
@@ -493,7 +546,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const addWallet = (data: { name: string; wallet_type: Wallet['wallet_type']; is_shared: boolean; owner_id?: string | null; initial_balance: number; credit_limit?: number | null }) => {
     if (!isAdmin && data.is_shared) {
       alert("Only Household Parents/Admins can create shared wallets.");
-      return;
+      return { success: false, error: 'Only Household Parents/Admins can create shared wallets.' };
     }
     const newWallet: Wallet = {
       id: `wallet-${Date.now()}`,
@@ -509,9 +562,9 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setWallets(prev => [...prev, newWallet]);
     logActivity('create_wallet', `Created account/wallet "${data.name}" (${data.wallet_type.toUpperCase()}) with initial balance ₱${data.initial_balance}`);
 
-    if (supabase) {
-      Promise.resolve(supabase.from('wallets').insert([newWallet])).catch(() => {});
-    }
+    return supabase
+      ? trackSupabaseWrite('Create wallet', supabase.from('wallets').insert([newWallet]))
+      : localSaveResult();
   };
 
   const updateWallet = (id: string, updates: { name?: string; wallet_type?: Wallet['wallet_type']; current_balance?: number; credit_limit?: number | null; is_shared?: boolean }) => {
@@ -520,10 +573,9 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setWallets(prev => prev.map(w => w.id === id ? { ...w, ...updates } : w));
     logActivity('update_wallet', `Updated account "${updates.name || target?.name || id}"`);
 
-    if (supabase) {
-      Promise.resolve(supabase.from('wallets').update(updates).eq('id', id)).catch(() => {});
-    }
-    return { success: true };
+    return supabase
+      ? trackSupabaseWrite('Update wallet', supabase.from('wallets').update(updates).eq('id', id))
+      : localSaveResult();
   };
 
   const deleteWallet = (id: string) => {
@@ -532,17 +584,16 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setWallets(prev => prev.filter(w => w.id !== id));
     logActivity('delete_wallet', `Deleted account "${target?.name || id}"`);
 
-    if (supabase) {
-      Promise.resolve(supabase.from('wallets').delete().eq('id', id)).catch(() => {});
-    }
-    return { success: true };
+    return supabase
+      ? trackSupabaseWrite('Delete wallet', supabase.from('wallets').delete().eq('id', id))
+      : localSaveResult();
   };
 
   // Categories CRUD
   const addCategory = (data: { name: string; icon_slug: string; monthly_budget_limit: number }) => {
     if (!isAdmin) {
       alert("Only Household Parents/Admins can create categories.");
-      return;
+      return { success: false, error: 'Only Household Parents/Admins can create categories.' };
     }
     const newCat: Category = {
       id: `cat-${Date.now()}`,
@@ -555,9 +606,9 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setCategories(prev => [...prev, newCat]);
     logActivity('create_category', `Created envelope category "${data.name}" with monthly budget ₱${data.monthly_budget_limit}`);
 
-    if (supabase) {
-      Promise.resolve(supabase.from('categories').insert([newCat])).catch(() => {});
-    }
+    return supabase
+      ? trackSupabaseWrite('Create category', supabase.from('categories').insert([newCat]))
+      : localSaveResult();
   };
 
   const updateCategory = (id: string, updates: { name?: string; icon_slug?: string; monthly_budget_limit?: number }) => {
@@ -565,14 +616,13 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setCategories(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
     logActivity('update_category', `Updated category envelope "${updates.name || id}"`);
 
-    if (supabase) {
-      Promise.resolve(supabase.from('categories').update(updates).eq('id', id)).catch(() => {});
-    }
-    return { success: true };
+    return supabase
+      ? trackSupabaseWrite('Update category', supabase.from('categories').update(updates).eq('id', id))
+      : localSaveResult();
   };
 
   const updateCategoryLimit = (id: string, limit: number) => {
-    updateCategory(id, { monthly_budget_limit: limit });
+    return updateCategory(id, { monthly_budget_limit: limit });
   };
 
   const deleteCategory = (id: string) => {
@@ -581,10 +631,9 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setCategories(prev => prev.filter(c => c.id !== id));
     logActivity('delete_category', `Deleted envelope category "${target?.name || id}"`);
 
-    if (supabase) {
-      Promise.resolve(supabase.from('categories').delete().eq('id', id)).catch(() => {});
-    }
-    return { success: true };
+    return supabase
+      ? trackSupabaseWrite('Delete category', supabase.from('categories').delete().eq('id', id))
+      : localSaveResult();
   };
 
   // Transactions CRUD with Processing Fee Accounting & Supabase Wallet Balance Sync
@@ -654,10 +703,9 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setTransactions(prev => [newTx, ...prev]);
     logActivity('create_tx', `Logged ${data.type.toUpperCase()} transaction of ₱${data.amount} (${data.note || 'No note'})`);
 
-    if (supabase) {
-      Promise.resolve(supabase.from('transactions').insert([newTx])).catch(() => {});
-    }
-    return { success: true };
+    return supabase
+      ? trackSupabaseWrite('Create transaction', supabase.from('transactions').insert([newTx]))
+      : localSaveResult();
   };
 
   const updateTransaction = (id: string, updates: Partial<Transaction>) => {
@@ -674,10 +722,9 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
     logActivity('update_tx', `Updated transaction "${target.note || id}"`);
 
-    if (supabase) {
-      Promise.resolve(supabase.from('transactions').update(updates).eq('id', id)).catch(() => {});
-    }
-    return { success: true };
+    return supabase
+      ? trackSupabaseWrite('Update transaction', supabase.from('transactions').update(updates).eq('id', id))
+      : localSaveResult();
   };
 
   const deleteTransaction = (id: string) => {
@@ -732,17 +779,16 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setTransactions(prev => prev.filter(t => t.id !== id));
     logActivity('delete_tx', `Deleted transaction "${target.note || id}" of ₱${target.amount}`);
 
-    if (supabase) {
-      Promise.resolve(supabase.from('transactions').delete().eq('id', id)).catch(() => {});
-    }
-    return { success: true };
+    return supabase
+      ? trackSupabaseWrite('Delete transaction', supabase.from('transactions').delete().eq('id', id))
+      : localSaveResult();
   };
 
   // Savings Goals CRUD
   const addSavingsGoal = (data: { name: string; target_amount: number; target_date?: string }) => {
     if (!isAdmin) {
       alert("Only Household Parents/Admins can create savings goals.");
-      return;
+      return { success: false, error: 'Only Household Parents/Admins can create savings goals.' };
     }
     const newGoal: SavingsGoal = {
       id: `goal-${Date.now()}`,
@@ -756,9 +802,9 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setSavingsGoals(prev => [...prev, newGoal]);
     logActivity('create_goal', `Created savings goal "${data.name}" with target ₱${data.target_amount}`);
 
-    if (supabase) {
-      Promise.resolve(supabase.from('savings_goals').insert([newGoal])).catch(() => {});
-    }
+    return supabase
+      ? trackSupabaseWrite('Create savings goal', supabase.from('savings_goals').insert([newGoal]))
+      : localSaveResult();
   };
 
   const updateSavingsGoal = (id: string, updates: { name?: string; target_amount?: number; target_date?: string | null }) => {
@@ -766,10 +812,9 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setSavingsGoals(prev => prev.map(g => g.id === id ? { ...g, ...updates } : g));
     logActivity('update_goal', `Updated savings goal "${updates.name || id}"`);
 
-    if (supabase) {
-      Promise.resolve(supabase.from('savings_goals').update(updates).eq('id', id)).catch(() => {});
-    }
-    return { success: true };
+    return supabase
+      ? trackSupabaseWrite('Update savings goal', supabase.from('savings_goals').update(updates).eq('id', id))
+      : localSaveResult();
   };
 
   const deleteSavingsGoal = (id: string) => {
@@ -778,10 +823,9 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setSavingsGoals(prev => prev.filter(g => g.id !== id));
     logActivity('delete_goal', `Deleted savings goal "${target?.name || id}"`);
 
-    if (supabase) {
-      Promise.resolve(supabase.from('savings_goals').delete().eq('id', id)).catch(() => {});
-    }
-    return { success: true };
+    return supabase
+      ? trackSupabaseWrite('Delete savings goal', supabase.from('savings_goals').delete().eq('id', id))
+      : localSaveResult();
   };
 
   const fundSavingsGoal = (goalId: string, amount: number, walletId: string) => {
@@ -808,11 +852,11 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     logActivity('fund_goal', `Funded ₱${amount} into savings goal "${targetGoal?.name || goalId}"`);
 
-    if (supabase) {
-      Promise.resolve(supabase.from('savings_goals').update({ current_amount: newGoalAmount }).eq('id', goalId)).catch(() => {});
-      updateWalletBalanceInSupabase(walletId, newWalletBal);
-    }
-    return { success: true };
+    const syncResult = supabase
+      ? trackSupabaseWrite('Fund savings goal', supabase.from('savings_goals').update({ current_amount: newGoalAmount }).eq('id', goalId))
+      : localSaveResult();
+    updateWalletBalanceInSupabase(walletId, newWalletBal);
+    return syncResult;
   };
 
   // Loans CRUD
@@ -834,7 +878,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }) => {
     if (!isAdmin) {
       alert("Only Household Parents/Admins can create loan records.");
-      return;
+      return { success: false, error: 'Only Household Parents/Admins can create loan records.' };
     }
 
     const paidCount = data.paid_amortizations_count || 0;
@@ -865,9 +909,9 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setLoans(prev => [...prev, newLoan]);
     logActivity('create_loan', `Created loan record "${data.name}" (${data.lender}) with principal ₱${data.total_principal}`);
 
-    if (supabase) {
-      Promise.resolve(supabase.from('loans').insert([newLoan])).catch(() => {});
-    }
+    const syncResult = supabase
+      ? trackSupabaseWrite('Create loan', supabase.from('loans').insert([newLoan]))
+      : localSaveResult();
 
     // Auto-create/sync Recurring Schedule Item for this Loan
     const sourceW = data.source_wallet_id || (wallets.length > 0 ? wallets[0].id : null);
@@ -884,6 +928,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         note: data.name,
       });
     }
+    return syncResult;
   };
 
   const updateLoan = (id: string, updates: { 
@@ -908,9 +953,9 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setLoans(prev => prev.map(l => l.id === id ? updated : l));
     logActivity('update_loan', `Updated loan record "${updates.name || target?.name || id}"`);
 
-    if (supabase) {
-      Promise.resolve(supabase.from('loans').update(updates).eq('id', id)).catch(() => {});
-    }
+    const syncResult = supabase
+      ? trackSupabaseWrite('Update loan', supabase.from('loans').update(updates).eq('id', id))
+      : localSaveResult();
 
     // Sync Recurring Transfer Rule
     const existingRule = recurringTransfers.find(r => r.loan_id === id);
@@ -938,7 +983,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       });
     }
 
-    return { success: true };
+    return syncResult;
   };
 
   const deleteLoan = (id: string) => {
@@ -953,10 +998,9 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       deleteRecurringTransfer(linkedRule.id);
     }
 
-    if (supabase) {
-      Promise.resolve(supabase.from('loans').delete().eq('id', id)).catch(() => {});
-    }
-    return { success: true };
+    return supabase
+      ? trackSupabaseWrite('Delete loan', supabase.from('loans').delete().eq('id', id))
+      : localSaveResult();
   };
 
   const payLoanAmortization = (loanId: string, amount: number, walletId: string) => {
@@ -1021,17 +1065,17 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       });
     }
 
-    if (supabase) {
-      Promise.resolve(supabase.from('loans').update({
+    const syncResult = supabase
+      ? trackSupabaseWrite('Pay loan', supabase.from('loans').update({
         paid_amortizations_count: newPaidCount,
         remaining_balance: newRemaining,
         amount_paid: newPaid,
         next_due_date: nextDueDate,
         source_wallet_id: walletId,
-      }).eq('id', loanId)).catch(() => {});
-      updateWalletBalanceInSupabase(walletId, newWalletBal);
-    }
-    return { success: true };
+      }).eq('id', loanId))
+      : localSaveResult();
+    updateWalletBalanceInSupabase(walletId, newWalletBal);
+    return syncResult;
   };
 
   const getDaysOffset = (freq: RecurringFrequency, customDays?: number | null): number => {
@@ -1063,7 +1107,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }) => {
     if (!isAdmin) {
       alert("Only Household Parents/Admins can configure recurring bill & transfer rules.");
-      return;
+      return { success: false, error: 'Only Household Parents/Admins can configure recurring bill & transfer rules.' };
     }
     const daysOffset = getDaysOffset(data.frequency, data.custom_interval_days);
     const calculatedNextRun = new Date(Date.now() + daysOffset * 86400000).toISOString().split('T')[0];
@@ -1086,9 +1130,9 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setRecurringTransfers(prev => [...prev, newRule]);
     logActivity('create_recurring', `Created recurring ${data.rule_type.toUpperCase()} schedule rule "${data.note}" of ₱${data.amount} (Next Due: ${newRule.next_run_date})`);
 
-    if (supabase) {
-      Promise.resolve(supabase.from('recurring_transfers').insert([newRule])).catch(() => {});
-    }
+    return supabase
+      ? trackSupabaseWrite('Create recurring transfer', supabase.from('recurring_transfers').insert([newRule]))
+      : localSaveResult();
   };
 
   const updateRecurringTransfer = (id: string, updates: { 
@@ -1109,22 +1153,21 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setRecurringTransfers(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
     logActivity('update_recurring', `Updated recurring schedule rule "${updates.note || target?.note || id}" (Next Due: ${updates.next_run_date || target?.next_run_date})`);
 
-    if (supabase) {
-      Promise.resolve(supabase.from('recurring_transfers').update(updates).eq('id', id)).catch(() => {});
-    }
-    return { success: true };
+    return supabase
+      ? trackSupabaseWrite('Update recurring transfer', supabase.from('recurring_transfers').update(updates).eq('id', id))
+      : localSaveResult();
   };
 
   const toggleRecurringTransfer = (id: string) => {
-    if (!isAdmin) return;
+    if (!isAdmin) return { success: false, error: 'Only Household Parents/Admins can edit recurring schedule rules.' };
     const target = recurringTransfers.find(r => r.id === id);
     const newActiveState = target ? !target.is_active : true;
     setRecurringTransfers(prev => prev.map(r => r.id === id ? { ...r, is_active: newActiveState } : r));
     logActivity('toggle_recurring', `${newActiveState ? 'Activated' : 'Paused'} recurring schedule rule "${target?.note || id}"`);
 
-    if (supabase) {
-      Promise.resolve(supabase.from('recurring_transfers').update({ is_active: newActiveState }).eq('id', id)).catch(() => {});
-    }
+    return supabase
+      ? trackSupabaseWrite('Toggle recurring transfer', supabase.from('recurring_transfers').update({ is_active: newActiveState }).eq('id', id))
+      : localSaveResult();
   };
 
   const deleteRecurringTransfer = (id: string) => {
@@ -1133,21 +1176,26 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setRecurringTransfers(prev => prev.filter(r => r.id !== id));
     logActivity('delete_recurring', `Deleted recurring schedule rule "${target?.note || id}"`);
 
-    if (supabase) {
-      Promise.resolve(supabase.from('recurring_transfers').delete().eq('id', id)).catch(() => {});
-    }
-    return { success: true };
+    return supabase
+      ? trackSupabaseWrite('Delete recurring transfer', supabase.from('recurring_transfers').delete().eq('id', id))
+      : localSaveResult();
   };
 
-  const addMember = (displayName: string, role: HouseholdRole, email?: string) => {
+  const addMember = (
+    displayName: string,
+    role: HouseholdRole,
+    email?: string,
+    authenticatedUserId?: string | null,
+    options?: { memberId?: string; syncToSupabase?: boolean }
+  ) => {
     if (!isAdmin) {
       alert("Only Household Parents/Admins can add or invite new members.");
-      return;
+      return { success: false, error: 'Only Household Parents/Admins can add or invite new members.' };
     }
     const newMember: HouseholdMember = {
-      id: `member-${Date.now()}`,
+      id: options?.memberId || `member-${Date.now()}`,
       household_id: household.id,
-      user_id: `usr-${Date.now()}`,
+      user_id: authenticatedUserId || null,
       role: role,
       display_name: displayName,
       email: email || undefined,
@@ -1156,9 +1204,13 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setMembers(prev => [...prev, newMember]);
     logActivity('create_member', `Added member "${displayName}" (${role.toUpperCase()})`);
 
-    if (supabase) {
-      Promise.resolve(supabase.from('household_members').insert([newMember])).catch(() => {});
+    if (options?.syncToSupabase === false) {
+      return localSaveResult();
     }
+
+    return supabase
+      ? trackSupabaseWrite('Create member', supabase.from('household_members').insert([newMember]))
+      : localSaveResult();
   };
 
   const updateMember = (id: string, updates: { display_name?: string; role?: HouseholdRole; email?: string }) => {
@@ -1184,10 +1236,9 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     logActivity('update_member', `Updated member record "${updates.display_name || target.display_name}"`);
 
-    if (supabase) {
-      Promise.resolve(supabase.from('household_members').update(updates).eq('id', id)).catch(() => {});
-    }
-    return { success: true };
+    return supabase
+      ? trackSupabaseWrite('Update member', supabase.from('household_members').update(updates).eq('id', id))
+      : localSaveResult();
   };
 
   const deleteMember = (id: string) => {
@@ -1212,10 +1263,28 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setMembers(prev => prev.filter(m => m.id !== id));
     logActivity('delete_member', `Removed member "${target.display_name}"`);
 
-    if (supabase) {
-      Promise.resolve(supabase.from('household_members').delete().eq('id', id)).catch(() => {});
+    return supabase
+      ? trackSupabaseWrite('Delete member', supabase.from('household_members').delete().eq('id', id))
+      : localSaveResult();
+  };
+
+  const resetDemoData = (): MutationResult => {
+    if (typeof window !== 'undefined') {
+      clearHouseholdStorage(window.localStorage);
     }
-    return { success: true };
+
+    setMembers(initialMembers);
+    setCurrentMember(initialMembers[0]);
+    setWallets(initialWallets);
+    setCategories(initialCategories);
+    setTransactions(initialTransactions);
+    setSavingsGoals(initialSavingsGoals);
+    setLoans(initialLoans);
+    setRecurringTransfers(initialRecurringTransfers);
+    setActivityLogs([]);
+    setSyncWarning(null);
+
+    return { success: true, syncStatus: 'local_only' };
   };
 
   return (
@@ -1231,6 +1300,9 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       recurringTransfers,
       activityLogs,
       isAdmin,
+      syncWarning,
+      clearSyncWarning,
+      resetDemoData,
       switchMember,
       logActivity,
       exportFullHouseholdBackup,

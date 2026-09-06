@@ -4,9 +4,11 @@
 ALTER TABLE households ALTER COLUMN id TYPE VARCHAR(100);
 
 -- 2. Household Members Table Enhancements
+ALTER TYPE household_role ADD VALUE IF NOT EXISTS 'parent_member';
 ALTER TABLE household_members ALTER COLUMN id TYPE VARCHAR(100);
 ALTER TABLE household_members ALTER COLUMN household_id TYPE VARCHAR(100);
 ALTER TABLE household_members ALTER COLUMN user_id TYPE VARCHAR(100);
+ALTER TABLE household_members ALTER COLUMN user_id DROP NOT NULL;
 ALTER TABLE household_members ADD COLUMN IF NOT EXISTS email VARCHAR(255);
 
 -- 3. Wallets Table Enhancements

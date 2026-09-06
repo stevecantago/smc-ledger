@@ -9,26 +9,26 @@ ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE savings_goals ENABLE ROW LEVEL SECURITY;
 
 -- Helper function to check current user's membership in household
-CREATE OR REPLACE FUNCTION is_household_member(h_id UUID)
+CREATE OR REPLACE FUNCTION is_household_member(h_id VARCHAR(100))
 RETURNS BOOLEAN AS $$
 BEGIN
     RETURN EXISTS (
         SELECT 1 FROM household_members 
         WHERE household_id = h_id 
-        AND user_id = auth.uid()
+        AND user_id = auth.uid()::text
     );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Helper function to check if current user is Admin in household
-CREATE OR REPLACE FUNCTION is_household_admin(h_id UUID)
+CREATE OR REPLACE FUNCTION is_household_admin(h_id VARCHAR(100))
 RETURNS BOOLEAN AS $$
 BEGIN
     RETURN EXISTS (
         SELECT 1 FROM household_members 
         WHERE household_id = h_id 
-        AND user_id = auth.uid() 
-        AND role = 'admin'
+        AND user_id = auth.uid()::text
+        AND role IN ('admin', 'parent_member')
     );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -44,6 +44,25 @@ CREATE POLICY "Admins can update household settings" ON households
 CREATE POLICY "Members can view household members" ON household_members
     FOR SELECT USING (is_household_member(household_id));
 
+CREATE POLICY "Authenticated users can view their unlinked member row" ON household_members
+    FOR SELECT USING (
+        user_id IS NULL
+        AND email IS NOT NULL
+        AND lower(email) = lower(auth.jwt() ->> 'email')
+    );
+
+CREATE POLICY "Authenticated users can claim their member row" ON household_members
+    FOR UPDATE USING (
+        user_id IS NULL
+        AND email IS NOT NULL
+        AND lower(email) = lower(auth.jwt() ->> 'email')
+    )
+    WITH CHECK (
+        user_id = auth.uid()::text
+        AND email IS NOT NULL
+        AND lower(email) = lower(auth.jwt() ->> 'email')
+    );
+
 CREATE POLICY "Admins can manage household members" ON household_members
     FOR ALL USING (is_household_admin(household_id));
 
@@ -53,7 +72,7 @@ CREATE POLICY "View wallets policy" ON wallets
     FOR SELECT USING (
         is_household_member(household_id) AND (
             is_shared = TRUE 
-            OR owner_id IN (SELECT id FROM household_members WHERE user_id = auth.uid())
+            OR owner_id IN (SELECT id FROM household_members WHERE user_id = auth.uid()::text)
             OR is_household_admin(household_id)
         )
     );
@@ -67,7 +86,7 @@ CREATE POLICY "Create wallets policy" ON wallets
 
 CREATE POLICY "Update/Delete wallets policy" ON wallets
     FOR ALL USING (
-        is_household_admin(household_id) OR owner_id IN (SELECT id FROM household_members WHERE user_id = auth.uid())
+        is_household_admin(household_id) OR owner_id IN (SELECT id FROM household_members WHERE user_id = auth.uid()::text)
     );
 
 -- 4. Categories RLS
@@ -88,7 +107,7 @@ CREATE POLICY "Members can insert transactions" ON transactions
 CREATE POLICY "Update transactions policy" ON transactions
     FOR UPDATE USING (
         is_household_admin(household_id) OR (
-            payer_id IN (SELECT id FROM household_members WHERE user_id = auth.uid())
+            payer_id IN (SELECT id FROM household_members WHERE user_id = auth.uid()::text)
             AND created_at >= (NOW() - INTERVAL '24 hours')
         )
     );
@@ -96,7 +115,7 @@ CREATE POLICY "Update transactions policy" ON transactions
 CREATE POLICY "Delete transactions policy" ON transactions
     FOR DELETE USING (
         is_household_admin(household_id) OR (
-            payer_id IN (SELECT id FROM household_members WHERE user_id = auth.uid())
+            payer_id IN (SELECT id FROM household_members WHERE user_id = auth.uid()::text)
             AND created_at >= (NOW() - INTERVAL '24 hours')
         )
     );
@@ -116,23 +135,23 @@ CREATE OR REPLACE FUNCTION update_wallet_balances_on_transaction()
 RETURNS TRIGGER AS $$
 BEGIN
     IF (TG_OP = 'INSERT') THEN
-        IF (NEW.type = 'expense') THEN
-            UPDATE wallets SET current_balance = current_balance - NEW.amount WHERE id = NEW.wallet_id;
+        IF (NEW.type = 'expense' OR NEW.type = 'loan') THEN
+            UPDATE wallets SET current_balance = current_balance - NEW.amount - COALESCE(NEW.fee, 0) WHERE id = NEW.wallet_id;
         ELSIF (NEW.type = 'income') THEN
-            UPDATE wallets SET current_balance = current_balance + NEW.amount WHERE id = NEW.wallet_id;
+            UPDATE wallets SET current_balance = current_balance + NEW.amount - COALESCE(NEW.fee, 0) WHERE id = NEW.wallet_id;
         ELSIF (NEW.type = 'transfer') THEN
-            UPDATE wallets SET current_balance = current_balance - NEW.amount WHERE id = NEW.wallet_id;
+            UPDATE wallets SET current_balance = current_balance - NEW.amount - COALESCE(NEW.fee, 0) WHERE id = NEW.wallet_id;
             IF (NEW.destination_wallet_id IS NOT NULL) THEN
                 UPDATE wallets SET current_balance = current_balance + NEW.amount WHERE id = NEW.destination_wallet_id;
             END IF;
         END IF;
     ELSIF (TG_OP = 'DELETE') THEN
-        IF (OLD.type = 'expense') THEN
-            UPDATE wallets SET current_balance = current_balance + OLD.amount WHERE id = OLD.wallet_id;
+        IF (OLD.type = 'expense' OR OLD.type = 'loan') THEN
+            UPDATE wallets SET current_balance = current_balance + OLD.amount + COALESCE(OLD.fee, 0) WHERE id = OLD.wallet_id;
         ELSIF (OLD.type = 'income') THEN
-            UPDATE wallets SET current_balance = current_balance - OLD.amount WHERE id = OLD.wallet_id;
+            UPDATE wallets SET current_balance = current_balance - OLD.amount + COALESCE(OLD.fee, 0) WHERE id = OLD.wallet_id;
         ELSIF (OLD.type = 'transfer') THEN
-            UPDATE wallets SET current_balance = current_balance + OLD.amount WHERE id = OLD.wallet_id;
+            UPDATE wallets SET current_balance = current_balance + OLD.amount + COALESCE(OLD.fee, 0) WHERE id = OLD.wallet_id;
             IF (OLD.destination_wallet_id IS NOT NULL) THEN
                 UPDATE wallets SET current_balance = current_balance - OLD.amount WHERE id = OLD.destination_wallet_id;
             END IF;

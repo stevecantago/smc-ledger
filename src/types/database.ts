@@ -26,7 +26,7 @@ export interface Household {
 export interface HouseholdMember {
   id: string;
   household_id: string;
-  user_id: string;
+  user_id: string | null;
   role: HouseholdRole;
   display_name: string;
   email?: string;

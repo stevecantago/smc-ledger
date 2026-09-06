@@ -16,7 +16,7 @@ VALUES ('hh-101', 'Cantago Family Household', 'PHP');
 
 -- Insert Primary Head Admin (Steve Cantago)
 INSERT INTO household_members (id, household_id, user_id, role, display_name, email)
-VALUES ('member-steve-admin', 'hh-101', 'usr-steve-admin', 'admin', 'Steve Cantago (Head Admin Parent)', 'steve.cantago@gmail.com');
+VALUES ('member-steve-admin', 'hh-101', NULL, 'admin', 'Steve Cantago (Head Admin Parent)', 'steve.cantago@gmail.com');
 
 -- Insert Starter Categories
 INSERT INTO categories (id, household_id, name, icon_slug, monthly_budget_limit) VALUES

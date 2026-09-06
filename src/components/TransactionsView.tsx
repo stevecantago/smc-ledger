@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { Transaction, TransactionType } from '../types/database';
 import { exportTransactionsToCsv } from '../lib/exportCsv';
+import { getTransactionSubmissionAction } from '../lib/transactionFlow';
 
 interface TransactionsViewProps {
   showModal: boolean;
@@ -119,38 +120,41 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
     }
 
     const parsedFee = parseFloat(fee) || 0;
+    const submissionAction = getTransactionSubmissionAction({ type: txType, selectedLoanId });
 
-    const res = addTransaction({
-      wallet_id: walletId,
-      destination_wallet_id: txType === 'transfer' ? destWalletId : null,
-      category_id: txType === 'expense' ? (categoryId || null) : null,
-      type: txType,
-      amount: parsedAmount,
-      fee: parsedFee,
-      transaction_date: txDate,
-      note: note.trim() || (txType === 'loan' ? 'Loan Amortization Payment' : txType === 'expense' ? 'Expense' : txType === 'transfer' ? 'Transfer' : 'Income'),
-      receipt_url: receiptUrl.trim() || undefined,
-    });
+    if (submissionAction === 'loan_payment' && selectedLoanId) {
+      const res = payLoanAmortization(selectedLoanId, parsedAmount, walletId);
+      if (!res.success) {
+        setErrorMsg(res.error || 'Failed to process loan payment.');
+        return;
+      }
 
-    if (!res.success) {
-      setErrorMsg(res.error || 'Failed to log transaction.');
-      return;
-    }
-
-    // Post-logging updates
-    if (txType === 'loan' && selectedLoanId) {
-      // Advance parent loan's next due date and increment paid count
-      payLoanAmortization(selectedLoanId, parsedAmount, walletId);
-
-      // Handle linked recurring loan payment item
       if (selectedRecurringId && selectedRecurringId !== 'others') {
         const parentLoan = loans.find(l => l.id === selectedLoanId);
         if (parentLoan && (parentLoan.remaining_balance - parsedAmount) <= 0) {
-          // Remove recurring loan payment rule if fully paid
           deleteRecurringTransfer(selectedRecurringId);
         }
       }
-    } else if (selectedRecurringId && selectedRecurringId !== 'others') {
+    } else {
+      const res = addTransaction({
+        wallet_id: walletId,
+        destination_wallet_id: txType === 'transfer' ? destWalletId : null,
+        category_id: txType === 'expense' ? (categoryId || null) : null,
+        type: txType,
+        amount: parsedAmount,
+        fee: parsedFee,
+        transaction_date: txDate,
+        note: note.trim() || (txType === 'expense' ? 'Expense' : txType === 'transfer' ? 'Transfer' : 'Income'),
+        receipt_url: receiptUrl.trim() || undefined,
+      });
+
+      if (!res.success) {
+        setErrorMsg(res.error || 'Failed to log transaction.');
+        return;
+      }
+    }
+
+    if (submissionAction === 'transaction' && selectedRecurringId && selectedRecurringId !== 'others') {
       // Advance Next Due date of recurring expense or transfer item
       const rule = recurringTransfers.find(r => r.id === selectedRecurringId);
       if (rule) {

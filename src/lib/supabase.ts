@@ -21,7 +21,7 @@ export const initialMembers: HouseholdMember[] = [
   {
     id: 'member-steve-admin',
     household_id: 'hh-101',
-    user_id: 'usr-steve-admin',
+    user_id: null,
     role: 'admin',
     display_name: 'Steve Cantago (Head Admin Parent)',
     email: 'steve.cantago@gmail.com',

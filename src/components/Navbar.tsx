@@ -3,11 +3,12 @@
 import React, { useState } from 'react';
 import { useHousehold } from '../context/HouseholdContext';
 import { 
-  ShieldCheck, UserCheck, Wallet as WalletIcon, Home, PlusCircle, Users, Landmark, Target, Plus, HeartHandshake, KeyRound, LogOut, History 
+  ShieldCheck, UserCheck, Wallet as WalletIcon, Home, PlusCircle, Users, Landmark, Target, Plus, HeartHandshake, KeyRound, LogOut, History, AlertCircle, X
 } from 'lucide-react';
 import { HouseholdRole } from '../types/database';
 import { AuthModal } from './AuthModal';
 import { supabase } from '../lib/supabase';
+import { clearAuthStorage } from '../lib/storageKeys';
 
 interface NavbarProps {
   activeTab: string;
@@ -16,7 +17,7 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenAddTxModal }) => {
-  const { household, currentMember, members, switchMember, wallets, isAdmin } = useHousehold();
+  const { household, currentMember, members, switchMember, wallets, isAdmin, syncWarning, clearSyncWarning } = useHousehold();
   const [showAuthModal, setShowAuthModal] = useState(false);
 
   const visibleWallets = wallets.filter(w => isAdmin || w.is_shared || w.owner_id === currentMember.id);
@@ -47,12 +48,12 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
         await supabase.auth.signOut();
       }
       if (typeof window !== 'undefined') {
-        localStorage.removeItem('smc_authenticated_email');
+        clearAuthStorage(window.localStorage);
         window.location.href = '/login';
       }
     } catch (err) {
       if (typeof window !== 'undefined') {
-        localStorage.removeItem('smc_authenticated_email');
+        clearAuthStorage(window.localStorage);
         window.location.href = '/login';
       }
     }
@@ -164,6 +165,24 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
             </div>
 
           </div>
+
+          {syncWarning && (
+            <div className="mb-2 flex items-center justify-between gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 shrink-0 text-amber-300" />
+                <span>{syncWarning}</span>
+              </div>
+              <button
+                type="button"
+                onClick={clearSyncWarning}
+                className="rounded p-1 text-amber-200 hover:bg-amber-500/15 hover:text-white"
+                aria-label="Dismiss sync warning"
+                title="Dismiss sync warning"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
 
           {/* Desktop Navigation Tabs (Horizontal Bar) */}
           <div className="hidden md:flex items-center space-x-1 border-t border-slate-800 overflow-x-auto py-2 scrollbar-none">

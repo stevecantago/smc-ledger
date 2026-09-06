@@ -17,6 +17,7 @@ export const MembersView: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingMember, setEditingMember] = useState<HouseholdMember | null>(null);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [inviteLoading, setInviteLoading] = useState(false);
 
   // Add Member State
   const [newDisplayName, setNewDisplayName] = useState('');
@@ -38,7 +39,7 @@ export const MembersView: React.FC = () => {
   // Admin Reset Email Status
   const [resetEmailMsg, setResetEmailMsg] = useState<{ memberId: string; text: string } | null>(null);
 
-  const handleAddSubmit = (e: React.FormEvent) => {
+  const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     if (!newDisplayName.trim()) {
@@ -46,10 +47,70 @@ export const MembersView: React.FC = () => {
       return;
     }
 
-    addMember(newDisplayName.trim(), newRole, newEmail.trim() || undefined);
-    setNewDisplayName('');
-    setNewEmail('');
-    setShowAddModal(false);
+    if (!newEmail.trim()) {
+      setErrorMsg('Please enter an email address so an invitation can be sent.');
+      return;
+    }
+
+    if (!supabase) {
+      setErrorMsg('Supabase is not configured. Invitations require a secure Supabase connection.');
+      return;
+    }
+
+    setInviteLoading(true);
+
+    try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) {
+        throw new Error('Please sign in again before inviting a family member.');
+      }
+
+      const response = await fetch('/api/invitations', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          householdId: currentMember.household_id,
+          displayName: newDisplayName.trim(),
+          email: newEmail.trim(),
+          role: newRole,
+        }),
+      });
+
+      const payload = await response.json();
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error || 'Failed to send invitation.');
+      }
+
+      const invitedMember = payload.member as HouseholdMember;
+      const result = addMember(
+        invitedMember.display_name,
+        invitedMember.role,
+        invitedMember.email,
+        invitedMember.user_id,
+        { memberId: invitedMember.id, syncToSupabase: false }
+      );
+      if (!result.success) {
+        throw new Error(result.error || 'Invitation was sent, but the local roster was not updated.');
+      }
+
+      setResetEmailMsg({
+        memberId: invitedMember.id,
+        text: `Invitation sent to ${invitedMember.email}!`,
+      });
+      setNewDisplayName('');
+      setNewEmail('');
+      setShowAddModal(false);
+      setTimeout(() => setResetEmailMsg(null), 4000);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to send invitation.');
+    } finally {
+      setInviteLoading(false);
+    }
   };
 
   const handleEditSubmit = (e: React.FormEvent) => {
@@ -175,7 +236,7 @@ export const MembersView: React.FC = () => {
             <span>Family Roster & Password Management</span>
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Manage family profiles, change individual account passwords, and send password reset emails to members.
+            Manage family profiles, invitations, and account recovery.
           </p>
         </div>
 
@@ -203,7 +264,7 @@ export const MembersView: React.FC = () => {
               className="flex items-center space-x-2 bg-sky-600 hover:bg-sky-500 text-white px-4 py-2 rounded-lg font-medium text-xs transition-all shadow"
             >
               <Plus className="w-4 h-4" />
-              <span>+ Add Family Member</span>
+              <span>+ Invite Family Member</span>
             </button>
           )}
         </div>
@@ -457,7 +518,7 @@ export const MembersView: React.FC = () => {
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6 space-y-5 shadow-2xl">
-            <h3 className="text-base font-bold text-white">Add New Family Member</h3>
+            <h3 className="text-base font-bold text-white">Invite Family Member</h3>
 
             {errorMsg && (
               <div className="p-3 bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs rounded-lg flex items-center space-x-2">
@@ -480,9 +541,10 @@ export const MembersView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Email Address (Optional)</label>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Email Address</label>
                 <input
                   type="email"
+                  required
                   placeholder="member@example.com"
                   value={newEmail}
                   onChange={(e) => setNewEmail(e.target.value)}
@@ -513,9 +575,10 @@ export const MembersView: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold rounded-lg transition-all shadow"
+                  disabled={inviteLoading}
+                  className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold rounded-lg transition-all shadow disabled:opacity-50"
                 >
-                  Add Member
+                  {inviteLoading ? 'Sending...' : 'Send Invitation'}
                 </button>
               </div>
             </form>

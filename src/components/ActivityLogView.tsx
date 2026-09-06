@@ -10,7 +10,7 @@ import { ActivityLogAction } from '../types/database';
 
 export const ActivityLogView: React.FC = () => {
   const { 
-    activityLogs, currentMember, isAdmin, exportFullHouseholdBackup, restoreFullHouseholdBackup 
+    activityLogs, currentMember, isAdmin, exportFullHouseholdBackup, restoreFullHouseholdBackup, resetDemoData
   } = useHousehold();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -42,6 +42,17 @@ export const ActivityLogView: React.FC = () => {
       }
     };
     reader.readAsText(file);
+  };
+
+  const handleResetDemoData = () => {
+    if (!window.confirm('Reset demo data? This clears saved household data from this browser only.')) return;
+
+    const result = resetDemoData();
+    if (result.success) {
+      setMessage({ type: 'success', text: 'Demo data reset in this browser.' });
+    } else {
+      setMessage({ type: 'error', text: result.error || 'Unable to reset demo data.' });
+    }
   };
 
   const getActionBadge = (action: ActivityLogAction) => {
@@ -94,6 +105,18 @@ export const ActivityLogView: React.FC = () => {
               className="hidden" 
             />
           </label>
+
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={handleResetDemoData}
+              className="flex items-center space-x-1.5 bg-rose-600 hover:bg-rose-500 text-white px-3.5 py-2 rounded-lg font-bold text-xs transition-all shadow shrink-0"
+              title="Clear saved household demo data from this browser"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Reset Demo Data</span>
+            </button>
+          )}
         </div>
       </div>
 

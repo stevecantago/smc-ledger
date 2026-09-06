@@ -2,12 +2,12 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { Home, Mail, Lock, ArrowRight, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../../src/lib/supabase';
+import { AUTH_STORAGE_KEYS, clearAuthStorage } from '../../src/lib/storageKeys';
+import { getSecureLoginRequest } from '../../src/lib/authFlow';
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState('steve.cantago@gmail.com');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -20,35 +20,30 @@ export default function LoginPage() {
 
     try {
       if (typeof window !== 'undefined') {
-        localStorage.setItem('smc_authenticated_email', email);
+        clearAuthStorage(window.localStorage);
+      }
+
+      if (!supabase) {
+        throw new Error('Supabase is not configured. Use the dashboard demo or add Supabase environment variables.');
+      }
+
+      const loginRequest = getSecureLoginRequest({ email, password });
+      if (!loginRequest.success) {
+        throw new Error(loginRequest.error);
       }
 
       if (supabase) {
-        if (password) {
-          const { error } = await supabase.auth.signInWithPassword({ email, password });
-          if (error) {
-            if (error.message?.toLowerCase().includes('rate limit')) {
-              setMessage({ type: 'success', text: 'Supabase email rate limit reached. Signed in via Direct Session!' });
-              setTimeout(() => { if (typeof window !== 'undefined') window.location.href = '/'; }, 1000);
-              return;
-            }
-            throw error;
-          }
-        } else {
-          // Magic link OTP auth
-          const { error } = await supabase.auth.signInWithOtp({ email });
-          if (error) {
-            if (error.message?.toLowerCase().includes('rate limit')) {
-              setMessage({ type: 'success', text: 'Email rate limit reached. Direct Head Admin sign-in active!' });
-              setTimeout(() => { if (typeof window !== 'undefined') window.location.href = '/'; }, 1000);
-              return;
-            }
-            throw error;
-          }
-          setMessage({ type: 'success', text: `Magic sign-in link sent to ${email}! Check your inbox.` });
-          setLoading(false);
-          return;
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: loginRequest.email,
+          password: loginRequest.password,
+        });
+        if (error) {
+          throw error;
         }
+        if (!data.session?.user?.email) {
+          throw new Error('Login did not return a confirmed session.');
+        }
+        localStorage.setItem(AUTH_STORAGE_KEYS[0], data.session.user.email);
       }
 
       setMessage({ type: 'success', text: 'Successfully logged in! Redirecting to dashboard...' });
@@ -58,12 +53,7 @@ export default function LoginPage() {
         }
       }, 1000);
     } catch (err: any) {
-      if (err.message?.toLowerCase().includes('rate limit')) {
-        setMessage({ type: 'success', text: 'Email rate limit reached. Direct Head Admin sign-in active!' });
-        setTimeout(() => { if (typeof window !== 'undefined') window.location.href = '/'; }, 1000);
-      } else {
-        setMessage({ type: 'error', text: err.message || 'Login failed. Please check your credentials.' });
-      }
+      setMessage({ type: 'error', text: err.message || 'Login failed. Please check your credentials.' });
     } finally {
       setLoading(false);
     }
@@ -122,9 +112,11 @@ export default function LoginPage() {
                 <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                 <input
                   type="password"
+                  required
+                  minLength={6}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter password or leave blank for Magic Link"
+                  placeholder="Enter your password"
                   className="w-full bg-slate-900 text-white text-xs pl-9 pr-3 py-2.5 rounded-lg border border-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500"
                 />
               </div>
@@ -141,17 +133,8 @@ export default function LoginPage() {
           </form>
 
           <div className="pt-4 border-t border-slate-700/60 text-center text-xs text-slate-400">
-            Don't have an account yet?{' '}
-            <Link href="/register" className="text-sky-400 hover:underline font-semibold">
-              Register Family Account
-            </Link>
+            Family members sign in after an admin invitation.
           </div>
-        </div>
-
-        <div className="text-center">
-          <Link href="/" className="text-xs text-slate-400 hover:text-white transition-colors">
-            ← Back to Dashboard Demo
-          </Link>
         </div>
 
       </div>

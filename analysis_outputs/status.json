@@ -1,0 +1,42 @@
+{
+  "project": "SMCLedger family financial tracker",
+  "path": "D:\\Projects\\personal\\family-financial-app",
+  "analysis_date": "2026-09-06",
+  "mode": "read-mostly static analysis",
+  "artifacts": [
+    "analysis_outputs/SUMMARY.md",
+    "analysis_outputs/RISKS.md",
+    "analysis_outputs/status.json"
+  ],
+  "stack": {
+    "framework": "Next.js App Router",
+    "language": "TypeScript",
+    "ui": "React and Tailwind CSS",
+    "database": "Supabase PostgreSQL with RLS migrations"
+  },
+  "checks": [
+    {
+      "command": "npx tsc --noEmit",
+      "status": "passed"
+    },
+    {
+      "command": "npm run build",
+      "status": "passed",
+      "notes": "Next.js production build completed successfully."
+    },
+    {
+      "command": "npm run lint",
+      "status": "failed",
+      "notes": "The script uses deprecated next lint and opens an ESLint setup prompt instead of running a configured lint check."
+    }
+  ],
+  "top_risks": [
+    "Auth failure and rate-limit paths can still bind a local profile.",
+    "Supabase migrations are likely not replayable from a clean database.",
+    "Loan payment through the transaction modal can double-record outflow.",
+    "Client balance updates can conflict with database balance triggers.",
+    "Activity logs are created without RLS in the inspected migration."
+  ],
+  "source_changes_made": false,
+  "analysis_files_created": true
+}
