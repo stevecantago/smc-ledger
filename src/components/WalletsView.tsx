@@ -2,9 +2,10 @@
 
 import React, { useState } from 'react';
 import { useHousehold } from '../context/HouseholdContext';
-import { Banknote, CreditCard, Edit2, Landmark, Lock, Plus, Shield, Smartphone, Trash2, Wallet as WalletIcon } from 'lucide-react';
+import { Banknote, CreditCard, Edit2, Landmark, Lock, PiggyBank, Plus, Shield, Smartphone, Trash2, Wallet as WalletIcon } from 'lucide-react';
 import { Wallet, WalletType } from '../types/database';
 import { getCreditCardAvailableCredit, getCreditCardUsedBalance } from '../lib/creditCardTransactions';
+import { getWalletTypeLabel, WALLET_TYPE_OPTIONS } from '../lib/walletTypes';
 
 interface WalletsViewProps {
   onLogCardExpense?: (walletId: string) => void;
@@ -44,6 +45,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
     switch (type) {
       case 'bank': return <Landmark className="w-5 h-5 text-sky-400" />;
       case 'e_wallet': return <Smartphone className="w-5 h-5 text-indigo-400" />;
+      case 'e_wallet_savings': return <PiggyBank className="w-5 h-5 text-teal-400" />;
       case 'cash': return <Banknote className="w-5 h-5 text-emerald-400" />;
       case 'credit_card': return <CreditCard className="w-5 h-5 text-purple-400" />;
     }
@@ -159,7 +161,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
                     <div>
                       <h3 className="font-bold text-sm text-white">{wallet.name}</h3>
                       <span className="text-[11px] text-slate-400 uppercase font-semibold tracking-wider">
-                        {wallet.wallet_type.replace('_', ' ')}
+                        {getWalletTypeLabel(wallet.wallet_type)}
                       </span>
                     </div>
                   </div>
@@ -303,10 +305,9 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
                   onChange={(e) => setWalletType(e.target.value as WalletType)}
                   className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
                 >
-                  <option value="bank">Bank Account</option>
-                  <option value="credit_card">Credit Card / Credit Line</option>
-                  <option value="e_wallet">E-Wallet</option>
-                  <option value="cash">Physical Cash</option>
+                  {WALLET_TYPE_OPTIONS.map(option => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
                 </select>
               </div>
 
@@ -410,10 +411,9 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
                   onChange={(e) => setEditType(e.target.value as WalletType)}
                   className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
                 >
-                  <option value="bank">Bank Account</option>
-                  <option value="credit_card">Credit Card / Credit Line</option>
-                  <option value="e_wallet">E-Wallet</option>
-                  <option value="cash">Physical Cash</option>
+                  {WALLET_TYPE_OPTIONS.map(option => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
                 </select>
               </div>
 

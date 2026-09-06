@@ -137,7 +137,7 @@ export const initialWallets: Wallet[] = [
     household_id: 'hh-101',
     owner_id: 'member-steve-admin',
     name: 'GoTyme GoSave Account',
-    wallet_type: 'bank',
+    wallet_type: 'e_wallet_savings',
     is_shared: true,
     current_balance: 0.00,
     credit_limit: null,

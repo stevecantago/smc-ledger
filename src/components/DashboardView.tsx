@@ -5,12 +5,13 @@ import { useHousehold } from '../context/HouseholdContext';
 import { 
   TrendingDown, TrendingUp, ArrowRightLeft, Wallet as WalletIcon, ShieldCheck, 
   Landmark, Target, Plus, AlertCircle, CheckCircle2, ChevronRight, DollarSign, Clock, Calendar,
-  Smartphone, CreditCard, Banknote
+  Smartphone, CreditCard, Banknote, PiggyBank
 } from 'lucide-react';
 import { Loan, Wallet } from '../types/database';
 import { CategoryIcon } from './CategoryIcon';
 import { getCreditCardAvailableCredit, getCreditCardUsedBalance } from '../lib/creditCardTransactions';
 import { getInitialLedgerCycleFilter, getNextLedgerCycle, LedgerCycleRange } from '../lib/billingCycles';
+import { getWalletTypeLabel, getWalletTypeSummary } from '../lib/walletTypes';
 
 const DASHBOARD_SCHEDULE_FILTER_KEY = 'smc_dashboard_schedule_filter';
 
@@ -66,31 +67,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
     .reduce((acc, w) => acc + w.current_balance, 0);
 
   // Category totals for Wallets & Credit Lines Summary
-  const totalBankBalance = visibleWallets
-    .filter(w => w.wallet_type === 'bank')
-    .reduce((sum, w) => sum + w.current_balance, 0);
+  const walletSummary = getWalletTypeSummary(visibleWallets);
+  const totalBankBalance = walletSummary.bankBalance;
+  const totalEWalletBalance = walletSummary.eWalletBalance;
+  const totalEWalletSavingsBalance = walletSummary.eWalletSavingsBalance;
+  const totalCashBalance = walletSummary.cashBalance;
+  const totalAvailableCredit = walletSummary.availableCredit;
+  const totalCreditLimit = walletSummary.creditLimit;
+  const totalUsedCredit = walletSummary.usedCredit;
 
-  const totalEWalletBalance = visibleWallets
-    .filter(w => w.wallet_type === 'e_wallet')
-    .reduce((sum, w) => sum + w.current_balance, 0);
-
-  const totalCashBalance = visibleWallets
-    .filter(w => w.wallet_type === 'cash')
-    .reduce((sum, w) => sum + w.current_balance, 0);
-
-  const totalAvailableCredit = visibleWallets
-    .filter(w => w.wallet_type === 'credit_card')
-    .reduce((sum, w) => sum + getCreditCardAvailableCredit(w), 0);
-
-  const totalCreditLimit = visibleWallets
-    .filter(w => w.wallet_type === 'credit_card')
-    .reduce((sum, w) => sum + (w.credit_limit || 0), 0);
-
-  const totalUsedCredit = visibleWallets
-    .filter(w => w.wallet_type === 'credit_card')
-    .reduce((sum, w) => sum + getCreditCardUsedBalance(w), 0);
-
-  const totalCombinedAvailable = totalBankBalance + totalEWalletBalance + totalCashBalance + totalAvailableCredit;
+  const totalCombinedAvailable = totalBankBalance + totalEWalletBalance + totalEWalletSavingsBalance + totalCashBalance + totalAvailableCredit;
 
   // Outstanding Credit Card Debt
   const creditCardDebt = visibleWallets
@@ -255,7 +241,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
             <WalletIcon className="w-5 h-5 text-sky-400" />
             <div>
               <h3 className="font-bold text-sm text-white">Household Wallets & Credit Lines Summary</h3>
-              <p className="text-[11px] text-slate-400">Total liquid funds across bank accounts, e-wallets, cash, and available credit card lines</p>
+              <p className="text-[11px] text-slate-400">Total liquid funds across bank accounts, e-wallets, e-wallet savings, cash, and available credit card lines</p>
             </div>
           </div>
           <button
@@ -267,7 +253,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
         </div>
 
         {/* Totals & Summary KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
           {/* Bank Accounts Total */}
           <div className="bg-slate-900/80 border border-sky-500/30 p-3.5 rounded-xl space-y-1">
             <div className="flex items-center justify-between text-xs text-slate-400">
@@ -276,7 +262,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
                 <span>Bank Accounts</span>
               </span>
               <span className="text-[10px] bg-sky-500/10 text-sky-300 font-mono px-1.5 py-0.2 rounded">
-                {visibleWallets.filter(w => w.wallet_type === 'bank').length} Accounts
+                {walletSummary.bankCount} Accounts
               </span>
             </div>
             <div className="text-lg font-bold font-mono text-sky-400">
@@ -293,13 +279,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
                 <span>E-Wallets</span>
               </span>
               <span className="text-[10px] bg-indigo-500/10 text-indigo-300 font-mono px-1.5 py-0.2 rounded">
-                {visibleWallets.filter(w => w.wallet_type === 'e_wallet').length} Accounts
+                {walletSummary.eWalletCount} Accounts
               </span>
             </div>
             <div className="text-lg font-bold font-mono text-indigo-400">
               ₱{totalEWalletBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </div>
             <p className="text-[10px] text-slate-400">Total e-wallet balances</p>
+          </div>
+
+          {/* E-Wallet Savings Total */}
+          <div className="bg-slate-900/80 border border-teal-500/30 p-3.5 rounded-xl space-y-1">
+            <div className="flex items-center justify-between text-xs text-slate-400">
+              <span className="flex items-center space-x-1">
+                <PiggyBank className="w-3.5 h-3.5 text-teal-400" />
+                <span>E Wallet Savings</span>
+              </span>
+              <span className="text-[10px] bg-teal-500/10 text-teal-300 font-mono px-1.5 py-0.2 rounded">
+                {walletSummary.eWalletSavingsCount} Accounts
+              </span>
+            </div>
+            <div className="text-lg font-bold font-mono text-teal-400">
+              ₱{totalEWalletSavingsBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            </div>
+            <p className="text-[10px] text-slate-400">Total e-wallet savings balances</p>
           </div>
 
           {/* Cash Total */}
@@ -310,7 +313,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
                 <span>Cash On Hand</span>
               </span>
               <span className="text-[10px] bg-amber-500/10 text-amber-300 font-mono px-1.5 py-0.2 rounded">
-                {visibleWallets.filter(w => w.wallet_type === 'cash').length} Accounts
+                {walletSummary.cashCount} Accounts
               </span>
             </div>
             <div className="text-lg font-bold font-mono text-amber-400">
@@ -327,7 +330,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
                 <span>Available Credit Lines</span>
               </span>
               <span className="text-[10px] bg-purple-500/10 text-purple-300 font-mono px-1.5 py-0.2 rounded">
-                {visibleWallets.filter(w => w.wallet_type === 'credit_card').length} Cards
+                {walletSummary.creditCardCount} Cards
               </span>
             </div>
             <div className="text-lg font-bold font-mono text-emerald-400">
@@ -374,7 +377,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
                         <span className="text-[9px] bg-sky-500/15 text-sky-300 px-1 py-0.2 rounded font-mono">Shared</span>
                       )}
                     </div>
-                    <span className="text-[10px] text-slate-400 uppercase font-mono">{w.wallet_type.replace('_', ' ')}</span>
+                    <span className="text-[10px] text-slate-400 uppercase font-mono">{getWalletTypeLabel(w.wallet_type)}</span>
                   </div>
 
                   <div className="text-right font-mono">
@@ -517,7 +520,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
                         <h4 className="font-bold text-sm text-white flex items-center space-x-2">
                           <span>{wallet?.name || 'Unknown Paying Account'}</span>
                           <span className="text-[10px] text-slate-400 font-mono uppercase bg-slate-800 px-1.5 py-0.2 rounded border border-slate-700">
-                            {wallet?.wallet_type.replace('_', ' ') || 'Account'}
+                            {wallet ? getWalletTypeLabel(wallet.wallet_type) : 'Account'}
                           </span>
                         </h4>
                         <p className="text-[11px] text-slate-400 flex items-center space-x-2 mt-0.5">
