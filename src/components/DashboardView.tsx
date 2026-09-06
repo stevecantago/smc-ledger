@@ -497,7 +497,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
 
         {/* Overall Filter Summary Banner */}
         <div className="bg-slate-900/70 border border-slate-700/60 p-4 rounded-xl text-xs space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_auto] gap-4 items-start lg:items-center">
+          <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto] gap-4 items-start md:items-center">
             <div className="flex items-center space-x-3 min-w-0">
               <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
                 <Calendar className="w-4 h-4" />
@@ -513,7 +513,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row sm:items-center lg:justify-end gap-3 lg:min-w-[360px]">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-end gap-4 md:min-w-[360px]">
               {walletGroups.length > 0 && (
                 <button
                   type="button"
@@ -547,7 +547,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
               No recurring bills or transfers scheduled with next due dates falling within the selected date range ({recurringStartDate || 'Start'} to {recurringEndDate || 'End'}).
             </div>
           ) : showScheduleWallets ? (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               {walletGroups.map(({ wallet, items, totalOutflow, availableBalance, hasSufficientFunds }, index) => {
                 const groupKey = wallet?.id || `unknown-${index}`;
                 const isExpanded = !!expandedScheduleWallets[groupKey];
