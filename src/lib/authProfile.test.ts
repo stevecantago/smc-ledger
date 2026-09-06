@@ -28,6 +28,10 @@ describe('resolveAuthenticatedMember', () => {
     expect(resolveAuthenticatedMember(members, 'ADMIN@example.com')?.id).toBe('member-admin');
   });
 
+  it('returns the matching member by Supabase user ID when email is changing', () => {
+    expect(resolveAuthenticatedMember(members, 'old-email@example.com', 'user-admin')?.id).toBe('member-admin');
+  });
+
   it('does not fall back to the first or admin member when the email is not authenticated', () => {
     expect(resolveAuthenticatedMember(members, null)).toBeNull();
   });

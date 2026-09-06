@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { validateInvitationRequest } from '../../../src/lib/authFlow';
 import { getPasswordResetRedirectUrl } from '../../../src/lib/authRedirects';
 import type { HouseholdMember, HouseholdRole } from '../../../src/types/database';
+import { getEffectiveRoleId } from '../../../src/lib/permissions';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -56,19 +57,9 @@ export async function POST(request: NextRequest) {
     return jsonError('Household ID is required.', 400);
   }
 
-  const validation = validateInvitationRequest({
-    displayName: String(body.displayName || ''),
-    email: String(body.email || ''),
-    role: body.role as HouseholdRole,
-  });
-
-  if (!validation.success) {
-    return jsonError(validation.error, 400);
-  }
-
   const { data: adminMembershipsByUserId, error: adminLookupError } = await adminClient
     .from('household_members')
-    .select('id, role, household_id, email, user_id')
+    .select('id, role, role_id, household_id, email, user_id')
     .eq('household_id', householdId)
     .eq('user_id', userData.user.id);
 
@@ -81,7 +72,7 @@ export async function POST(request: NextRequest) {
   if (!adminMembership && userData.user.email) {
     const { data: adminMembershipsByEmail, error: emailLookupError } = await adminClient
       .from('household_members')
-      .select('id, role, household_id, email, user_id')
+      .select('id, role, role_id, household_id, email, user_id')
       .eq('household_id', householdId)
       .is('user_id', null)
       .ilike('email', userData.user.email);
@@ -93,8 +84,60 @@ export async function POST(request: NextRequest) {
     adminMembership = adminMembershipsByEmail?.[0] ?? null;
   }
 
-  if (!adminMembership || !['admin', 'parent_member'].includes(adminMembership.role)) {
+  if (!adminMembership) {
     return jsonError('Only household admins can invite family members.', 403);
+  }
+
+  const adminRoleId = getEffectiveRoleId(adminMembership as HouseholdMember);
+  const { data: adminRole } = await adminClient
+    .from('household_roles')
+    .select('is_head_parent')
+    .eq('id', adminRoleId)
+    .maybeSingle();
+
+  const { data: memberPermission, error: permissionError } = await adminClient
+    .from('role_permissions')
+    .select('level')
+    .eq('role_id', adminRoleId)
+    .eq('permission_key', 'manage_members')
+    .maybeSingle();
+
+  if (permissionError) {
+    return jsonError(permissionError.message, 500);
+  }
+
+  if (!adminRole?.is_head_parent && memberPermission?.level !== 'allowed') {
+    return jsonError('Your role cannot invite family members.', 403);
+  }
+
+  const requestedRoleId = typeof body.roleId === 'string' ? body.roleId.trim() : '';
+  const { data: requestedRole, error: requestedRoleError } = requestedRoleId
+    ? await adminClient
+      .from('household_roles')
+      .select('id, base_role')
+      .eq('household_id', householdId)
+      .eq('id', requestedRoleId)
+      .maybeSingle()
+    : { data: null, error: null };
+
+  if (requestedRoleError) {
+    return jsonError(requestedRoleError.message, 500);
+  }
+
+  if (requestedRoleId && !requestedRole) {
+    return jsonError('Selected household role was not found.', 400);
+  }
+
+  const selectedBaseRole = (requestedRole?.base_role || body.role) as HouseholdRole;
+  const selectedRoleId = requestedRole?.id || null;
+  const validation = validateInvitationRequest({
+    displayName: String(body.displayName || ''),
+    email: String(body.email || ''),
+    role: selectedBaseRole,
+  });
+
+  if (!validation.success) {
+    return jsonError(validation.error, 400);
   }
 
   const { data: existingMember, error: existingMemberError } = await adminClient
@@ -120,6 +163,7 @@ export async function POST(request: NextRequest) {
         display_name: validation.displayName,
         household_id: householdId,
         role: validation.role,
+        role_id: selectedRoleId,
       },
       redirectTo: inviteRedirect,
     }
@@ -134,6 +178,7 @@ export async function POST(request: NextRequest) {
     household_id: householdId,
     user_id: inviteData.user?.id || null,
     role: validation.role,
+    role_id: selectedRoleId,
     display_name: validation.displayName,
     email: validation.email,
     created_at: new Date().toISOString(),

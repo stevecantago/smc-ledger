@@ -11,13 +11,16 @@ import { LoansView } from '../src/components/LoansView';
 import { SavingsGoalsView } from '../src/components/SavingsGoalsView';
 import { MembersView } from '../src/components/MembersView';
 import { ActivityLogView } from '../src/components/ActivityLogView';
+import { SchedulesView } from '../src/components/SchedulesView';
 import { supabase } from '../src/lib/supabase';
 import { getRootAuthAction } from '../src/lib/authFlow';
+import { TransactionType } from '../src/types/database';
 
 export default function Home() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [showAddTxModal, setShowAddTxModal] = useState<boolean>(false);
+  const [transactionDraft, setTransactionDraft] = useState<{ type?: TransactionType; walletId?: string } | null>(null);
   const [isSessionReady, setIsSessionReady] = useState(false);
 
   React.useEffect(() => {
@@ -36,6 +39,9 @@ export default function Home() {
       if (!isMounted) return;
 
       if (action === 'redirect_login') {
+        if (typeof window !== 'undefined') {
+          window.location.replace('/login');
+        }
         router.replace('/login');
         return;
       }
@@ -51,6 +57,13 @@ export default function Home() {
   }, [router]);
 
   const handleOpenAddTxModal = () => {
+    setTransactionDraft(null);
+    setActiveTab('transactions');
+    setShowAddTxModal(true);
+  };
+
+  const handleLogCardExpense = (walletId: string) => {
+    setTransactionDraft({ type: 'expense', walletId });
     setActiveTab('transactions');
     setShowAddTxModal(true);
   };
@@ -81,15 +94,17 @@ export default function Home() {
             onOpenAddTxModal={handleOpenAddTxModal} 
           />
         )}
-        {activeTab === 'wallets' && <WalletsView />}
+        {activeTab === 'wallets' && <WalletsView onLogCardExpense={handleLogCardExpense} />}
         {activeTab === 'transactions' && (
           <TransactionsView 
             showModal={showAddTxModal} 
             setShowModal={setShowAddTxModal} 
+            draft={transactionDraft}
           />
         )}
         {activeTab === 'budgets' && <BudgetsView />}
         {activeTab === 'loans' && <LoansView />}
+        {activeTab === 'schedules' && <SchedulesView />}
         {activeTab === 'goals' && <SavingsGoalsView />}
         {activeTab === 'members' && <MembersView />}
         {activeTab === 'activity' && <ActivityLogView />}

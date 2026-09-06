@@ -4,8 +4,15 @@ type CredentialValidationResult = { success: true } | { success: false; error: s
 
 export function resolveAuthenticatedMember(
   members: HouseholdMember[],
-  authenticatedEmail: string | null | undefined
+  authenticatedEmail: string | null | undefined,
+  authenticatedUserId?: string | null | undefined
 ): HouseholdMember | null {
+  const normalizedUserId = authenticatedUserId?.trim();
+  if (normalizedUserId) {
+    const byUserId = members.find(member => member.user_id === normalizedUserId);
+    if (byUserId) return byUserId;
+  }
+
   const normalizedEmail = authenticatedEmail?.trim().toLowerCase();
   if (!normalizedEmail) return null;
 

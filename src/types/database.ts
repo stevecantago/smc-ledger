@@ -4,6 +4,25 @@ export type TransactionType = 'income' | 'expense' | 'transfer' | 'loan';
 export type RecurringFrequency = 'daily' | 'weekly' | 'biweekly' | 'bimonthly' | 'monthly' | 'quarterly' | 'semi_annual' | 'annual' | 'custom_days';
 export type RecurringRuleType = 'transfer' | 'expense' | 'loan_payment';
 export type LoanPaymentFrequency = 'monthly' | 'bi_monthly';
+export type PermissionLevel = 'allowed' | 'own_only' | 'read_only' | 'restricted';
+export type PermissionKey =
+  | 'create_transactions'
+  | 'update_transactions'
+  | 'delete_transactions'
+  | 'manage_wallets'
+  | 'manage_categories'
+  | 'manage_goals'
+  | 'fund_goals'
+  | 'manage_loans'
+  | 'pay_loans'
+  | 'manage_schedules'
+  | 'manage_members'
+  | 'send_password_resets'
+  | 'manage_roles'
+  | 'export_backup'
+  | 'restore_backup'
+  | 'reset_demo_data'
+  | 'view_activity_logs';
 
 export type ActivityLogAction = 
   | 'create_wallet' | 'update_wallet' | 'delete_wallet'
@@ -28,10 +47,31 @@ export interface HouseholdMember {
   household_id: string;
   user_id: string | null;
   role: HouseholdRole;
+  role_id?: string | null;
   display_name: string;
   email?: string;
   avatar_url?: string;
   created_at: string;
+}
+
+export interface HouseholdCustomRole {
+  id: string;
+  household_id: string;
+  name: string;
+  base_role: HouseholdRole;
+  is_head_parent: boolean;
+  is_default: boolean;
+  created_at: string;
+}
+
+export interface RolePermission {
+  id: string;
+  household_id: string;
+  role_id: string;
+  permission_key: PermissionKey;
+  level: PermissionLevel;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Wallet {

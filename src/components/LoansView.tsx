@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useHousehold } from '../context/HouseholdContext';
 import { Landmark, Plus, DollarSign, Calendar, AlertCircle, Percent, Edit2, Trash2, ShieldCheck, Clock, CheckCircle2, Wallet as WalletIcon } from 'lucide-react';
 import { Loan, LoanPaymentFrequency } from '../types/database';
+import { getCreditCardAvailableCredit, getCreditCardUsedBalance } from '../lib/creditCardTransactions';
 
 export const LoansView: React.FC = () => {
   const { loans, wallets, currentMember, isAdmin, addLoan, updateLoan, deleteLoan, payLoanAmortization } = useHousehold();
@@ -13,6 +14,9 @@ export const LoansView: React.FC = () => {
   const [payingLoan, setPayingLoan] = useState<Loan | null>(null);
 
   const visibleWallets = wallets.filter(w => isAdmin || w.is_shared || w.owner_id === currentMember.id);
+  const formatWalletOption = (wallet: typeof wallets[number]) => wallet.wallet_type === 'credit_card'
+    ? `${wallet.name} (Available: ₱${getCreditCardAvailableCredit(wallet).toFixed(2)} | Used: ₱${getCreditCardUsedBalance(wallet).toFixed(2)})`
+    : `${wallet.name} (₱${wallet.current_balance.toFixed(2)})`;
 
   // Add Loan Form
   const [name, setName] = useState('');
@@ -418,7 +422,7 @@ export const LoansView: React.FC = () => {
                   className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
                 >
                   {visibleWallets.map(w => (
-                    <option key={w.id} value={w.id}>{w.name} (₱{w.current_balance.toFixed(2)})</option>
+                    <option key={w.id} value={w.id}>{formatWalletOption(w)}</option>
                   ))}
                 </select>
               </div>
@@ -596,7 +600,7 @@ export const LoansView: React.FC = () => {
                   className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
                 >
                   {visibleWallets.map(w => (
-                    <option key={w.id} value={w.id}>{w.name} (₱{w.current_balance.toFixed(2)})</option>
+                    <option key={w.id} value={w.id}>{formatWalletOption(w)}</option>
                   ))}
                 </select>
               </div>
@@ -767,7 +771,7 @@ export const LoansView: React.FC = () => {
                 >
                   {visibleWallets.map(w => (
                     <option key={w.id} value={w.id}>
-                      {w.name} (₱{w.current_balance.toFixed(2)})
+                      {formatWalletOption(w)}
                     </option>
                   ))}
                 </select>
