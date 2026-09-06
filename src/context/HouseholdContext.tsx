@@ -32,6 +32,7 @@ import {
 } from '../lib/permissions';
 import { applyTransactionBalanceChange, normalizeCreditCardWalletBalance, reverseTransactionBalanceChange } from '../lib/creditCardTransactions';
 import { getWalletDeleteBlocker } from '../lib/walletDeletion';
+import { syncLoanAndOptionalSchedule } from '../lib/loanScheduleSync';
 
 interface HouseholdContextType {
   household: Household;
@@ -968,25 +969,42 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setLoans(prev => [...prev, newLoan]);
     logActivity('create_loan', `Created loan record "${data.name}" (${data.lender}) with principal ₱${data.total_principal}`);
 
-    const syncResult = supabase
-      ? trackSupabaseWrite('Create loan', supabase.from('loans').insert([newLoan]))
-      : localSaveResult();
-
     // Auto-create/sync Recurring Schedule Item for this Loan
     const sourceW = data.source_wallet_id || (wallets.length > 0 ? wallets[0].id : null);
+    let linkedSchedule: RecurringTransfer | null = null;
     if (sourceW) {
       const freq: RecurringFrequency = data.payment_frequency === 'bi_monthly' ? 'bimonthly' : 'monthly';
-      addRecurringTransfer({
+      linkedSchedule = {
+        id: `recurring-${Date.now()}`,
+        household_id: household.id,
         rule_type: 'loan_payment',
         source_wallet_id: sourceW,
-        loan_id: newLoan.id,
+        destination_wallet_id: null,
         category_id: null,
+        loan_id: newLoan.id,
         amount: data.monthly_amortization,
         frequency: freq,
+        custom_interval_days: null,
         next_run_date: data.next_due_date || new Date().toISOString().split('T')[0],
         note: data.name,
-      });
+        is_active: true,
+        created_at: new Date().toISOString(),
+      };
+      setRecurringTransfers(prev => [...prev, linkedSchedule as RecurringTransfer]);
+      logActivity('create_recurring', `Created recurring LOAN_PAYMENT schedule rule "${data.name}" of ₱${data.monthly_amortization} (Next Due: ${linkedSchedule.next_run_date})`);
     }
+
+    const db = supabase;
+    const syncResult = db
+      ? trackSupabaseWrite(
+        'Create loan and repayment schedule',
+        syncLoanAndOptionalSchedule(
+          () => db.from('loans').insert([newLoan]),
+          linkedSchedule ? () => db.from('recurring_transfers').insert([linkedSchedule]) : null
+        )
+      )
+      : localSaveResult();
+
     return syncResult;
   };
 
