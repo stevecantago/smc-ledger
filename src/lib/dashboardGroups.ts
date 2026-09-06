@@ -41,11 +41,28 @@ const WALLET_GROUP_ORDER: DashboardWalletGroupId[] = [
   'credit_card',
 ];
 
+const HIDDEN_DASHBOARD_CASH_WALLET_NAMES = new Set([
+  'cash - maki',
+  'cash - matti',
+  'cash - maciej',
+]);
+
+export function isDashboardSummaryWallet(wallet: Wallet): boolean {
+  if (wallet.wallet_type !== 'cash') return true;
+  return !HIDDEN_DASHBOARD_CASH_WALLET_NAMES.has(wallet.name.trim().toLowerCase());
+}
+
+export function getDashboardSummaryWallets(wallets: Wallet[]): Wallet[] {
+  return wallets.filter(isDashboardSummaryWallet);
+}
+
 export function buildDashboardWalletGroups(wallets: Wallet[]): DashboardWalletGroup[] {
+  const summaryWallets = getDashboardSummaryWallets(wallets);
+
   return WALLET_GROUP_ORDER.map(id => ({
     id,
     label: id === 'credit_card' ? 'Available Credit Lines' : getWalletTypeLabel(id),
-    accounts: wallets
+    accounts: summaryWallets
       .filter(wallet => wallet.wallet_type === id)
       .map(wallet => {
         if (wallet.wallet_type === 'credit_card') {

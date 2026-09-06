@@ -17,6 +17,7 @@ import {
   buildScheduleWalletGroups,
   DashboardSummaryCardId,
   DashboardWalletGroupId,
+  getDashboardSummaryWallets,
 } from '../lib/dashboardGroups';
 import { getDisplayFirstName, getHouseholdDisplayName } from '../lib/householdNaming';
 
@@ -66,6 +67,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
   }, [recurringStartDate, recurringEndDate]);
 
   const visibleWallets = wallets.filter(w => isAdmin || w.is_shared || w.owner_id === currentMember.id);
+  const dashboardSummaryWallets = getDashboardSummaryWallets(visibleWallets);
 
   // Asset & Net Worth Math
   const liquidAssets = visibleWallets
@@ -73,8 +75,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
     .reduce((acc, w) => acc + w.current_balance, 0);
 
   // Category totals for Wallets & Credit Lines Summary
-  const walletSummary = getWalletTypeSummary(visibleWallets);
-  const dashboardWalletGroups = buildDashboardWalletGroups(visibleWallets);
+  const walletSummary = getWalletTypeSummary(dashboardSummaryWallets);
+  const dashboardWalletGroups = buildDashboardWalletGroups(dashboardSummaryWallets);
   const totalBankBalance = walletSummary.bankBalance;
   const totalEWalletBalance = walletSummary.eWalletBalance;
   const totalEWalletSavingsBalance = walletSummary.eWalletSavingsBalance;

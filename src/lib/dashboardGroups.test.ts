@@ -54,6 +54,33 @@ describe('dashboard groups', () => {
     });
   });
 
+  it('omits child cash wallets from the dashboard cash summary group', () => {
+    const groups = buildDashboardWalletGroups([
+      { ...baseWallet, id: 'cash-maki', name: 'Cash - Maki', wallet_type: 'cash', current_balance: 0 },
+      { ...baseWallet, id: 'cash-matti', name: 'Cash - Matti', wallet_type: 'cash', current_balance: 0 },
+      { ...baseWallet, id: 'cash-maciej', name: 'Cash - Maciej', wallet_type: 'cash', current_balance: 0 },
+      { ...baseWallet, id: 'cash-family', name: 'Family Petty Cash', wallet_type: 'cash', current_balance: 1500 },
+      { ...baseWallet, id: 'cash-steve', name: 'Cash - Steve', wallet_type: 'cash', current_balance: 2570 },
+    ]);
+
+    expect(groups.find(group => group.id === 'cash')?.accounts).toEqual([
+      {
+        id: 'cash-family',
+        name: 'Family Petty Cash',
+        typeLabel: 'Physical Cash',
+        isShared: true,
+        balance: 1500,
+      },
+      {
+        id: 'cash-steve',
+        name: 'Cash - Steve',
+        typeLabel: 'Physical Cash',
+        isShared: true,
+        balance: 2570,
+      },
+    ]);
+  });
+
   it('builds paying wallet schedule groups with account availability and scheduled items', () => {
     const walletGroups = buildScheduleWalletGroups(
       [
