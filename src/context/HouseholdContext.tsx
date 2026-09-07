@@ -33,7 +33,12 @@ import {
 import { applyTransactionBalanceChange, normalizeCreditCardWalletBalance, reverseTransactionBalanceChange } from '../lib/creditCardTransactions';
 import { getWalletDeleteBlocker } from '../lib/walletDeletion';
 import { syncLoanAndOptionalSchedule } from '../lib/loanScheduleSync';
-import { omitMemberRoleId, retryMemberWriteWithoutRoleId } from '../lib/memberRoleSync';
+import {
+  omitMemberProfileFields,
+  omitMemberRoleId,
+  omitUnsupportedMemberColumns,
+  retryMemberWriteWithSchemaFallbacks,
+} from '../lib/memberRoleSync';
 
 interface HouseholdContextType {
   household: Household;
@@ -152,7 +157,7 @@ interface HouseholdContextType {
 
   // Family Roster CRUD Actions
   addMember: (displayName: string, role: HouseholdRole, email?: string, authenticatedUserId?: string | null, options?: { memberId?: string; roleId?: string | null; syncToSupabase?: boolean }) => MutationResult;
-  updateMember: (id: string, updates: { display_name?: string; role?: HouseholdRole; role_id?: string | null; email?: string }) => MutationResult;
+  updateMember: (id: string, updates: { display_name?: string; role?: HouseholdRole; role_id?: string | null; first_name?: string | null; last_name?: string | null; date_of_birth?: string | null; email?: string }) => MutationResult;
   deleteMember: (id: string) => MutationResult;
 
   // Role Permissions CRUD
@@ -298,9 +303,11 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
                 localStorage.setItem(STORAGE_KEYS.members, JSON.stringify(remoteMembers));
               } else if (!mErr && initialMembers.length > 0) {
                 const db = supabase;
-                await retryMemberWriteWithoutRoleId(
+                await retryMemberWriteWithSchemaFallbacks(
                   () => db.from('household_members').insert(initialMembers),
-                  () => db.from('household_members').insert(initialMembers.map(omitMemberRoleId))
+                  () => db.from('household_members').insert(initialMembers.map(omitMemberRoleId)),
+                  () => db.from('household_members').insert(initialMembers.map(omitMemberProfileFields)),
+                  () => db.from('household_members').insert(initialMembers.map(omitUnsupportedMemberColumns))
                 );
               }
 
@@ -524,9 +531,11 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           const db = supabase;
           trackSupabaseWrite(
             'Restore household members',
-            retryMemberWriteWithoutRoleId(
+            retryMemberWriteWithSchemaFallbacks(
               () => db.from('household_members').upsert(parsed.members),
-              () => db.from('household_members').upsert(parsed.members.map(omitMemberRoleId))
+              () => db.from('household_members').upsert(parsed.members.map(omitMemberRoleId)),
+              () => db.from('household_members').upsert(parsed.members.map(omitMemberProfileFields)),
+              () => db.from('household_members').upsert(parsed.members.map(omitUnsupportedMemberColumns))
             )
           );
         }
@@ -1337,15 +1346,17 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return db
       ? trackSupabaseWrite(
         'Create member',
-        retryMemberWriteWithoutRoleId(
+        retryMemberWriteWithSchemaFallbacks(
           () => db.from('household_members').insert([newMember]),
-          () => db.from('household_members').insert([omitMemberRoleId(newMember)])
+          () => db.from('household_members').insert([omitMemberRoleId(newMember)]),
+          () => db.from('household_members').insert([omitMemberProfileFields(newMember)]),
+          () => db.from('household_members').insert([omitUnsupportedMemberColumns(newMember)])
         )
       )
       : localSaveResult();
   };
 
-  const updateMember = (id: string, updates: { display_name?: string; role?: HouseholdRole; role_id?: string | null; email?: string }) => {
+  const updateMember = (id: string, updates: { display_name?: string; role?: HouseholdRole; role_id?: string | null; first_name?: string | null; last_name?: string | null; date_of_birth?: string | null; email?: string }) => {
     const isSelfProfileUpdate = currentMember.id === id && !('role' in updates) && !('role_id' in updates);
     if (!isSelfProfileUpdate && !hasPermission('manage_members')) {
       return { success: false, error: 'Your role cannot edit household members.' };
@@ -1374,9 +1385,11 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return db
       ? trackSupabaseWrite(
         'Update member',
-        retryMemberWriteWithoutRoleId(
+        retryMemberWriteWithSchemaFallbacks(
           () => db.from('household_members').update(updates).eq('id', id),
-          () => db.from('household_members').update(omitMemberRoleId(updates)).eq('id', id)
+          () => db.from('household_members').update(omitMemberRoleId(updates)).eq('id', id),
+          () => db.from('household_members').update(omitMemberProfileFields(updates)).eq('id', id),
+          () => db.from('household_members').update(omitUnsupportedMemberColumns(updates)).eq('id', id)
         )
       )
       : localSaveResult();

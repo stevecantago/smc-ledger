@@ -2,8 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   getHouseholdMemberSelectColumns,
   isMissingCustomRoleSchemaError,
+  isMissingMemberProfileColumnError,
   isMissingMemberRoleIdColumnError,
+  omitMemberProfileFields,
   omitMemberRoleId,
+  omitUnsupportedMemberColumns,
+  retryMemberWriteWithSchemaFallbacks,
   retryMemberWriteWithoutRoleId,
 } from './memberRoleSync';
 
@@ -19,6 +23,13 @@ describe('member role Supabase compatibility', () => {
     expect(isMissingCustomRoleSchemaError({
       code: '42P01',
       message: 'relation "public.role_permissions" does not exist',
+    })).toBe(true);
+  });
+
+  it('recognizes missing profile columns as a schema drift condition', () => {
+    expect(isMissingMemberProfileColumnError({
+      code: 'PGRST204',
+      message: "Could not find the 'first_name' column of 'household_members' in the schema cache",
     })).toBe(true);
   });
 
@@ -47,6 +58,35 @@ describe('member role Supabase compatibility', () => {
     });
   });
 
+  it('removes profile fields from member writes while keeping display name and email', () => {
+    expect(omitMemberProfileFields({
+      id: 'member-new',
+      first_name: 'Teen',
+      last_name: 'Member',
+      date_of_birth: '2010-01-31',
+      display_name: 'Teen Member',
+      email: 'teen@example.com',
+    })).toEqual({
+      id: 'member-new',
+      display_name: 'Teen Member',
+      email: 'teen@example.com',
+    });
+  });
+
+  it('removes all optional member columns that older schemas may not have', () => {
+    expect(omitUnsupportedMemberColumns({
+      id: 'member-new',
+      role_id: 'role-teen-dependent',
+      first_name: 'Teen',
+      last_name: 'Member',
+      date_of_birth: '2010-01-31',
+      display_name: 'Teen Member',
+    })).toEqual({
+      id: 'member-new',
+      display_name: 'Teen Member',
+    });
+  });
+
   it('retries member writes without role_id when Supabase reports the column is missing', async () => {
     const calls: string[] = [];
 
@@ -68,6 +108,38 @@ describe('member role Supabase compatibility', () => {
     );
 
     expect(calls).toEqual(['with-role-id', 'without-role-id']);
+    expect(result).toEqual({ data: { id: 'member-new' }, error: null });
+  });
+
+  it('retries member writes without profile fields when Supabase reports those columns are missing', async () => {
+    const calls: string[] = [];
+
+    const result = await retryMemberWriteWithSchemaFallbacks(
+      async () => {
+        calls.push('full');
+        return {
+          data: null,
+          error: { code: 'PGRST204', message: "Could not find the 'date_of_birth' column of 'household_members' in the schema cache" },
+        };
+      },
+      async () => {
+        calls.push('without-role-id');
+        return { data: null, error: null };
+      },
+      async () => {
+        calls.push('without-profile-fields');
+        return {
+          data: { id: 'member-new' },
+          error: null,
+        };
+      },
+      async () => {
+        calls.push('legacy');
+        return { data: null, error: null };
+      }
+    );
+
+    expect(calls).toEqual(['full', 'without-profile-fields']);
     expect(result).toEqual({ data: { id: 'member-new' }, error: null });
   });
 });

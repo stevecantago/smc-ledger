@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { AlertCircle, CheckCircle2, Lock, Mail, Save, User, X } from 'lucide-react';
+import { AlertCircle, Calendar, CheckCircle2, Lock, Mail, Save, User, X } from 'lucide-react';
 import { useHousehold } from '../context/HouseholdContext';
 import { supabase } from '../lib/supabase';
-import { getPasswordChangeRequest, getProfileUpdateRequest } from '../lib/profileSettings';
+import { getPasswordChangeRequest, getProfileNameFields, getProfileUpdateRequest } from '../lib/profileSettings';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -13,7 +13,14 @@ interface ProfileModalProps {
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) => {
   const { currentMember, updateMember } = useHousehold();
-  const [displayName, setDisplayName] = useState(currentMember.display_name);
+  const initialNameFields = getProfileNameFields({
+    firstName: currentMember.first_name,
+    lastName: currentMember.last_name,
+    displayName: currentMember.display_name,
+  });
+  const [firstName, setFirstName] = useState(initialNameFields.firstName);
+  const [lastName, setLastName] = useState(initialNameFields.lastName);
+  const [dateOfBirth, setDateOfBirth] = useState(currentMember.date_of_birth || '');
   const [email, setEmail] = useState(currentMember.email || '');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -24,13 +31,20 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
 
   useEffect(() => {
     if (!isOpen) return;
-    setDisplayName(currentMember.display_name);
+    const nameFields = getProfileNameFields({
+      firstName: currentMember.first_name,
+      lastName: currentMember.last_name,
+      displayName: currentMember.display_name,
+    });
+    setFirstName(nameFields.firstName);
+    setLastName(nameFields.lastName);
+    setDateOfBirth(currentMember.date_of_birth || '');
     setEmail(currentMember.email || '');
     setCurrentPassword('');
     setNewPassword('');
     setConfirmPassword('');
     setMessage(null);
-  }, [currentMember.display_name, currentMember.email, isOpen]);
+  }, [currentMember.date_of_birth, currentMember.display_name, currentMember.email, currentMember.first_name, currentMember.last_name, isOpen]);
 
   if (!isOpen) return null;
 
@@ -40,7 +54,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
     setProfileLoading(true);
 
     try {
-      const request = getProfileUpdateRequest({ displayName, email });
+      const request = getProfileUpdateRequest({ firstName, lastName, email, dateOfBirth });
       if (!request.success) throw new Error(request.error);
 
       const emailChanged = request.email.toLowerCase() !== (currentMember.email || '').toLowerCase();
@@ -50,6 +64,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
       }
 
       const result = updateMember(currentMember.id, {
+        first_name: request.firstName,
+        last_name: request.lastName,
+        date_of_birth: request.dateOfBirth,
         display_name: request.displayName,
         email: request.email,
       });
@@ -145,29 +162,61 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
         <form onSubmit={handleProfileSubmit} className="space-y-4">
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-300">Display name</label>
-            <div className="relative">
-              <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-              <input
-                type="text"
-                required
-                value={displayName}
-                onChange={event => setDisplayName(event.target.value)}
-                className="w-full rounded-lg border border-slate-700 bg-slate-800 py-2.5 pl-9 pr-3 text-xs font-medium text-white focus:outline-none focus:ring-1 focus:ring-sky-500"
-              />
-            </div>
-          </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-[11px] font-medium text-slate-400">First name</label>
+                <div className="relative">
+                  <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                  <input
+                    type="text"
+                    required
+                    value={firstName}
+                    onChange={event => setFirstName(event.target.value)}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-800 py-2.5 pl-9 pr-3 text-xs font-medium text-white focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  />
+                </div>
+              </div>
 
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-300">Email address</label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={event => setEmail(event.target.value)}
-                className="w-full rounded-lg border border-slate-700 bg-slate-800 py-2.5 pl-9 pr-3 text-xs font-medium text-white focus:outline-none focus:ring-1 focus:ring-sky-500"
-              />
+              <div>
+                <label className="mb-1 block text-[11px] font-medium text-slate-400">Last name</label>
+                <div className="relative">
+                  <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                  <input
+                    type="text"
+                    required
+                    value={lastName}
+                    onChange={event => setLastName(event.target.value)}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-800 py-2.5 pl-9 pr-3 text-xs font-medium text-white focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-[11px] font-medium text-slate-400">Date of birth</label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                  <input
+                    type="date"
+                    value={dateOfBirth}
+                    onChange={event => setDateOfBirth(event.target.value)}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-800 py-2.5 pl-9 pr-3 text-xs font-medium text-white focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-[11px] font-medium text-slate-400">Email address</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={event => setEmail(event.target.value)}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-800 py-2.5 pl-9 pr-3 text-xs font-medium text-white focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
