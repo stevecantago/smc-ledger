@@ -2,9 +2,10 @@
 
 import React, { useMemo, useState } from 'react';
 import { useHousehold } from '../context/HouseholdContext';
-import { ArrowRightLeft, Calendar, Clock, Edit2, Landmark, Plus, Power, Trash2 } from 'lucide-react';
+import { ArrowRightLeft, Calendar, Clock, CreditCard, Edit2, Landmark, Plus, Power, Trash2 } from 'lucide-react';
 import { RecurringFrequency, RecurringRuleType, RecurringTransfer } from '../types/database';
 import { CategoryIcon } from './CategoryIcon';
+import { buildCreditCardPaymentSchedules, filterCreditCardPaymentSchedules } from '../lib/creditCardPaymentSchedules';
 
 const ruleTypeLabels: Record<RecurringRuleType, string> = {
   expense: 'Recurring Bill',
@@ -12,7 +13,13 @@ const ruleTypeLabels: Record<RecurringRuleType, string> = {
   loan_payment: 'Loan Repayment',
 };
 
-export const SchedulesView: React.FC = () => {
+interface SchedulesViewProps {
+  onPayCreditCard: (walletId: string, amount: number, walletName: string) => void;
+}
+
+type ScheduleTypeFilter = 'all' | RecurringRuleType | 'credit_card_payment';
+
+export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard }) => {
   const {
     wallets,
     categories,
@@ -30,7 +37,7 @@ export const SchedulesView: React.FC = () => {
   const visibleWallets = wallets.filter(w => isAdmin || w.is_shared || w.owner_id === currentMember.id);
   const canManageSchedules = hasPermission('manage_schedules');
 
-  const [typeFilter, setTypeFilter] = useState<'all' | RecurringRuleType>('all');
+  const [typeFilter, setTypeFilter] = useState<ScheduleTypeFilter>('all');
   const [walletFilter, setWalletFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'paused'>('all');
   const [fromDate, setFromDate] = useState('');
@@ -51,6 +58,7 @@ export const SchedulesView: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState('');
 
   const filteredSchedules = useMemo(() => recurringTransfers.filter(rule => {
+    if (typeFilter === 'credit_card_payment') return false;
     if (typeFilter !== 'all' && rule.rule_type !== typeFilter) return false;
     if (walletFilter !== 'all' && rule.source_wallet_id !== walletFilter && rule.destination_wallet_id !== walletFilter) return false;
     if (statusFilter === 'active' && !rule.is_active) return false;
@@ -59,6 +67,14 @@ export const SchedulesView: React.FC = () => {
     if (toDate && rule.next_run_date > toDate) return false;
     return true;
   }), [fromDate, recurringTransfers, statusFilter, toDate, typeFilter, walletFilter]);
+
+  const creditCardPayments = buildCreditCardPaymentSchedules(visibleWallets);
+  const filteredCreditCardPayments = filterCreditCardPaymentSchedules(creditCardPayments, {
+    walletId: walletFilter,
+    fromDate,
+    toDate,
+  }).filter(() => typeFilter === 'all' || typeFilter === 'credit_card_payment')
+    .filter(() => statusFilter !== 'paused');
 
   const resetForm = () => {
     setEditingRule(null);
@@ -186,6 +202,7 @@ export const SchedulesView: React.FC = () => {
           <option value="expense">Recurring Bills</option>
           <option value="transfer">Transfers</option>
           <option value="loan_payment">Loan Repayments</option>
+          <option value="credit_card_payment">Credit Card Payments</option>
         </select>
         <select value={walletFilter} onChange={event => setWalletFilter(event.target.value)} className="rounded-lg border border-slate-700 bg-slate-900 p-2.5 text-xs text-white">
           <option value="all">All Wallets</option>
@@ -200,8 +217,49 @@ export const SchedulesView: React.FC = () => {
         <input type="date" value={toDate} onChange={event => setToDate(event.target.value)} className="rounded-lg border border-slate-700 bg-slate-900 p-2.5 text-xs text-white" />
       </div>
 
+      {filteredCreditCardPayments.length > 0 && (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {filteredCreditCardPayments.map(payment => (
+            <div key={payment.id} className="rounded-xl border border-purple-500/40 bg-purple-500/5 p-4 shadow-lg">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start space-x-3">
+                  <div className="rounded-lg border border-purple-500/30 bg-slate-900 p-2.5">
+                    <CreditCard className="h-5 w-5 text-purple-300" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white">{payment.walletName} payment</h3>
+                    <p className="mt-1 text-xs text-slate-400">Full current used balance</p>
+                    <p className="mt-1 text-[11px] font-semibold text-purple-300">Automatic card payment schedule</p>
+                  </div>
+                </div>
+                <span className="shrink-0 rounded border border-purple-500/30 bg-purple-500/10 px-2 py-0.5 text-[10px] font-bold text-purple-300">
+                  PAYMENT DUE
+                </span>
+              </div>
+
+              <div className="mt-4 flex items-end justify-between gap-3 border-t border-slate-700/70 pt-3 text-xs">
+                <div>
+                  <p className="font-mono font-bold text-rose-400">₱{payment.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                  <p className="mt-1 flex items-center text-[11px] text-amber-300">
+                    <Calendar className="mr-1 h-3.5 w-3.5" />
+                    Due: {payment.dueDate} · Next 5th or 20th
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onPayCreditCard(payment.walletId, payment.amount, payment.walletName)}
+                  className="rounded-lg border border-purple-500/30 bg-purple-600 px-3 py-2 text-[11px] font-bold text-white transition-colors hover:bg-purple-500"
+                >
+                  Pay Balance
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {filteredSchedules.length === 0 ? (
+        {filteredSchedules.length === 0 && filteredCreditCardPayments.length === 0 ? (
           <div className="rounded-xl border border-slate-700/70 bg-slate-800/80 p-5 text-sm text-slate-400 md:col-span-2">
             No schedules match the current filters.
           </div>

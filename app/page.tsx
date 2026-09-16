@@ -20,7 +20,14 @@ export default function Home() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [showAddTxModal, setShowAddTxModal] = useState<boolean>(false);
-  const [transactionDraft, setTransactionDraft] = useState<{ type?: TransactionType; walletId?: string } | null>(null);
+  const [transactionDraft, setTransactionDraft] = useState<{
+    type?: TransactionType;
+    walletId?: string;
+    destinationWalletId?: string;
+    amount?: number;
+    note?: string;
+    requireSourceSelection?: boolean;
+  } | null>(null);
   const [isSessionReady, setIsSessionReady] = useState(false);
 
   React.useEffect(() => {
@@ -68,6 +75,19 @@ export default function Home() {
     setShowAddTxModal(true);
   };
 
+  const handlePayCreditCard = (walletId: string, amount: number, walletName: string) => {
+    setTransactionDraft({
+      type: 'transfer',
+      walletId: '',
+      destinationWalletId: walletId,
+      amount,
+      note: `Credit card payment - ${walletName}`,
+      requireSourceSelection: true,
+    });
+    setActiveTab('transactions');
+    setShowAddTxModal(true);
+  };
+
   if (!isSessionReady) {
     return (
       <div className="min-h-screen bg-slate-900 text-slate-100 flex items-center justify-center p-6">
@@ -92,6 +112,7 @@ export default function Home() {
           <DashboardView 
             setActiveTab={setActiveTab} 
             onOpenAddTxModal={handleOpenAddTxModal} 
+            onPayCreditCard={handlePayCreditCard}
           />
         )}
         {activeTab === 'wallets' && <WalletsView onLogCardExpense={handleLogCardExpense} />}
@@ -104,7 +125,7 @@ export default function Home() {
         )}
         {activeTab === 'budgets' && <BudgetsView />}
         {activeTab === 'loans' && <LoansView />}
-        {activeTab === 'schedules' && <SchedulesView />}
+        {activeTab === 'schedules' && <SchedulesView onPayCreditCard={handlePayCreditCard} />}
         {activeTab === 'goals' && <SavingsGoalsView />}
         {activeTab === 'members' && <MembersView />}
         {activeTab === 'activity' && <ActivityLogView />}

@@ -17,6 +17,10 @@ interface TransactionsViewProps {
   draft?: {
     type?: TransactionType;
     walletId?: string;
+    destinationWalletId?: string;
+    amount?: number;
+    note?: string;
+    requireSourceSelection?: boolean;
   } | null;
 }
 
@@ -56,7 +60,14 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
   useEffect(() => {
     if (!showModal || !draft) return;
     if (draft.type) setTxType(draft.type);
-    if (draft.walletId) setWalletId(draft.walletId);
+    if (draft.requireSourceSelection) {
+      setWalletId('');
+    } else if (draft.walletId) {
+      setWalletId(draft.walletId);
+    }
+    if (draft.destinationWalletId) setDestWalletId(draft.destinationWalletId);
+    if (draft.amount !== undefined) setAmount(draft.amount.toString());
+    if (draft.note !== undefined) setNote(draft.note);
     setSelectedRecurringId('');
     setSelectedLoanId('');
     setShowCustomNote(false);
@@ -814,8 +825,10 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                 <select
                   value={walletId}
                   onChange={(e) => setWalletId(e.target.value)}
+                  required
                   className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
                 >
+                  <option value="">-- Select Funding Account --</option>
                   {visibleWallets.map(w => (
                     <option key={w.id} value={w.id}>
                       {formatWalletOption(w)}

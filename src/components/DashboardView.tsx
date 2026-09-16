@@ -20,6 +20,7 @@ import {
   getDashboardSummaryWallets,
 } from '../lib/dashboardGroups';
 import { getDisplayFirstName, getHouseholdDisplayName } from '../lib/householdNaming';
+import { buildCreditCardPaymentSchedules } from '../lib/creditCardPaymentSchedules';
 
 const DASHBOARD_SCHEDULE_FILTER_KEY = 'smc_dashboard_schedule_filter';
 
@@ -41,9 +42,10 @@ function getSavedScheduleFilter(): LedgerCycleRange | null {
 interface DashboardViewProps {
   setActiveTab: (tab: string) => void;
   onOpenAddTxModal: () => void;
+  onPayCreditCard: (walletId: string, amount: number, walletName: string) => void;
 }
 
-export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOpenAddTxModal }) => {
+export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOpenAddTxModal, onPayCreditCard }) => {
   const {
     currentMember, members, wallets, categories, transactions,
     loans, recurringTransfers, isAdmin
@@ -68,6 +70,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
 
   const visibleWallets = wallets.filter(w => isAdmin || w.is_shared || w.owner_id === currentMember.id);
   const dashboardSummaryWallets = getDashboardSummaryWallets(visibleWallets);
+  const creditCardPayments = buildCreditCardPaymentSchedules(visibleWallets);
 
   // Asset & Net Worth Math
   const liquidAssets = visibleWallets
@@ -496,6 +499,38 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
             </button>
           </div>
         </div>
+
+        {creditCardPayments.length > 0 && (
+          <div className="rounded-xl border border-purple-500/30 bg-purple-500/5 p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <h4 className="text-sm font-bold text-white">Upcoming Credit Card Payments</h4>
+                <p className="mt-0.5 text-[11px] text-slate-400">Full used balances due on the next 5th or 20th.</p>
+              </div>
+              <CreditCard className="h-5 w-5 text-purple-300" />
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              {creditCardPayments.map(payment => (
+                <div key={payment.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-700/70 bg-slate-900/70 p-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-semibold text-white">{payment.walletName}</p>
+                    <p className="mt-1 text-[11px] text-amber-300">
+                      Due {payment.dueDate} · <span className="font-mono font-bold text-rose-400">₱{payment.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onPayCreditCard(payment.walletId, payment.amount, payment.walletName)}
+                    className="shrink-0 rounded-lg bg-purple-600 px-3 py-2 text-[11px] font-bold text-white hover:bg-purple-500"
+                  >
+                    Pay Balance
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Overall Filter Summary Banner */}
         <div className="bg-slate-900/70 border border-slate-700/60 p-4 rounded-xl text-xs space-y-4">
