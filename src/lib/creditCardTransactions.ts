@@ -73,6 +73,24 @@ export function applyTransactionBalanceChange(wallets: Wallet[], input: Transact
   const totalAmount = input.amount + feeAmount;
   let nextWallets = cloneWallets(normalizedWallets);
 
+  if (input.type === 'loan' && input.destination_wallet_id) {
+    const destinationWallet = findWallet(normalizedWallets, input.destination_wallet_id);
+    if (!destinationWallet) return fail('Destination wallet not found', wallets);
+    if (destinationWallet.wallet_type !== 'credit_card') {
+      return fail('Credit card payment destination must be a credit card or credit line.', wallets);
+    }
+    if (sourceWallet.wallet_type === 'credit_card') {
+      return fail('Credit card payments require a non-credit funding account.', wallets);
+    }
+
+    const destinationCreditError = assertCreditPaymentAllowed(destinationWallet, input.amount);
+    if (destinationCreditError) return fail(destinationCreditError, wallets);
+
+    nextWallets = updateWalletBalance(nextWallets, sourceWallet.id, sourceWallet.current_balance - totalAmount);
+    nextWallets = updateWalletBalance(nextWallets, destinationWallet.id, destinationWallet.current_balance - input.amount);
+    return ok(nextWallets, [sourceWallet.id, destinationWallet.id]);
+  }
+
   if (input.type === 'expense' || input.type === 'loan') {
     const creditError = assertCreditChargeAllowed(sourceWallet, totalAmount);
     if (creditError) return fail(creditError, wallets);
@@ -127,6 +145,15 @@ export function reverseTransactionBalanceChange(wallets: Wallet[], input: Transa
   const feeAmount = input.fee || 0;
   const totalAmount = input.amount + feeAmount;
   let nextWallets = cloneWallets(normalizedWallets);
+
+  if (input.type === 'loan' && input.destination_wallet_id) {
+    const destinationWallet = findWallet(normalizedWallets, input.destination_wallet_id);
+    if (!destinationWallet) return fail('Destination wallet not found', wallets);
+
+    nextWallets = updateWalletBalance(nextWallets, sourceWallet.id, sourceWallet.current_balance + totalAmount);
+    nextWallets = updateWalletBalance(nextWallets, destinationWallet.id, destinationWallet.current_balance + input.amount);
+    return ok(nextWallets, [sourceWallet.id, destinationWallet.id]);
+  }
 
   if (input.type === 'expense' || input.type === 'loan') {
     const nextBalance = sourceWallet.wallet_type === 'credit_card'

@@ -130,4 +130,51 @@ describe('credit card transaction balance rules', () => {
     expect(result.success).toBe(true);
     expect(result.wallets.find(w => w.id === card.id)?.current_balance).toBe(250);
   });
+
+  it('records a credit card payment as a loan transaction against both accounts', () => {
+    const result = applyTransactionBalanceChange([bank, card], {
+      wallet_id: bank.id,
+      destination_wallet_id: card.id,
+      type: 'loan',
+      amount: 400,
+      fee: 15,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.wallets.find(w => w.id === bank.id)?.current_balance).toBe(49585);
+    expect(result.wallets.find(w => w.id === card.id)?.current_balance).toBe(600);
+  });
+
+  it('restores both accounts when deleting a credit card loan payment', () => {
+    const result = reverseTransactionBalanceChange([
+      { ...bank, current_balance: 49585 },
+      { ...card, current_balance: 600 },
+    ], {
+      wallet_id: bank.id,
+      destination_wallet_id: card.id,
+      type: 'loan',
+      amount: 400,
+      fee: 15,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.wallets.find(w => w.id === bank.id)?.current_balance).toBe(50000);
+    expect(result.wallets.find(w => w.id === card.id)?.current_balance).toBe(1000);
+  });
+
+  it('rejects using another credit card to fund a credit card loan payment', () => {
+    const fundingCard = { ...card, id: 'wallet-funding-card', current_balance: 250 };
+    const result = applyTransactionBalanceChange([fundingCard, card], {
+      wallet_id: fundingCard.id,
+      destination_wallet_id: card.id,
+      type: 'loan',
+      amount: 100,
+      fee: 0,
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toBe('Credit card payments require a non-credit funding account.');
+    }
+  });
 });

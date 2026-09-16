@@ -27,6 +27,7 @@ export default function Home() {
     amount?: number;
     note?: string;
     requireSourceSelection?: boolean;
+    creditCardPayment?: boolean;
   } | null>(null);
   const [isSessionReady, setIsSessionReady] = useState(false);
 
@@ -77,12 +78,13 @@ export default function Home() {
 
   const handlePayCreditCard = (walletId: string, amount: number, walletName: string) => {
     setTransactionDraft({
-      type: 'transfer',
+      type: 'loan',
       walletId: '',
       destinationWalletId: walletId,
       amount,
       note: `Credit card payment - ${walletName}`,
       requireSourceSelection: true,
+      creditCardPayment: true,
     });
     setActiveTab('transactions');
     setShowAddTxModal(true);

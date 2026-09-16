@@ -21,6 +21,7 @@ interface TransactionsViewProps {
     amount?: number;
     note?: string;
     requireSourceSelection?: boolean;
+    creditCardPayment?: boolean;
   } | null;
 }
 
@@ -42,6 +43,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
   const [selectedRecurringId, setSelectedRecurringId] = useState('');
   const [selectedLoanId, setSelectedLoanId] = useState('');
   const [showCustomNote, setShowCustomNote] = useState(false);
+  const [isCreditCardPayment, setIsCreditCardPayment] = useState(false);
   const [amount, setAmount] = useState('');
   const [fee, setFee] = useState('');
   const [walletId, setWalletId] = useState(wallets[0]?.id || '');
@@ -68,6 +70,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
     if (draft.destinationWalletId) setDestWalletId(draft.destinationWalletId);
     if (draft.amount !== undefined) setAmount(draft.amount.toString());
     if (draft.note !== undefined) setNote(draft.note);
+    setIsCreditCardPayment(Boolean(draft.creditCardPayment));
     setSelectedRecurringId('');
     setSelectedLoanId('');
     setShowCustomNote(false);
@@ -130,6 +133,9 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
+    const isCardLoanPayment = txType === 'loan'
+      && isCreditCardPayment
+      && selectedDestinationWallet?.wallet_type === 'credit_card';
 
     const parsedAmount = parseFloat(amount);
     if (!parsedAmount || parsedAmount <= 0) {
@@ -142,8 +148,15 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
       return;
     }
 
-    if (txType === 'transfer' && !destWalletId) {
-      setErrorMsg('Please select a destination wallet for transfer.');
+    if ((txType === 'transfer' || isCreditCardPayment) && !destWalletId) {
+      setErrorMsg(isCreditCardPayment
+        ? 'Please select the credit card or credit line being paid.'
+        : 'Please select a destination wallet for transfer.');
+      return;
+    }
+
+    if (isCreditCardPayment && selectedDestinationWallet?.wallet_type !== 'credit_card') {
+      setErrorMsg('Please select a credit card or credit line for this loan payment.');
       return;
     }
 
@@ -152,7 +165,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
       return;
     }
 
-    if (txType === 'loan' && !selectedLoanId) {
+    if (txType === 'loan' && !selectedLoanId && !isCardLoanPayment) {
       setErrorMsg('Please select an Associated Loan Item for the loan payment.');
       return;
     }
@@ -176,13 +189,13 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
     } else {
       const res = addTransaction({
         wallet_id: walletId,
-        destination_wallet_id: txType === 'transfer' ? destWalletId : null,
+        destination_wallet_id: txType === 'transfer' || isCardLoanPayment ? destWalletId : null,
         category_id: txType === 'expense' ? (categoryId || null) : null,
         type: txType,
         amount: parsedAmount,
         fee: parsedFee,
         transaction_date: txDate,
-        note: note.trim() || (txType === 'expense' ? 'Expense' : txType === 'transfer' ? 'Transfer' : 'Income'),
+        note: note.trim() || (txType === 'expense' ? 'Expense' : txType === 'transfer' ? 'Transfer' : txType === 'loan' ? 'Loan Payment' : 'Income'),
         receipt_url: receiptUrl.trim() || undefined,
       });
 
@@ -209,6 +222,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
     setSelectedRecurringId('');
     setSelectedLoanId('');
     setShowCustomNote(false);
+    setIsCreditCardPayment(false);
     setReceiptUrl('');
     setReceiptFileName('');
     setShowModal(false);
@@ -252,6 +266,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
               setSelectedRecurringId('');
               setSelectedLoanId('');
               setShowCustomNote(false);
+              setIsCreditCardPayment(false);
               setShowModal(true);
             }}
             className="flex items-center space-x-1.5 bg-sky-600 hover:bg-sky-500 text-white px-3.5 py-2 rounded-lg font-medium text-xs transition-all shadow shrink-0"
@@ -392,7 +407,11 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                         ) : tx.type === 'transfer' ? (
                           <span className="text-indigo-300 font-medium">➔ {dstWallet?.name || 'Destination'}</span>
                         ) : tx.type === 'loan' ? (
-                          <span className="text-amber-300 font-medium">Loan Amortization</span>
+                          <span className="text-amber-300 font-medium">
+                            {dstWallet?.wallet_type === 'credit_card'
+                              ? `Credit Card / Credit Line → ${dstWallet.name}`
+                              : 'Loan Amortization'}
+                          </span>
                         ) : (
                           <span className="text-slate-500">—</span>
                         )}
@@ -537,7 +556,12 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                     )}
                     {tx.type === 'loan' && (
                       <div className="text-slate-400">
-                        Type: <strong className="text-amber-300">Loan Amortization Payment</strong>
+                        Type: <strong className="text-amber-300">
+                          {dstWallet?.wallet_type === 'credit_card' ? 'Credit Card / Credit Line Payment' : 'Loan Amortization Payment'}
+                        </strong>
+                        {dstWallet?.wallet_type === 'credit_card' && (
+                          <span> · <strong className="text-purple-300">{dstWallet.name}</strong></span>
+                        )}
                       </div>
                     )}
                   </div>
@@ -599,6 +623,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                       setSelectedRecurringId('');
                       setSelectedLoanId('');
                       setShowCustomNote(false);
+                      setIsCreditCardPayment(false);
                     }}
                     className={`py-2 rounded-lg text-xs font-bold border transition-all ${
                       txType === 'expense'
@@ -615,6 +640,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                       setSelectedRecurringId('');
                       setSelectedLoanId('');
                       setShowCustomNote(false);
+                      setIsCreditCardPayment(false);
                     }}
                     className={`py-2 rounded-lg text-xs font-bold border transition-all ${
                       txType === 'income'
@@ -631,6 +657,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                       setSelectedRecurringId('');
                       setSelectedLoanId('');
                       setShowCustomNote(false);
+                      setIsCreditCardPayment(false);
                     }}
                     className={`py-2 rounded-lg text-xs font-bold border transition-all ${
                       txType === 'transfer'
@@ -647,6 +674,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                       setSelectedRecurringId('');
                       setSelectedLoanId(loans[0]?.id || '');
                       setShowCustomNote(false);
+                      setIsCreditCardPayment(false);
                     }}
                     className={`py-2 rounded-lg text-xs font-bold border transition-all ${
                       txType === 'loan'
@@ -658,6 +686,13 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                   </button>
                 </div>
               </div>
+
+              {isCreditCardPayment && (
+                <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+                  <p className="font-bold">Credit Card / Credit Line Payment</p>
+                  <p className="mt-1 text-[11px] text-slate-300">Recorded as a loan transaction. Choose the non-credit account that will fund this payment.</p>
+                </div>
+              )}
 
               {/* Conditional Dropdown PLACED ABOVE Amount & Fee Fields */}
               {txType === 'expense' && (
@@ -735,7 +770,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                 </div>
               )}
 
-              {txType === 'loan' && (
+              {txType === 'loan' && !isCreditCardPayment && (
                 <div>
                   <label className="block text-xs font-medium text-slate-300 mb-1">Loan Payments</label>
                   <select
@@ -820,7 +855,11 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
               {/* Source Wallet */}
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">
-                  {selectedWallet?.wallet_type === 'credit_card' && txType === 'expense' ? 'Credit Card to Charge' : 'Source Wallet Account'}
+                  {isCreditCardPayment
+                    ? 'Funding Account'
+                    : selectedWallet?.wallet_type === 'credit_card' && txType === 'expense'
+                      ? 'Credit Card to Charge'
+                      : 'Source Wallet Account'}
                 </label>
                 <select
                   value={walletId}
@@ -829,7 +868,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                   className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
                 >
                   <option value="">-- Select Funding Account --</option>
-                  {visibleWallets.map(w => (
+                  {visibleWallets.filter(w => !isCreditCardPayment || w.wallet_type !== 'credit_card').map(w => (
                     <option key={w.id} value={w.id}>
                       {formatWalletOption(w)}
                     </option>
@@ -859,17 +898,19 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                 </div>
               )}
 
-              {/* Destination Wallet for Transfer */}
-              {txType === 'transfer' && (
+              {/* Destination Wallet for Transfer or Credit Card Payment */}
+              {(txType === 'transfer' || isCreditCardPayment) && (
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Destination Wallet Account</label>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">
+                    {isCreditCardPayment ? 'Credit Card / Credit Line' : 'Destination Wallet Account'}
+                  </label>
                   <select
                     value={destWalletId}
                     onChange={(e) => setDestWalletId(e.target.value)}
                     className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
                   >
                     <option value="">-- Select Destination Account --</option>
-                    {visibleWallets.map(w => (
+                    {visibleWallets.filter(w => !isCreditCardPayment || w.wallet_type === 'credit_card').map(w => (
                       <option key={w.id} value={w.id}>
                         {formatWalletOption(w)}
                       </option>
@@ -877,14 +918,14 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                   </select>
                   {selectedDestinationWallet?.wallet_type === 'credit_card' && (
                     <p className="mt-1 text-[11px] text-purple-300">
-                      This transfer will pay down the selected credit card used balance.
+                      This loan payment will reduce the selected credit card used balance.
                     </p>
                   )}
                 </div>
               )}
 
               {/* Associated Loan Item for Loan Payment */}
-              {txType === 'loan' && (
+              {txType === 'loan' && !isCreditCardPayment && (
                 <div>
                   <label className="block text-xs font-medium text-slate-300 mb-1">Associated Loan Item</label>
                   <select
