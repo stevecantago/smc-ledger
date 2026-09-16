@@ -3,6 +3,7 @@ import {
   applyTransactionBalanceChange,
   getCreditCardAvailableCredit,
   getCreditCardUsedBalance,
+  getRequiredCreditCardFunding,
   reverseTransactionBalanceChange,
 } from './creditCardTransactions';
 import { Wallet } from '../types/database';
@@ -32,6 +33,93 @@ const card: Wallet = {
 };
 
 describe('credit card transaction balance rules', () => {
+  it('requires Steve\'s Maya Wallet for Maya Credit - Steve', () => {
+    const mayaWallet: Wallet = {
+      ...bank,
+      id: 'wallet-maya-steve',
+      name: 'Maya Wallet - Steve',
+      owner_id: 'member-steve',
+    };
+    const anotherMayaWallet: Wallet = {
+      ...mayaWallet,
+      id: 'wallet-maya-other',
+      owner_id: 'member-other',
+    };
+    const mayaCredit: Wallet = {
+      ...card,
+      id: 'wallet-maya-credit',
+      name: 'Maya Credit - Steve',
+      owner_id: 'member-steve',
+    };
+    expect(getRequiredCreditCardFunding(mayaCredit, [anotherMayaWallet, mayaWallet, mayaCredit])).toEqual({
+      locked: true,
+      walletId: 'wallet-maya-steve',
+    });
+  });
+
+  it('requires Steve\'s Maya Wallet for Maya Black - Steve', () => {
+    const mayaWallet: Wallet = {
+      ...bank,
+      id: 'wallet-maya-steve',
+      name: 'Maya Wallet - Steve',
+      owner_id: 'member-steve',
+    };
+    const mayaBlack: Wallet = {
+      ...card,
+      id: 'wallet-maya-black',
+      name: 'Maya Black - Steve',
+      owner_id: 'member-steve',
+    };
+
+    expect(getRequiredCreditCardFunding(mayaBlack, [mayaWallet, mayaBlack])).toEqual({
+      locked: true,
+      walletId: 'wallet-maya-steve',
+    });
+  });
+
+  it.each(['Maya Credit', 'Maya Black Card'])(
+    'requires the owner-matched Maya Wallet for the default %s account',
+    (cardName) => {
+      const mayaWallet: Wallet = {
+        ...bank,
+        id: 'wallet-maya-default',
+        name: 'Maya Wallet',
+        owner_id: 'member-steve',
+      };
+      const mayaCard: Wallet = {
+        ...card,
+        id: 'wallet-maya-card',
+        name: cardName,
+        owner_id: 'member-steve',
+      };
+
+      expect(getRequiredCreditCardFunding(mayaCard, [mayaWallet, mayaCard])).toEqual({
+        locked: true,
+        walletId: 'wallet-maya-default',
+      });
+    },
+  );
+
+  it('keeps the funding account editable for other credit cards', () => {
+    expect(getRequiredCreditCardFunding(card, [bank, card])).toEqual({
+      locked: false,
+      walletId: null,
+    });
+  });
+
+  it('locks a configured Maya card even when its required wallet is missing', () => {
+    const mayaCredit = {
+      ...card,
+      name: 'Maya Credit - Steve',
+      owner_id: 'member-steve',
+    };
+
+    expect(getRequiredCreditCardFunding(mayaCredit, [mayaCredit])).toEqual({
+      locked: true,
+      walletId: null,
+    });
+  });
+
   it('increases used balance when logging an expense to a credit card', () => {
     const result = applyTransactionBalanceChange([bank, card], {
       wallet_id: card.id,

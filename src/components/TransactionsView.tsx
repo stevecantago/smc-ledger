@@ -9,7 +9,11 @@ import {
 import { Transaction, TransactionType } from '../types/database';
 import { exportTransactionsToCsv } from '../lib/exportCsv';
 import { getTransactionSubmissionAction } from '../lib/transactionFlow';
-import { getCreditCardAvailableCredit, getCreditCardUsedBalance } from '../lib/creditCardTransactions';
+import {
+  getCreditCardAvailableCredit,
+  getCreditCardUsedBalance,
+  getRequiredCreditCardFunding,
+} from '../lib/creditCardTransactions';
 
 interface TransactionsViewProps {
   showModal: boolean;
@@ -58,6 +62,9 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
   const visibleWallets = wallets.filter(w => isAdmin || w.is_shared || w.owner_id === currentMember.id);
   const selectedWallet = wallets.find(w => w.id === walletId);
   const selectedDestinationWallet = wallets.find(w => w.id === destWalletId);
+  const requiredCardFunding = getRequiredCreditCardFunding(selectedDestinationWallet, visibleWallets);
+  const isFundingAccountLocked = isCreditCardPayment && requiredCardFunding.locked;
+  const requiredFundingWalletId = isFundingAccountLocked ? requiredCardFunding.walletId : null;
 
   useEffect(() => {
     if (!showModal || !draft) return;
@@ -76,6 +83,11 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
     setShowCustomNote(false);
     setErrorMsg('');
   }, [draft, showModal]);
+
+  useEffect(() => {
+    if (!showModal || !isFundingAccountLocked) return;
+    setWalletId(requiredFundingWalletId || '');
+  }, [isFundingAccountLocked, requiredFundingWalletId, showModal]);
 
   const formatWalletOption = (wallet: typeof wallets[number]) => {
     if (wallet.wallet_type !== 'credit_card') {
@@ -140,6 +152,16 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
     const parsedAmount = parseFloat(amount);
     if (!parsedAmount || parsedAmount <= 0) {
       setErrorMsg('Please enter a valid amount greater than 0.');
+      return;
+    }
+
+    if (isFundingAccountLocked && !requiredFundingWalletId) {
+      setErrorMsg('The required funding account "Maya Wallet - Steve" was not found for this card.');
+      return;
+    }
+
+    if (isFundingAccountLocked && walletId !== requiredFundingWalletId) {
+      setErrorMsg('Maya Credit and Maya Black payments must use "Maya Wallet - Steve".');
       return;
     }
 
@@ -865,9 +887,14 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                   value={walletId}
                   onChange={(e) => setWalletId(e.target.value)}
                   required
-                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  disabled={isFundingAccountLocked}
+                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  <option value="">-- Select Funding Account --</option>
+                  <option value="">
+                    {isFundingAccountLocked
+                      ? '-- Required Maya Wallet - Steve not found --'
+                      : '-- Select Funding Account --'}
+                  </option>
                   {visibleWallets.filter(w => !isCreditCardPayment || w.wallet_type !== 'credit_card').map(w => (
                     <option key={w.id} value={w.id}>
                       {formatWalletOption(w)}
@@ -877,6 +904,16 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                 {selectedWallet?.wallet_type === 'credit_card' && (
                   <p className="mt-1 text-[11px] text-purple-300">
                     Card expenses increase used balance. Transfers into this card reduce used balance.
+                  </p>
+                )}
+                {isFundingAccountLocked && requiredFundingWalletId && (
+                  <p className="mt-1 text-[11px] text-sky-300">
+                    Required funding account for Maya Credit and Maya Black payments.
+                  </p>
+                )}
+                {isFundingAccountLocked && !requiredFundingWalletId && (
+                  <p className="mt-1 text-[11px] text-red-300">
+                    Required account &quot;Maya Wallet - Steve&quot; was not found.
                   </p>
                 )}
               </div>

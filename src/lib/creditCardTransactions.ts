@@ -20,6 +20,28 @@ function findWallet(wallets: Wallet[], id: string | null | undefined): Wallet | 
   return id ? wallets.find(wallet => wallet.id === id) : undefined;
 }
 
+function normalizeMayaAccountName(name: string): string {
+  return name.trim().toLowerCase().replace(/\s*-\s*steve$/, '');
+}
+
+export function getRequiredCreditCardFunding(
+  cardWallet: Wallet | undefined,
+  wallets: Wallet[],
+): { locked: boolean; walletId: string | null } {
+  const requiredCardNames = new Set(['maya credit', 'maya black', 'maya black card']);
+  if (!cardWallet || !requiredCardNames.has(normalizeMayaAccountName(cardWallet.name))) {
+    return { locked: false, walletId: null };
+  }
+
+  const fundingWallet = wallets.find(wallet => (
+    wallet.owner_id === cardWallet.owner_id
+    && normalizeMayaAccountName(wallet.name) === 'maya wallet'
+    && wallet.wallet_type !== 'credit_card'
+  ));
+
+  return { locked: true, walletId: fundingWallet?.id || null };
+}
+
 export function getCreditCardUsedBalance(wallet: Wallet): number {
   return wallet.wallet_type === 'credit_card' ? Math.abs(wallet.current_balance) : wallet.current_balance;
 }
