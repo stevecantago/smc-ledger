@@ -30,7 +30,7 @@ import {
   hasPermission as hasRolePermission,
   isHeadParent as getIsHeadParent,
 } from '../lib/permissions';
-import { applyTransactionBalanceChange, normalizeCreditCardWalletBalance, reverseTransactionBalanceChange } from '../lib/creditCardTransactions';
+import { applyTransactionBalanceChange, getCreditCardPaymentAllocation, normalizeCreditCardWalletBalance, reverseTransactionBalanceChange } from '../lib/creditCardTransactions';
 import { getWalletDeleteBlocker } from '../lib/walletDeletion';
 import { syncLoanAndOptionalSchedule } from '../lib/loanScheduleSync';
 import {
@@ -70,7 +70,7 @@ interface HouseholdContextType {
 
   // Wallets CRUD
   addWallet: (wallet: { name: string; wallet_type: Wallet['wallet_type']; is_shared: boolean; owner_id?: string | null; initial_balance: number; credit_limit?: number | null }) => MutationResult;
-  updateWallet: (id: string, updates: { name?: string; wallet_type?: Wallet['wallet_type']; current_balance?: number; credit_limit?: number | null; is_shared?: boolean }) => MutationResult;
+  updateWallet: (id: string, updates: { name?: string; wallet_type?: Wallet['wallet_type']; current_balance?: number; service_fee_balance?: number | null; credit_limit?: number | null; is_shared?: boolean }) => MutationResult;
   deleteWallet: (id: string) => MutationResult;
 
   // Categories CRUD
@@ -218,13 +218,6 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       });
 
     return { success: true, syncStatus: getSyncStatus(true) };
-  };
-
-  // Helper to sync single wallet balance to Supabase
-  const updateWalletBalanceInSupabase = (walletId: string, newBalance: number) => {
-    if (supabase) {
-      trackSupabaseWrite('Update wallet balance', supabase.from('wallets').update({ current_balance: newBalance }).eq('id', walletId));
-    }
   };
 
   // 1. Initial Local Storage & Remote Supabase Hydration
@@ -688,6 +681,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       wallet_type: data.wallet_type,
       is_shared: data.is_shared,
       current_balance: data.wallet_type === 'credit_card' ? Math.abs(data.initial_balance) : data.initial_balance,
+      service_fee_balance: 0,
       credit_limit: data.credit_limit || null,
       created_at: new Date().toISOString(),
     };
@@ -699,14 +693,18 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       : localSaveResult();
   };
 
-  const updateWallet = (id: string, updates: { name?: string; wallet_type?: Wallet['wallet_type']; current_balance?: number; credit_limit?: number | null; is_shared?: boolean }) => {
+  const updateWallet = (id: string, updates: { name?: string; wallet_type?: Wallet['wallet_type']; current_balance?: number; service_fee_balance?: number | null; credit_limit?: number | null; is_shared?: boolean }) => {
     const target = wallets.find(w => w.id === id);
     if (!target) return { success: false, error: 'Wallet account not found.' };
     if (!hasPermission('manage_wallets', target.owner_id)) return { success: false, error: 'Your role cannot edit this wallet or credit line.' };
     const nextWalletType = updates.wallet_type || target.wallet_type;
-    const normalizedUpdates = updates.current_balance !== undefined && nextWalletType === 'credit_card'
-      ? { ...updates, current_balance: Math.abs(updates.current_balance) }
-      : updates;
+    const normalizedUpdates = {
+      ...updates,
+      ...(updates.current_balance !== undefined && nextWalletType === 'credit_card'
+        ? { current_balance: Math.abs(updates.current_balance) } : {}),
+      ...('service_fee_balance' in updates
+        ? { service_fee_balance: Math.max(0, updates.service_fee_balance || 0) } : {}),
+    };
     setWallets(prev => prev.map(w => w.id === id ? { ...w, ...normalizedUpdates } : w));
     logActivity('update_wallet', `Updated account "${updates.name || target?.name || id}"`);
 
@@ -774,7 +772,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       : localSaveResult();
   };
 
-  // Transactions CRUD with Processing Fee Accounting & Supabase Wallet Balance Sync
+  // Transactions update local balances optimistically; the database trigger owns remote balances.
   const addTransaction = (data: { 
     wallet_id: string; 
     destination_wallet_id?: string | null; 
@@ -797,6 +795,13 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const balanceResult = applyTransactionBalanceChange(wallets, data);
     if (!balanceResult.success) return { success: false, error: balanceResult.error };
 
+    const destinationWallet = data.destination_wallet_id
+      ? wallets.find(wallet => wallet.id === data.destination_wallet_id)
+      : undefined;
+    const serviceFeeAmount = data.type === 'loan' && destinationWallet?.wallet_type === 'credit_card'
+      ? getCreditCardPaymentAllocation(destinationWallet, data.amount).serviceFeePaid
+      : 0;
+
     const newTx: Transaction = {
       id: `tx-${Date.now()}`,
       household_id: household.id,
@@ -807,6 +812,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       type: data.type,
       amount: data.amount,
       fee: feeAmount > 0 ? feeAmount : null,
+      service_fee_amount: serviceFeeAmount,
       transaction_date: data.transaction_date,
       note: data.note || null,
       receipt_url: data.receipt_url || null,
@@ -814,10 +820,6 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
 
     setWallets(balanceResult.wallets);
-    balanceResult.changedWalletIds.forEach(walletId => {
-      const changedWallet = balanceResult.wallets.find(wallet => wallet.id === walletId);
-      if (changedWallet) updateWalletBalanceInSupabase(walletId, changedWallet.current_balance);
-    });
     setTransactions(prev => [newTx, ...prev]);
     logActivity('create_tx', `Logged ${data.type.toUpperCase()} transaction of ₱${data.amount} (${data.note || 'No note'})`);
 
@@ -860,10 +862,6 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (!balanceResult.success) return { success: false, error: balanceResult.error };
 
     setWallets(balanceResult.wallets);
-    balanceResult.changedWalletIds.forEach(walletId => {
-      const changedWallet = balanceResult.wallets.find(wallet => wallet.id === walletId);
-      if (changedWallet) updateWalletBalanceInSupabase(walletId, changedWallet.current_balance);
-    });
     setTransactions(prev => prev.filter(t => t.id !== id));
     logActivity('delete_tx', `Deleted transaction "${target.note || id}" of ₱${target.amount}`);
 
