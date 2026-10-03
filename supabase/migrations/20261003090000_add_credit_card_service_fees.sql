@@ -36,8 +36,30 @@ declare
   destination_type public.wallets.wallet_type%type;
   destination_used numeric(14, 2) := 0;
   destination_fees numeric(14, 2) := 0;
+  stored_service_fee_amount public.transactions.service_fee_amount%type;
 begin
   if tg_op = 'INSERT' then
+    -- Backup restores use upserts. An existing ledger row has already moved balances.
+    -- Lock it before any advisory lock so a concurrent delete/reinsert can finish.
+    select service_fee_amount into stored_service_fee_amount
+    from public.transactions where id = new.id for update;
+    if found then
+      new.service_fee_amount := stored_service_fee_amount;
+      return new;
+    end if;
+
+    -- A missing row cannot be row-locked. Serialize creation by ID, then recheck
+    -- after waiting: another transaction may have inserted and committed this ID.
+    perform pg_catalog.pg_advisory_xact_lock(
+      pg_catalog.hashtextextended('public.transactions:' || new.id, 0)
+    );
+    select service_fee_amount into stored_service_fee_amount
+    from public.transactions where id = new.id for update;
+    if found then
+      new.service_fee_amount := stored_service_fee_amount;
+      return new;
+    end if;
+
     source_id := new.wallet_id;
     destination_id := new.destination_wallet_id;
   else

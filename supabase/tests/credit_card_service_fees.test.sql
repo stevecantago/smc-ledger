@@ -127,5 +127,41 @@ select throws_ok(
   'Credit card payment cannot exceed the used balance.', 'legacy transfer cannot consume the service-fee balance'
 );
 
+-- Backup restoration upserts must not apply existing ledger rows to balances again.
+insert into transactions (id, household_id, wallet_id, payer_id, type, amount, fee, service_fee_amount)
+values ('fee-test-expense-upsert', 'fee-test-household', 'fee-test-bank', 'fee-test-member', 'expense', 100, 10, 0)
+on conflict (id) do update set amount = excluded.amount, fee = excluded.fee, service_fee_amount = excluded.service_fee_amount;
+select is((select current_balance from wallets where id = 'fee-test-bank'), 49890::numeric, 'expense upsert initially debits funding once');
+insert into transactions (id, household_id, wallet_id, payer_id, type, amount, fee, service_fee_amount)
+values ('fee-test-expense-upsert', 'fee-test-household', 'fee-test-bank', 'fee-test-member', 'expense', 100, 10, 0)
+on conflict (id) do update set amount = excluded.amount, fee = excluded.fee, service_fee_amount = excluded.service_fee_amount;
+select is((select current_balance from wallets where id = 'fee-test-bank'), 49890::numeric, 'repeated expense upsert leaves funding unchanged');
+select is((select service_fee_amount from transactions where id = 'fee-test-expense-upsert'), 0::numeric, 'repeated expense upsert preserves zero allocation');
+select is((select count(*) from transactions where id = 'fee-test-expense-upsert'), 1::bigint, 'repeated expense upsert keeps one ledger row');
+delete from transactions where id = 'fee-test-expense-upsert';
+select is((select current_balance from wallets where id = 'fee-test-bank'), 50000::numeric, 'upserted expense reversal restores funding exactly');
+-- Keep the payment regression independent if the expense regression fails.
+update wallets set current_balance = 50000 where id = 'fee-test-bank';
+
+insert into transactions (id, household_id, wallet_id, destination_wallet_id, payer_id, type, amount, fee, service_fee_amount)
+values ('fee-test-payment-upsert', 'fee-test-household', 'fee-test-bank', 'fee-test-card', 'fee-test-member', 'loan', 750, 10, 0)
+on conflict (id) do update set amount = excluded.amount, fee = excluded.fee, service_fee_amount = excluded.service_fee_amount;
+select is((select current_balance from wallets where id = 'fee-test-bank'), 49240::numeric, 'payment upsert initially debits payment and processing fee once');
+select is((select current_balance from wallets where id = 'fee-test-card'), 7000::numeric, 'initial partial payment upsert preserves principal');
+select is((select service_fee_balance from wallets where id = 'fee-test-card'), 250::numeric, 'initial partial payment upsert reduces outstanding fees once');
+select is((select service_fee_amount from transactions where id = 'fee-test-payment-upsert'), 750::numeric, 'initial payment upsert stores authoritative allocation');
+insert into transactions (id, household_id, wallet_id, destination_wallet_id, payer_id, type, amount, fee, service_fee_amount)
+values ('fee-test-payment-upsert', 'fee-test-household', 'fee-test-bank', 'fee-test-card', 'fee-test-member', 'loan', 750, 10, 0)
+on conflict (id) do update set amount = excluded.amount, fee = excluded.fee, service_fee_amount = excluded.service_fee_amount;
+select is((select current_balance from wallets where id = 'fee-test-bank'), 49240::numeric, 'repeated payment upsert leaves funding unchanged');
+select is((select current_balance from wallets where id = 'fee-test-card'), 7000::numeric, 'repeated payment upsert leaves principal unchanged');
+select is((select service_fee_balance from wallets where id = 'fee-test-card'), 250::numeric, 'repeated payment upsert leaves outstanding fees unchanged');
+select is((select service_fee_amount from transactions where id = 'fee-test-payment-upsert'), 750::numeric, 'repeated payment upsert preserves the stored allocation instead of recalculating');
+select is((select count(*) from transactions where id = 'fee-test-payment-upsert'), 1::bigint, 'repeated payment upsert keeps one ledger row');
+delete from transactions where id = 'fee-test-payment-upsert';
+select is((select current_balance from wallets where id = 'fee-test-bank'), 50000::numeric, 'upserted payment reversal restores funding exactly');
+select is((select current_balance from wallets where id = 'fee-test-card'), 7000::numeric, 'upserted payment reversal restores principal exactly');
+select is((select service_fee_balance from wallets where id = 'fee-test-card'), 1000::numeric, 'upserted payment reversal restores outstanding fees exactly');
+
 select * from finish();
 rollback;
