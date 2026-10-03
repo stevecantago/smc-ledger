@@ -48,11 +48,16 @@ begin
       return new;
     end if;
 
-    -- A missing row cannot be row-locked. Serialize creation by ID, then recheck
-    -- after waiting: another transaction may have inserted and committed this ID.
-    perform pg_catalog.pg_advisory_xact_lock(
+    -- A missing row cannot be row-locked. Claim creation by ID without waiting:
+    -- a delete/reinsert may already hold a row needed by the lock's owner.
+    if not pg_catalog.pg_try_advisory_xact_lock(
       pg_catalog.hashtextextended('public.transactions:' || new.id, 0)
-    );
+    ) then
+      raise exception using
+        errcode = '40001',
+        message = 'Transaction ID is being processed concurrently. Retry the transaction.';
+    end if;
+    -- Another transaction may have inserted this ID since the first lookup.
     select service_fee_amount into stored_service_fee_amount
     from public.transactions where id = new.id for update;
     if found then
