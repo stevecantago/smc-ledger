@@ -6,7 +6,15 @@ type TransactionBalanceInput = {
   type: TransactionType;
   amount: number;
   fee?: number | null;
+  service_fee_amount?: number | null;
 };
+
+export interface CreditCardPaymentAllocation {
+  serviceFeePaid: number;
+  usedBalancePaid: number;
+  remainingServiceFees: number;
+  remainingUsedBalance: number;
+}
 
 type BalanceResult =
   | { success: true; wallets: Wallet[]; changedWalletIds: string[] }
@@ -46,21 +54,53 @@ export function getCreditCardUsedBalance(wallet: Wallet): number {
   return wallet.wallet_type === 'credit_card' ? Math.abs(wallet.current_balance) : wallet.current_balance;
 }
 
+export function getCreditCardServiceFeeBalance(wallet: Wallet): number {
+  return wallet.wallet_type === 'credit_card'
+    ? Math.max(0, wallet.service_fee_balance || 0)
+    : 0;
+}
+
+export function getCreditCardTotalDue(wallet: Wallet): number {
+  if (wallet.wallet_type !== 'credit_card') return 0;
+  return getCreditCardUsedBalance(wallet) + getCreditCardServiceFeeBalance(wallet);
+}
+
+export function getCreditCardPaymentAllocation(
+  wallet: Wallet,
+  paymentAmount: number,
+): CreditCardPaymentAllocation {
+  const serviceFees = getCreditCardServiceFeeBalance(wallet);
+  const usedBalance = getCreditCardUsedBalance(wallet);
+  const serviceFeePaid = Math.min(Math.max(paymentAmount, 0), serviceFees);
+  const usedBalancePaid = Math.min(Math.max(paymentAmount - serviceFeePaid, 0), usedBalance);
+
+  return {
+    serviceFeePaid,
+    usedBalancePaid,
+    remainingServiceFees: serviceFees - serviceFeePaid,
+    remainingUsedBalance: usedBalance - usedBalancePaid,
+  };
+}
+
 export function getCreditCardAvailableCredit(wallet: Wallet): number {
   if (wallet.wallet_type !== 'credit_card') return wallet.current_balance;
-  return Math.max(0, (wallet.credit_limit || 0) - getCreditCardUsedBalance(wallet));
+  return Math.max(0, (wallet.credit_limit || 0) - getCreditCardTotalDue(wallet));
 }
 
 export function normalizeCreditCardWalletBalance(wallet: Wallet): Wallet {
   return wallet.wallet_type === 'credit_card'
-    ? { ...wallet, current_balance: getCreditCardUsedBalance(wallet) }
+    ? {
+        ...wallet,
+        current_balance: getCreditCardUsedBalance(wallet),
+        service_fee_balance: getCreditCardServiceFeeBalance(wallet),
+      }
     : wallet;
 }
 
 function assertCreditChargeAllowed(wallet: Wallet, chargeAmount: number): string | null {
   if (wallet.wallet_type !== 'credit_card') return null;
   const creditLimit = wallet.credit_limit || 0;
-  if (getCreditCardUsedBalance(wallet) + chargeAmount > creditLimit) {
+  if (getCreditCardTotalDue(wallet) + chargeAmount > creditLimit) {
     return 'Credit card charge exceeds available credit.';
   }
   return null;
@@ -105,11 +145,20 @@ export function applyTransactionBalanceChange(wallets: Wallet[], input: Transact
       return fail('Credit card payments require a non-credit funding account.', wallets);
     }
 
-    const destinationCreditError = assertCreditPaymentAllowed(destinationWallet, input.amount);
-    if (destinationCreditError) return fail(destinationCreditError, wallets);
+    if (input.amount > getCreditCardTotalDue(destinationWallet)) {
+      return fail('Credit card payment cannot exceed total due.', wallets);
+    }
+
+    const allocation = getCreditCardPaymentAllocation(destinationWallet, input.amount);
 
     nextWallets = updateWalletBalance(nextWallets, sourceWallet.id, sourceWallet.current_balance - totalAmount);
-    nextWallets = updateWalletBalance(nextWallets, destinationWallet.id, destinationWallet.current_balance - input.amount);
+    nextWallets = nextWallets.map(wallet => wallet.id === destinationWallet.id
+      ? {
+          ...wallet,
+          current_balance: allocation.remainingUsedBalance,
+          service_fee_balance: allocation.remainingServiceFees,
+        }
+      : wallet);
     return ok(nextWallets, [sourceWallet.id, destinationWallet.id]);
   }
 
@@ -173,7 +222,14 @@ export function reverseTransactionBalanceChange(wallets: Wallet[], input: Transa
     if (!destinationWallet) return fail('Destination wallet not found', wallets);
 
     nextWallets = updateWalletBalance(nextWallets, sourceWallet.id, sourceWallet.current_balance + totalAmount);
-    nextWallets = updateWalletBalance(nextWallets, destinationWallet.id, destinationWallet.current_balance + input.amount);
+    const serviceFeeAmount = input.service_fee_amount || 0;
+    nextWallets = nextWallets.map(wallet => wallet.id === destinationWallet.id
+      ? {
+          ...wallet,
+          current_balance: wallet.current_balance + input.amount - serviceFeeAmount,
+          service_fee_balance: getCreditCardServiceFeeBalance(wallet) + serviceFeeAmount,
+        }
+      : wallet);
     return ok(nextWallets, [sourceWallet.id, destinationWallet.id]);
   }
 

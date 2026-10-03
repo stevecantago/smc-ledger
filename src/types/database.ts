@@ -86,6 +86,7 @@ export interface Wallet {
   is_shared: boolean;
   current_balance: number; // For credit_card, this is used/outstanding balance
   credit_limit?: number | null; // Approved credit limit line (e.g. 150000.00)
+  service_fee_balance?: number | null;
   created_at: string;
 }
 
@@ -108,6 +109,7 @@ export interface Transaction {
   type: TransactionType;
   amount: number;
   fee?: number | null; // Processing / transaction / transfer fee
+  service_fee_amount?: number | null;
   transaction_date: string;
   note?: string | null;
   receipt_url?: string | null;
