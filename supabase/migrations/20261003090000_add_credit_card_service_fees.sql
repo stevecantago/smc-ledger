@@ -23,6 +23,33 @@ do $$ begin
 exception when duplicate_object then null;
 end $$;
 
+create schema if not exists private;
+revoke all on schema private from public;
+
+create table if not exists private.financial_restore_context (
+  backend_pid integer not null,
+  transaction_id bigint not null,
+  primary key (backend_pid, transaction_id)
+);
+revoke all on table private.financial_restore_context from public, anon, authenticated;
+
+create or replace function public.is_financial_restore_active()
+returns boolean
+language sql
+stable
+security definer
+set search_path = pg_catalog
+as $$
+  select exists (
+    select 1
+    from private.financial_restore_context context
+    where context.backend_pid = pg_catalog.pg_backend_pid()
+      and context.transaction_id = pg_catalog.txid_current()
+  );
+$$;
+revoke all on function public.is_financial_restore_active() from public, anon;
+grant execute on function public.is_financial_restore_active() to authenticated, service_role;
+
 create or replace function public.update_wallet_balances_on_transaction()
 returns trigger
 language plpgsql
@@ -39,6 +66,13 @@ declare
   stored_service_fee_amount public.transactions.service_fee_amount%type;
 begin
   if tg_op = 'INSERT' then
+    -- Only the permission-checked restore RPC can create this private marker.
+    -- It already owns the transaction and wallet locks for the full snapshot.
+    if public.is_financial_restore_active() then
+      new.service_fee_amount := coalesce(new.service_fee_amount, 0);
+      return new;
+    end if;
+
     -- Backup restores use upserts. An existing ledger row has already moved balances.
     -- Lock it before any advisory lock so a concurrent delete/reinsert can finish.
     select service_fee_amount into stored_service_fee_amount
@@ -178,23 +212,264 @@ create trigger trg_update_wallet_balance
 before insert or delete on public.transactions
 for each row execute function public.update_wallet_balances_on_transaction();
 
--- Restore financial backup rows as one RLS-protected transaction. Missing ledger rows
--- may represent historical payments already reflected in the saved wallet balances, so
--- the saved balances and allocations are restored after ordinary insert triggers run.
+-- A backup is an authorized, complete financial snapshot. The function validates
+-- tenant scope and permissions before writes, then takes transaction/advisory locks
+-- before wallet locks so it coordinates with ordinary trigger activity.
 create or replace function public.restore_wallets_and_transactions(
   p_wallets jsonb,
   p_transactions jsonb
 )
 returns void
 language plpgsql
-security invoker
-set search_path = public
+security definer
+set search_path = pg_catalog
 as $$
+declare
+  snapshot_wallet_count integer;
+  snapshot_transaction_count integer;
+  distinct_id_count integer;
+  household_count integer;
+  restore_household_id varchar(100);
+  authenticated_member_role text;
+  authenticated_member_role_id varchar(100);
+  restore_is_allowed boolean := false;
+  restore_transaction_id varchar(100);
+  locked_transaction_id varchar(100);
+  affected_rows integer;
 begin
   if jsonb_typeof(coalesce(p_wallets, '[]'::jsonb)) <> 'array'
     or jsonb_typeof(coalesce(p_transactions, '[]'::jsonb)) <> 'array' then
-    raise exception 'Backup wallets and transactions must be JSON arrays.';
+    raise exception using
+      errcode = '22023',
+      message = 'Backup wallets and transactions must be JSON arrays.';
   end if;
+
+  snapshot_wallet_count := jsonb_array_length(coalesce(p_wallets, '[]'::jsonb));
+  snapshot_transaction_count := jsonb_array_length(coalesce(p_transactions, '[]'::jsonb));
+  if snapshot_wallet_count = 0 then
+    raise exception using
+      errcode = '22023',
+      message = 'Backup wallet snapshot cannot be empty.';
+  end if;
+
+  if exists (
+    select 1
+    from jsonb_to_recordset(p_wallets) as restored(id varchar(100))
+    where nullif(pg_catalog.btrim(restored.id), '') is null
+  ) or exists (
+    select 1
+    from jsonb_to_recordset(p_transactions) as restored(id varchar(100))
+    where nullif(pg_catalog.btrim(restored.id), '') is null
+  ) then
+    raise exception using
+      errcode = '22023',
+      message = 'Backup wallet and transaction IDs must be present and unique.';
+  end if;
+
+  select count(distinct restored.id)
+  into distinct_id_count
+  from jsonb_to_recordset(p_wallets) as restored(id varchar(100));
+  if distinct_id_count <> snapshot_wallet_count then
+    raise exception using
+      errcode = '22023',
+      message = 'Backup wallet and transaction IDs must be present and unique.';
+  end if;
+
+  select count(distinct restored.id)
+  into distinct_id_count
+  from jsonb_to_recordset(p_transactions) as restored(id varchar(100));
+  if distinct_id_count <> snapshot_transaction_count then
+    raise exception using
+      errcode = '22023',
+      message = 'Backup wallet and transaction IDs must be present and unique.';
+  end if;
+
+  select min(restored.household_id), count(distinct restored.household_id)
+  into restore_household_id, household_count
+  from jsonb_to_recordset(p_wallets) as restored(household_id varchar(100));
+  if restore_household_id is null or household_count <> 1 or exists (
+    select 1
+    from jsonb_to_recordset(p_transactions) as restored(household_id varchar(100))
+    where restored.household_id is distinct from restore_household_id
+  ) then
+    raise exception using
+      errcode = '22023',
+      message = 'Backup financial rows must belong to exactly one household.';
+  end if;
+
+  if exists (
+    select 1
+    from jsonb_to_recordset(p_transactions) as restored(
+      wallet_id varchar(100), destination_wallet_id varchar(100)
+    )
+    where restored.wallet_id is null
+      or not exists (
+        select 1
+        from jsonb_to_recordset(p_wallets) as wallet(id varchar(100))
+        where wallet.id = restored.wallet_id
+      )
+      or (
+        restored.destination_wallet_id is not null
+        and not exists (
+          select 1
+          from jsonb_to_recordset(p_wallets) as wallet(id varchar(100))
+          where wallet.id = restored.destination_wallet_id
+        )
+      )
+  ) then
+    raise exception using
+      errcode = '22023',
+      message = 'Every transaction wallet must be included in the backup wallet snapshot.';
+  end if;
+
+  -- Existing IDs must already belong to this tenant; snapshot upserts cannot move
+  -- another household's wallet or ledger row across the boundary.
+  if exists (
+    select 1
+    from public.wallets existing
+    join jsonb_to_recordset(p_wallets) as restored(id varchar(100)) on restored.id = existing.id
+    where existing.household_id <> restore_household_id
+  ) or exists (
+    select 1
+    from public.transactions existing
+    join jsonb_to_recordset(p_transactions) as restored(id varchar(100)) on restored.id = existing.id
+    where existing.household_id <> restore_household_id
+  ) or exists (
+    select 1
+    from jsonb_to_recordset(p_wallets) as restored(owner_id varchar(100))
+    where restored.owner_id is not null
+      and not exists (
+        select 1 from public.household_members member
+        where member.id = restored.owner_id
+          and member.household_id = restore_household_id
+      )
+  ) or exists (
+    select 1
+    from jsonb_to_recordset(p_transactions) as restored(
+      payer_id varchar(100), category_id varchar(100)
+    )
+    where not exists (
+      select 1 from public.household_members member
+      where member.id = restored.payer_id
+        and member.household_id = restore_household_id
+    ) or (
+      restored.category_id is not null
+      and not exists (
+        select 1 from public.categories category
+        where category.id = restored.category_id
+          and category.household_id = restore_household_id
+      )
+    )
+  ) then
+    raise exception using
+      errcode = '22023',
+      message = 'Backup financial rows contain a cross-household reference.';
+  end if;
+
+  if auth.uid() is null then
+    raise exception using
+      errcode = '42501',
+      message = 'Authenticated member cannot restore backups for this household.';
+  end if;
+
+  select member.role::text, member.role_id
+  into authenticated_member_role, authenticated_member_role_id
+  from public.household_members member
+  where member.household_id = restore_household_id
+    and member.user_id = auth.uid()::text
+  order by member.id
+  limit 1;
+  if not found then
+    raise exception using
+      errcode = '42501',
+      message = 'Authenticated member cannot restore backups for this household.';
+  end if;
+
+  restore_is_allowed := authenticated_member_role = 'admin'
+    or (authenticated_member_role_id is null and authenticated_member_role = 'parent_member')
+    or exists (
+      select 1
+      from public.household_roles role
+      where role.id = authenticated_member_role_id
+        and role.household_id = restore_household_id
+        and (
+          role.is_head_parent
+          or exists (
+            select 1
+            from public.role_permissions permission
+            where permission.household_id = restore_household_id
+              and permission.role_id = role.id
+              and permission.permission_key = 'restore_backup'
+              and permission.level = 'allowed'
+          )
+        )
+    );
+  if not restore_is_allowed then
+    raise exception using
+      errcode = '42501',
+      message = 'Authenticated member cannot restore backups for this household.';
+  end if;
+
+  -- Use the same transaction-row then advisory-lock order as normal upserts. A
+  -- competing creator receives retryable 40001 instead of entering a lock cycle.
+  for restore_transaction_id in
+    select restored.id
+    from jsonb_to_recordset(p_transactions) as restored(id varchar(100))
+    order by restored.id
+  loop
+    locked_transaction_id := null;
+    select existing.id
+    into locked_transaction_id
+    from public.transactions existing
+    where existing.id = restore_transaction_id
+    for update;
+
+    if not found then
+      if not pg_catalog.pg_try_advisory_xact_lock(
+        pg_catalog.hashtextextended('public.transactions:' || restore_transaction_id, 0)
+      ) then
+        raise exception using
+          errcode = '40001',
+          message = 'Transaction ID is being processed concurrently. Retry the transaction.';
+      end if;
+
+      select existing.id
+      into locked_transaction_id
+      from public.transactions existing
+      where existing.id = restore_transaction_id
+      for update;
+    end if;
+
+    if locked_transaction_id is not null and exists (
+      select 1 from public.transactions existing
+      where existing.id = locked_transaction_id
+        and existing.household_id <> restore_household_id
+    ) then
+      raise exception using
+        errcode = '22023',
+        message = 'Backup financial rows contain a cross-household reference.';
+    end if;
+  end loop;
+
+  perform existing.id
+  from public.wallets existing
+  join jsonb_to_recordset(p_wallets) as restored(id varchar(100)) on restored.id = existing.id
+  order by existing.id
+  for update of existing;
+
+  if exists (
+    select 1
+    from public.wallets existing
+    join jsonb_to_recordset(p_wallets) as restored(id varchar(100)) on restored.id = existing.id
+    where existing.household_id <> restore_household_id
+  ) then
+    raise exception using
+      errcode = '22023',
+      message = 'Backup financial rows contain a cross-household reference.';
+  end if;
+
+  insert into private.financial_restore_context (backend_pid, transaction_id)
+  values (pg_catalog.pg_backend_pid(), pg_catalog.txid_current());
 
   insert into public.wallets (
     id, household_id, owner_id, name, wallet_type, is_shared,
@@ -205,7 +480,7 @@ begin
     restored.wallet_type, coalesce(restored.is_shared, true),
     restored.current_balance, restored.credit_limit,
     coalesce(restored.service_fee_balance, 0), restored.created_at
-  from jsonb_to_recordset(coalesce(p_wallets, '[]'::jsonb)) as restored(
+  from jsonb_to_recordset(p_wallets) as restored(
     id varchar(100), household_id varchar(100), owner_id varchar(100), name varchar(100),
     wallet_type varchar(50), is_shared boolean, current_balance numeric(14, 2),
     credit_limit numeric(14, 2), service_fee_balance numeric(14, 2), created_at timestamptz
@@ -220,43 +495,10 @@ begin
     credit_limit = excluded.credit_limit,
     service_fee_balance = excluded.service_fee_balance,
     created_at = excluded.created_at;
-
-  -- Give ordinary triggers enough temporary due to accept every missing historical
-  -- card payment. The exact saved wallet values are restored below in the same RPC.
-  with restored_transactions as (
-    select restored.*
-    from jsonb_to_recordset(coalesce(p_transactions, '[]'::jsonb)) as restored(
-      id varchar(100), destination_wallet_id varchar(100), type varchar(50),
-      amount numeric(12, 2), service_fee_amount numeric(12, 2)
-    )
-  ),
-  missing_transactions as (
-    select restored.*
-    from restored_transactions restored
-    where not exists (select 1 from public.transactions existing where existing.id = restored.id)
-  ),
-  card_requirements as (
-    select
-      destination_wallet_id,
-      sum(case
-        when type = 'loan' then greatest(amount - coalesce(service_fee_amount, 0), 0)
-        when type = 'transfer' then amount
-        else 0
-      end) as principal_required,
-      sum(case
-        when type = 'loan' then least(coalesce(service_fee_amount, 0), amount)
-        else 0
-      end) as service_fees_required
-    from missing_transactions
-    where destination_wallet_id is not null and type in ('loan', 'transfer')
-    group by destination_wallet_id
-  )
-  update public.wallets wallet
-  set current_balance = greatest(wallet.current_balance, requirements.principal_required),
-      service_fee_balance = greatest(wallet.service_fee_balance, requirements.service_fees_required)
-  from card_requirements requirements
-  where wallet.id = requirements.destination_wallet_id
-    and wallet.wallet_type = 'credit_card';
+  get diagnostics affected_rows = row_count;
+  if affected_rows <> snapshot_wallet_count then
+    raise exception 'Backup wallet restore was incomplete.';
+  end if;
 
   insert into public.transactions (
     id, household_id, wallet_id, destination_wallet_id, category_id, payer_id,
@@ -267,7 +509,7 @@ begin
     restored.category_id, restored.payer_id, restored.type, restored.amount,
     coalesce(restored.fee, 0), coalesce(restored.service_fee_amount, 0),
     restored.transaction_date, restored.note, restored.receipt_url, restored.created_at
-  from jsonb_to_recordset(coalesce(p_transactions, '[]'::jsonb)) as restored(
+  from jsonb_to_recordset(p_transactions) as restored(
     id varchar(100), household_id varchar(100), wallet_id varchar(100),
     destination_wallet_id varchar(100), category_id varchar(100), payer_id varchar(100),
     type varchar(50), amount numeric(12, 2), fee numeric(12, 2),
@@ -288,41 +530,33 @@ begin
     note = excluded.note,
     receipt_url = excluded.receipt_url,
     created_at = excluded.created_at;
+  get diagnostics affected_rows = row_count;
+  if affected_rows <> snapshot_transaction_count then
+    raise exception 'Backup transaction restore was incomplete.';
+  end if;
 
-  -- The insert trigger owns normal allocations. Backup restoration instead owns the
-  -- historical allocation stored in the backup, including an existing row's value.
-  update public.transactions transaction
-  set service_fee_amount = coalesce(restored.service_fee_amount, 0)
-  from jsonb_to_recordset(coalesce(p_transactions, '[]'::jsonb)) as restored(
-    id varchar(100), service_fee_amount numeric(12, 2)
-  )
-  where transaction.id = restored.id;
+  select count(*)
+  into affected_rows
+  from public.transactions existing
+  join jsonb_to_recordset(p_transactions) as restored(
+    id varchar(100), household_id varchar(100), service_fee_amount numeric(12, 2)
+  ) on restored.id = existing.id
+  where existing.household_id = restored.household_id
+    and existing.service_fee_amount = coalesce(restored.service_fee_amount, 0);
+  if affected_rows <> snapshot_transaction_count then
+    raise exception 'Backup transaction allocation restore was incomplete.';
+  end if;
 
-  -- Trigger side effects are temporary during restoration. Saved balances are the
-  -- source of truth and this final write is committed atomically with the ledger rows.
-  insert into public.wallets (
-    id, household_id, owner_id, name, wallet_type, is_shared,
-    current_balance, credit_limit, service_fee_balance, created_at
-  )
-  select
-    restored.id, restored.household_id, restored.owner_id, restored.name,
-    restored.wallet_type, coalesce(restored.is_shared, true),
-    restored.current_balance, restored.credit_limit,
-    coalesce(restored.service_fee_balance, 0), restored.created_at
-  from jsonb_to_recordset(coalesce(p_wallets, '[]'::jsonb)) as restored(
-    id varchar(100), household_id varchar(100), owner_id varchar(100), name varchar(100),
-    wallet_type varchar(50), is_shared boolean, current_balance numeric(14, 2),
-    credit_limit numeric(14, 2), service_fee_balance numeric(14, 2), created_at timestamptz
-  )
-  on conflict (id) do update set
-    household_id = excluded.household_id,
-    owner_id = excluded.owner_id,
-    name = excluded.name,
-    wallet_type = excluded.wallet_type,
-    is_shared = excluded.is_shared,
-    current_balance = excluded.current_balance,
-    credit_limit = excluded.credit_limit,
-    service_fee_balance = excluded.service_fee_balance,
-    created_at = excluded.created_at;
+  delete from private.financial_restore_context context
+  where context.backend_pid = pg_catalog.pg_backend_pid()
+    and context.transaction_id = pg_catalog.txid_current();
+exception when others then
+  delete from private.financial_restore_context context
+  where context.backend_pid = pg_catalog.pg_backend_pid()
+    and context.transaction_id = pg_catalog.txid_current();
+  raise;
 end;
 $$;
+
+revoke all on function public.restore_wallets_and_transactions(jsonb, jsonb) from public, anon;
+grant execute on function public.restore_wallets_and_transactions(jsonb, jsonb) to authenticated;

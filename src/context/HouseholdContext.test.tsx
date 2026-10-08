@@ -177,4 +177,43 @@ describe('household service-fee persistence', () => {
       },
     });
   });
+
+  it.each([
+    ['an empty wallet snapshot', false],
+    ['a partial wallet snapshot', true],
+  ])('rejects %s before changing local state or starting remote writes', (_label, includeSourceWallet) => {
+    const before = renderProvider();
+    const beforeWallets = before.wallets;
+    const beforeTransactions = before.transactions;
+    const backupWallets = includeSourceWallet
+      ? [{
+          ...before.wallets.find(wallet => wallet.id === payment.wallet_id)!,
+          current_balance: 42450,
+        }]
+      : [];
+    harness.writes = [];
+
+    const result = before.restoreFullHouseholdBackup(JSON.stringify({
+      wallets: backupWallets,
+      transactions: [{
+        id: 'historical-payment',
+        household_id: 'hh-101',
+        payer_id: 'member-steve-admin',
+        category_id: null,
+        receipt_url: null,
+        note: 'Historical payment',
+        created_at: '2026-09-01T00:00:00.000Z',
+        ...payment,
+        service_fee_amount: 1000,
+      }],
+    }));
+
+    expect(result).toEqual({
+      success: false,
+      error: 'Backup must include a complete, unique wallet snapshot for every transaction.',
+    });
+    expect(renderProvider().wallets).toEqual(beforeWallets);
+    expect(renderProvider().transactions).toEqual(beforeTransactions);
+    expect(harness.writes).toEqual([]);
+  });
 });

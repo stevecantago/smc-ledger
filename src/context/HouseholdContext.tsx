@@ -518,6 +518,30 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         return { success: false, error: 'Invalid JSON backup format.' };
       }
 
+      const backupWallets = Array.isArray(parsed.wallets) ? parsed.wallets : null;
+      const backupTransactions = Array.isArray(parsed.transactions) ? parsed.transactions : null;
+      const backupWalletIds = new Set<string>();
+      const hasInvalidWalletSnapshot = !backupWallets
+        || !backupTransactions
+        || backupWallets.length === 0
+        || backupWallets.some((wallet: Wallet) => {
+          if (!wallet?.id || backupWalletIds.has(wallet.id)) return true;
+          backupWalletIds.add(wallet.id);
+          return false;
+        })
+        || backupTransactions.some((transaction: Transaction) =>
+          !transaction?.wallet_id
+          || !backupWalletIds.has(transaction.wallet_id)
+          || Boolean(transaction.destination_wallet_id && !backupWalletIds.has(transaction.destination_wallet_id))
+        );
+
+      if (hasInvalidWalletSnapshot) {
+        return {
+          success: false,
+          error: 'Backup must include a complete, unique wallet snapshot for every transaction.',
+        };
+      }
+
       if (parsed.members && Array.isArray(parsed.members)) {
         setMembers(parsed.members);
         if (supabase) {
@@ -533,12 +557,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           );
         }
       }
-      const normalizedBackupWallets = parsed.wallets && Array.isArray(parsed.wallets)
-        ? parsed.wallets.map(normalizeCreditCardWalletBalance)
-        : null;
-      const backupTransactions = parsed.transactions && Array.isArray(parsed.transactions)
-        ? parsed.transactions
-        : null;
+      const normalizedBackupWallets = backupWallets.map(normalizeCreditCardWalletBalance);
 
       if (normalizedBackupWallets) {
         const normalizedWallets = normalizedBackupWallets;
@@ -548,15 +567,13 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setCategories(parsed.categories);
         if (supabase) trackSupabaseWrite('Restore categories', supabase.from('categories').upsert(parsed.categories));
       }
-      if (backupTransactions) {
-        setTransactions(backupTransactions);
-      }
-      if (supabase && (normalizedBackupWallets || backupTransactions)) {
+      setTransactions(backupTransactions);
+      if (supabase) {
         trackSupabaseWrite(
           'Restore wallets and transactions',
           supabase.rpc('restore_wallets_and_transactions', {
-            p_wallets: normalizedBackupWallets || [],
-            p_transactions: backupTransactions || [],
+            p_wallets: normalizedBackupWallets,
+            p_transactions: backupTransactions,
           }),
         );
       }
