@@ -177,3 +177,152 @@ drop trigger if exists trg_update_wallet_balance on public.transactions;
 create trigger trg_update_wallet_balance
 before insert or delete on public.transactions
 for each row execute function public.update_wallet_balances_on_transaction();
+
+-- Restore financial backup rows as one RLS-protected transaction. Missing ledger rows
+-- may represent historical payments already reflected in the saved wallet balances, so
+-- the saved balances and allocations are restored after ordinary insert triggers run.
+create or replace function public.restore_wallets_and_transactions(
+  p_wallets jsonb,
+  p_transactions jsonb
+)
+returns void
+language plpgsql
+security invoker
+set search_path = public
+as $$
+begin
+  if jsonb_typeof(coalesce(p_wallets, '[]'::jsonb)) <> 'array'
+    or jsonb_typeof(coalesce(p_transactions, '[]'::jsonb)) <> 'array' then
+    raise exception 'Backup wallets and transactions must be JSON arrays.';
+  end if;
+
+  insert into public.wallets (
+    id, household_id, owner_id, name, wallet_type, is_shared,
+    current_balance, credit_limit, service_fee_balance, created_at
+  )
+  select
+    restored.id, restored.household_id, restored.owner_id, restored.name,
+    restored.wallet_type, coalesce(restored.is_shared, true),
+    restored.current_balance, restored.credit_limit,
+    coalesce(restored.service_fee_balance, 0), restored.created_at
+  from jsonb_to_recordset(coalesce(p_wallets, '[]'::jsonb)) as restored(
+    id varchar(100), household_id varchar(100), owner_id varchar(100), name varchar(100),
+    wallet_type varchar(50), is_shared boolean, current_balance numeric(14, 2),
+    credit_limit numeric(14, 2), service_fee_balance numeric(14, 2), created_at timestamptz
+  )
+  on conflict (id) do update set
+    household_id = excluded.household_id,
+    owner_id = excluded.owner_id,
+    name = excluded.name,
+    wallet_type = excluded.wallet_type,
+    is_shared = excluded.is_shared,
+    current_balance = excluded.current_balance,
+    credit_limit = excluded.credit_limit,
+    service_fee_balance = excluded.service_fee_balance,
+    created_at = excluded.created_at;
+
+  -- Give ordinary triggers enough temporary due to accept every missing historical
+  -- card payment. The exact saved wallet values are restored below in the same RPC.
+  with restored_transactions as (
+    select restored.*
+    from jsonb_to_recordset(coalesce(p_transactions, '[]'::jsonb)) as restored(
+      id varchar(100), destination_wallet_id varchar(100), type varchar(50),
+      amount numeric(12, 2), service_fee_amount numeric(12, 2)
+    )
+  ),
+  missing_transactions as (
+    select restored.*
+    from restored_transactions restored
+    where not exists (select 1 from public.transactions existing where existing.id = restored.id)
+  ),
+  card_requirements as (
+    select
+      destination_wallet_id,
+      sum(case
+        when type = 'loan' then greatest(amount - coalesce(service_fee_amount, 0), 0)
+        when type = 'transfer' then amount
+        else 0
+      end) as principal_required,
+      sum(case
+        when type = 'loan' then least(coalesce(service_fee_amount, 0), amount)
+        else 0
+      end) as service_fees_required
+    from missing_transactions
+    where destination_wallet_id is not null and type in ('loan', 'transfer')
+    group by destination_wallet_id
+  )
+  update public.wallets wallet
+  set current_balance = greatest(wallet.current_balance, requirements.principal_required),
+      service_fee_balance = greatest(wallet.service_fee_balance, requirements.service_fees_required)
+  from card_requirements requirements
+  where wallet.id = requirements.destination_wallet_id
+    and wallet.wallet_type = 'credit_card';
+
+  insert into public.transactions (
+    id, household_id, wallet_id, destination_wallet_id, category_id, payer_id,
+    type, amount, fee, service_fee_amount, transaction_date, note, receipt_url, created_at
+  )
+  select
+    restored.id, restored.household_id, restored.wallet_id, restored.destination_wallet_id,
+    restored.category_id, restored.payer_id, restored.type, restored.amount,
+    coalesce(restored.fee, 0), coalesce(restored.service_fee_amount, 0),
+    restored.transaction_date, restored.note, restored.receipt_url, restored.created_at
+  from jsonb_to_recordset(coalesce(p_transactions, '[]'::jsonb)) as restored(
+    id varchar(100), household_id varchar(100), wallet_id varchar(100),
+    destination_wallet_id varchar(100), category_id varchar(100), payer_id varchar(100),
+    type varchar(50), amount numeric(12, 2), fee numeric(12, 2),
+    service_fee_amount numeric(12, 2), transaction_date date, note text,
+    receipt_url text, created_at timestamptz
+  )
+  on conflict (id) do update set
+    household_id = excluded.household_id,
+    wallet_id = excluded.wallet_id,
+    destination_wallet_id = excluded.destination_wallet_id,
+    category_id = excluded.category_id,
+    payer_id = excluded.payer_id,
+    type = excluded.type,
+    amount = excluded.amount,
+    fee = excluded.fee,
+    service_fee_amount = excluded.service_fee_amount,
+    transaction_date = excluded.transaction_date,
+    note = excluded.note,
+    receipt_url = excluded.receipt_url,
+    created_at = excluded.created_at;
+
+  -- The insert trigger owns normal allocations. Backup restoration instead owns the
+  -- historical allocation stored in the backup, including an existing row's value.
+  update public.transactions transaction
+  set service_fee_amount = coalesce(restored.service_fee_amount, 0)
+  from jsonb_to_recordset(coalesce(p_transactions, '[]'::jsonb)) as restored(
+    id varchar(100), service_fee_amount numeric(12, 2)
+  )
+  where transaction.id = restored.id;
+
+  -- Trigger side effects are temporary during restoration. Saved balances are the
+  -- source of truth and this final write is committed atomically with the ledger rows.
+  insert into public.wallets (
+    id, household_id, owner_id, name, wallet_type, is_shared,
+    current_balance, credit_limit, service_fee_balance, created_at
+  )
+  select
+    restored.id, restored.household_id, restored.owner_id, restored.name,
+    restored.wallet_type, coalesce(restored.is_shared, true),
+    restored.current_balance, restored.credit_limit,
+    coalesce(restored.service_fee_balance, 0), restored.created_at
+  from jsonb_to_recordset(coalesce(p_wallets, '[]'::jsonb)) as restored(
+    id varchar(100), household_id varchar(100), owner_id varchar(100), name varchar(100),
+    wallet_type varchar(50), is_shared boolean, current_balance numeric(14, 2),
+    credit_limit numeric(14, 2), service_fee_balance numeric(14, 2), created_at timestamptz
+  )
+  on conflict (id) do update set
+    household_id = excluded.household_id,
+    owner_id = excluded.owner_id,
+    name = excluded.name,
+    wallet_type = excluded.wallet_type,
+    is_shared = excluded.is_shared,
+    current_balance = excluded.current_balance,
+    credit_limit = excluded.credit_limit,
+    service_fee_balance = excluded.service_fee_balance,
+    created_at = excluded.created_at;
+end;
+$$;

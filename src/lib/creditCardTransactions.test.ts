@@ -361,4 +361,59 @@ describe('credit card transaction balance rules', () => {
   it('normalizes a missing legacy service-fee balance to zero', () => {
     expect(getCreditCardServiceFeeBalance({ ...card, service_fee_balance: undefined })).toBe(0);
   });
+
+  it('uses exact centavos for a decimal total due and full payment', () => {
+    const decimalCard = {
+      ...card,
+      current_balance: 7000.35,
+      service_fee_balance: 1000.10,
+      credit_limit: 10000.55,
+    };
+
+    expect(getCreditCardTotalDue(decimalCard)).toBe(8000.45);
+    expect(getCreditCardAvailableCredit(decimalCard)).toBe(2000.10);
+    expect(getCreditCardPaymentAllocation(decimalCard, 8000.45)).toEqual({
+      serviceFeePaid: 1000.10,
+      usedBalancePaid: 7000.35,
+      remainingServiceFees: 0,
+      remainingUsedBalance: 0,
+    });
+  });
+
+  it('applies and reverses a decimal payment without phantom centavos', () => {
+    const decimalCard = {
+      ...card,
+      current_balance: 7000.35,
+      service_fee_balance: 1000.10,
+    };
+    const applied = applyTransactionBalanceChange([bank, decimalCard], {
+      wallet_id: bank.id,
+      destination_wallet_id: decimalCard.id,
+      type: 'loan',
+      amount: 8000.45,
+      fee: 0.10,
+    });
+
+    expect(applied.success).toBe(true);
+    expect(applied.wallets.find(wallet => wallet.id === bank.id)?.current_balance).toBe(41999.45);
+    expect(applied.wallets.find(wallet => wallet.id === decimalCard.id)).toMatchObject({
+      current_balance: 0,
+      service_fee_balance: 0,
+    });
+
+    const reversed = reverseTransactionBalanceChange(applied.wallets, {
+      wallet_id: bank.id,
+      destination_wallet_id: decimalCard.id,
+      type: 'loan',
+      amount: 8000.45,
+      fee: 0.10,
+      service_fee_amount: 1000.10,
+    });
+
+    expect(reversed.wallets.find(wallet => wallet.id === bank.id)?.current_balance).toBe(50000);
+    expect(reversed.wallets.find(wallet => wallet.id === decimalCard.id)).toMatchObject({
+      current_balance: 7000.35,
+      service_fee_balance: 1000.10,
+    });
+  });
 });

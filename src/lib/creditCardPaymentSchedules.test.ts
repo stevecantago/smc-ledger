@@ -64,6 +64,14 @@ describe('credit card payment schedules', () => {
     ], new Date(2026, 8, 17))).toEqual([]);
   });
 
+  it('omits a card whose decimal payment leaves only binary floating-point residue', () => {
+    expect(buildCreditCardPaymentSchedules([{
+      ...baseWallet,
+      current_balance: 7000.35 - (8000.45 - 1000.10),
+      service_fee_balance: 1000.10 - 1000.10,
+    }], new Date(2026, 8, 17))).toEqual([]);
+  });
+
   it('normalizes a legacy negative card balance into the scheduled amount', () => {
     const schedules = buildCreditCardPaymentSchedules([
       { ...baseWallet, current_balance: -1250.5, service_fee_balance: 0 },

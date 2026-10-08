@@ -533,18 +533,32 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           );
         }
       }
-      if (parsed.wallets && Array.isArray(parsed.wallets)) {
-        const normalizedWallets = parsed.wallets.map(normalizeCreditCardWalletBalance);
+      const normalizedBackupWallets = parsed.wallets && Array.isArray(parsed.wallets)
+        ? parsed.wallets.map(normalizeCreditCardWalletBalance)
+        : null;
+      const backupTransactions = parsed.transactions && Array.isArray(parsed.transactions)
+        ? parsed.transactions
+        : null;
+
+      if (normalizedBackupWallets) {
+        const normalizedWallets = normalizedBackupWallets;
         setWallets(normalizedWallets);
-        if (supabase) trackSupabaseWrite('Restore wallets', supabase.from('wallets').upsert(normalizedWallets));
       }
       if (parsed.categories && Array.isArray(parsed.categories)) {
         setCategories(parsed.categories);
         if (supabase) trackSupabaseWrite('Restore categories', supabase.from('categories').upsert(parsed.categories));
       }
-      if (parsed.transactions && Array.isArray(parsed.transactions)) {
-        setTransactions(parsed.transactions);
-        if (supabase) trackSupabaseWrite('Restore transactions', supabase.from('transactions').upsert(parsed.transactions));
+      if (backupTransactions) {
+        setTransactions(backupTransactions);
+      }
+      if (supabase && (normalizedBackupWallets || backupTransactions)) {
+        trackSupabaseWrite(
+          'Restore wallets and transactions',
+          supabase.rpc('restore_wallets_and_transactions', {
+            p_wallets: normalizedBackupWallets || [],
+            p_transactions: backupTransactions || [],
+          }),
+        );
       }
       if (parsed.savingsGoals && Array.isArray(parsed.savingsGoals)) {
         setSavingsGoals(parsed.savingsGoals);

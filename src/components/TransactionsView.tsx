@@ -6,16 +6,18 @@ import {
   TrendingDown, TrendingUp, ArrowRightLeft, Landmark, Search, Filter, Trash2, Edit3, Clock, 
   ExternalLink, Plus, AlertCircle, CheckCircle2, ShieldAlert, Download, Image, Upload, DollarSign 
 } from 'lucide-react';
-import { Transaction, TransactionType } from '../types/database';
+import { Transaction, TransactionType, Wallet } from '../types/database';
 import { exportTransactionsToCsv } from '../lib/exportCsv';
 import { getTransactionSubmissionAction } from '../lib/transactionFlow';
 import {
   type CreditCardPaymentAllocation,
+  addPhpAmounts,
   getCreditCardAvailableCredit,
   getCreditCardPaymentAllocation,
   getCreditCardTotalDue,
   getCreditCardUsedBalance,
   getRequiredCreditCardFunding,
+  isPhpAmountGreaterThan,
 } from '../lib/creditCardTransactions';
 
 export function getCreditCardPaymentAmountError(
@@ -23,9 +25,19 @@ export function getCreditCardPaymentAmountError(
   paymentAmount: number,
   cardTotalDue: number,
 ): string | null {
-  return isCardLoanPayment && paymentAmount > cardTotalDue
+  return isCardLoanPayment && isPhpAmountGreaterThan(paymentAmount, cardTotalDue)
     ? 'Credit card payment cannot exceed total due.'
     : null;
+}
+
+export function getCreditCardDestinationHelpText(
+  isCreditCardPayment: boolean,
+  destinationWalletType: Wallet['wallet_type'] | undefined,
+): string | null {
+  if (destinationWalletType !== 'credit_card') return null;
+  return isCreditCardPayment
+    ? 'This payment clears service fees first, then reduces used balance.'
+    : 'Transfers into this card reduce used balance only; service fees stay unchanged.';
 }
 
 interface CreditCardPaymentPreviewProps {
@@ -105,7 +117,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
   const cardTotalDue = selectedDestinationWallet?.wallet_type === 'credit_card'
     ? getCreditCardTotalDue(selectedDestinationWallet)
     : 0;
-  const totalCashDeducted = parsedPaymentAmount + parsedTransactionFee;
+  const totalCashDeducted = addPhpAmounts(parsedPaymentAmount, parsedTransactionFee);
 
   useEffect(() => {
     if (!showModal || !draft) return;
@@ -1024,9 +1036,9 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                       </option>
                     ))}
                   </select>
-                  {selectedDestinationWallet?.wallet_type === 'credit_card' && (
+                  {getCreditCardDestinationHelpText(isCreditCardPayment, selectedDestinationWallet?.wallet_type) && (
                     <p className="mt-1 text-[11px] text-purple-300">
-                      This payment clears service fees first, then reduces used balance.
+                      {getCreditCardDestinationHelpText(isCreditCardPayment, selectedDestinationWallet?.wallet_type)}
                     </p>
                   )}
                 </div>

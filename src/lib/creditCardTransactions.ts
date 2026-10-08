@@ -16,6 +16,31 @@ export interface CreditCardPaymentAllocation {
   remainingUsedBalance: number;
 }
 
+const CENTAVOS_PER_PHP = 100;
+
+export function toPhpCentavos(value: number): number {
+  if (!Number.isFinite(value)) return value;
+  const scaled = value * CENTAVOS_PER_PHP;
+  const roundingGuard = Math.sign(scaled) * Number.EPSILON * Math.abs(scaled);
+  return Math.round(scaled + roundingGuard);
+}
+
+export function fromPhpCentavos(value: number): number {
+  return value / CENTAVOS_PER_PHP;
+}
+
+export function addPhpAmounts(...values: number[]): number {
+  return fromPhpCentavos(values.reduce((sum, value) => sum + toPhpCentavos(value), 0));
+}
+
+export function isPhpAmountGreaterThan(left: number, right: number): boolean {
+  return toPhpCentavos(left) > toPhpCentavos(right);
+}
+
+function normalizePhpAmount(value: number): number {
+  return fromPhpCentavos(toPhpCentavos(value));
+}
+
 type BalanceResult =
   | { success: true; wallets: Wallet[]; changedWalletIds: string[] }
   | { success: false; error: string; wallets: Wallet[]; changedWalletIds: string[] };
@@ -51,40 +76,46 @@ export function getRequiredCreditCardFunding(
 }
 
 export function getCreditCardUsedBalance(wallet: Wallet): number {
-  return wallet.wallet_type === 'credit_card' ? Math.abs(wallet.current_balance) : wallet.current_balance;
+  return wallet.wallet_type === 'credit_card'
+    ? fromPhpCentavos(Math.abs(toPhpCentavos(wallet.current_balance)))
+    : normalizePhpAmount(wallet.current_balance);
 }
 
 export function getCreditCardServiceFeeBalance(wallet: Wallet): number {
   return wallet.wallet_type === 'credit_card'
-    ? Math.max(0, wallet.service_fee_balance || 0)
+    ? fromPhpCentavos(Math.max(0, toPhpCentavos(wallet.service_fee_balance || 0)))
     : 0;
 }
 
 export function getCreditCardTotalDue(wallet: Wallet): number {
   if (wallet.wallet_type !== 'credit_card') return 0;
-  return getCreditCardUsedBalance(wallet) + getCreditCardServiceFeeBalance(wallet);
+  return addPhpAmounts(getCreditCardUsedBalance(wallet), getCreditCardServiceFeeBalance(wallet));
 }
 
 export function getCreditCardPaymentAllocation(
   wallet: Wallet,
   paymentAmount: number,
 ): CreditCardPaymentAllocation {
-  const serviceFees = getCreditCardServiceFeeBalance(wallet);
-  const usedBalance = getCreditCardUsedBalance(wallet);
-  const serviceFeePaid = Math.min(Math.max(paymentAmount, 0), serviceFees);
-  const usedBalancePaid = Math.min(Math.max(paymentAmount - serviceFeePaid, 0), usedBalance);
+  const serviceFees = toPhpCentavos(getCreditCardServiceFeeBalance(wallet));
+  const usedBalance = toPhpCentavos(getCreditCardUsedBalance(wallet));
+  const payment = Math.max(0, toPhpCentavos(paymentAmount));
+  const serviceFeePaid = Math.min(payment, serviceFees);
+  const usedBalancePaid = Math.min(Math.max(payment - serviceFeePaid, 0), usedBalance);
 
   return {
-    serviceFeePaid,
-    usedBalancePaid,
-    remainingServiceFees: serviceFees - serviceFeePaid,
-    remainingUsedBalance: usedBalance - usedBalancePaid,
+    serviceFeePaid: fromPhpCentavos(serviceFeePaid),
+    usedBalancePaid: fromPhpCentavos(usedBalancePaid),
+    remainingServiceFees: fromPhpCentavos(serviceFees - serviceFeePaid),
+    remainingUsedBalance: fromPhpCentavos(usedBalance - usedBalancePaid),
   };
 }
 
 export function getCreditCardAvailableCredit(wallet: Wallet): number {
   if (wallet.wallet_type !== 'credit_card') return wallet.current_balance;
-  return Math.max(0, (wallet.credit_limit || 0) - getCreditCardTotalDue(wallet));
+  return fromPhpCentavos(Math.max(
+    0,
+    toPhpCentavos(wallet.credit_limit || 0) - toPhpCentavos(getCreditCardTotalDue(wallet)),
+  ));
 }
 
 export function normalizeCreditCardWalletBalance(wallet: Wallet): Wallet {
@@ -100,7 +131,7 @@ export function normalizeCreditCardWalletBalance(wallet: Wallet): Wallet {
 function assertCreditChargeAllowed(wallet: Wallet, chargeAmount: number): string | null {
   if (wallet.wallet_type !== 'credit_card') return null;
   const creditLimit = wallet.credit_limit || 0;
-  if (getCreditCardTotalDue(wallet) + chargeAmount > creditLimit) {
+  if (toPhpCentavos(getCreditCardTotalDue(wallet)) + toPhpCentavos(chargeAmount) > toPhpCentavos(creditLimit)) {
     return 'Credit card charge exceeds available credit.';
   }
   return null;
@@ -108,7 +139,7 @@ function assertCreditChargeAllowed(wallet: Wallet, chargeAmount: number): string
 
 function assertCreditPaymentAllowed(wallet: Wallet, paymentAmount: number): string | null {
   if (wallet.wallet_type !== 'credit_card') return null;
-  if (paymentAmount > getCreditCardUsedBalance(wallet)) {
+  if (isPhpAmountGreaterThan(paymentAmount, getCreditCardUsedBalance(wallet))) {
     return 'Credit card payment cannot exceed the used balance.';
   }
   return null;
@@ -131,8 +162,9 @@ export function applyTransactionBalanceChange(wallets: Wallet[], input: Transact
   const sourceWallet = findWallet(normalizedWallets, input.wallet_id);
   if (!sourceWallet) return fail('Source wallet not found', wallets);
 
-  const feeAmount = input.fee || 0;
-  const totalAmount = input.amount + feeAmount;
+  const amountCentavos = toPhpCentavos(input.amount);
+  const feeCentavos = toPhpCentavos(input.fee || 0);
+  const totalCentavos = amountCentavos + feeCentavos;
   let nextWallets = cloneWallets(normalizedWallets);
 
   if (input.type === 'loan' && input.destination_wallet_id) {
@@ -145,13 +177,17 @@ export function applyTransactionBalanceChange(wallets: Wallet[], input: Transact
       return fail('Credit card payments require a non-credit funding account.', wallets);
     }
 
-    if (input.amount > getCreditCardTotalDue(destinationWallet)) {
+    if (amountCentavos > toPhpCentavos(getCreditCardTotalDue(destinationWallet))) {
       return fail('Credit card payment cannot exceed total due.', wallets);
     }
 
     const allocation = getCreditCardPaymentAllocation(destinationWallet, input.amount);
 
-    nextWallets = updateWalletBalance(nextWallets, sourceWallet.id, sourceWallet.current_balance - totalAmount);
+    nextWallets = updateWalletBalance(
+      nextWallets,
+      sourceWallet.id,
+      fromPhpCentavos(toPhpCentavos(sourceWallet.current_balance) - totalCentavos),
+    );
     nextWallets = nextWallets.map(wallet => wallet.id === destinationWallet.id
       ? {
           ...wallet,
@@ -163,12 +199,12 @@ export function applyTransactionBalanceChange(wallets: Wallet[], input: Transact
   }
 
   if (input.type === 'expense' || input.type === 'loan') {
-    const creditError = assertCreditChargeAllowed(sourceWallet, totalAmount);
+    const creditError = assertCreditChargeAllowed(sourceWallet, fromPhpCentavos(totalCentavos));
     if (creditError) return fail(creditError, wallets);
 
     const nextBalance = sourceWallet.wallet_type === 'credit_card'
-      ? sourceWallet.current_balance + totalAmount
-      : sourceWallet.current_balance - totalAmount;
+      ? fromPhpCentavos(toPhpCentavos(sourceWallet.current_balance) + totalCentavos)
+      : fromPhpCentavos(toPhpCentavos(sourceWallet.current_balance) - totalCentavos);
 
     nextWallets = updateWalletBalance(nextWallets, sourceWallet.id, nextBalance);
     return ok(nextWallets, [sourceWallet.id]);
@@ -176,8 +212,8 @@ export function applyTransactionBalanceChange(wallets: Wallet[], input: Transact
 
   if (input.type === 'income') {
     const nextBalance = sourceWallet.wallet_type === 'credit_card'
-      ? Math.max(0, sourceWallet.current_balance - Math.max(0, input.amount - feeAmount))
-      : sourceWallet.current_balance + input.amount - feeAmount;
+      ? fromPhpCentavos(Math.max(0, toPhpCentavos(sourceWallet.current_balance) - Math.max(0, amountCentavos - feeCentavos)))
+      : fromPhpCentavos(toPhpCentavos(sourceWallet.current_balance) + amountCentavos - feeCentavos);
 
     nextWallets = updateWalletBalance(nextWallets, sourceWallet.id, nextBalance);
     return ok(nextWallets, [sourceWallet.id]);
@@ -189,19 +225,19 @@ export function applyTransactionBalanceChange(wallets: Wallet[], input: Transact
   const destinationWallet = findWallet(normalizedWallets, input.destination_wallet_id);
   if (!destinationWallet) return fail('Destination wallet not found', wallets);
 
-  const sourceCreditError = assertCreditChargeAllowed(sourceWallet, totalAmount);
+  const sourceCreditError = assertCreditChargeAllowed(sourceWallet, fromPhpCentavos(totalCentavos));
   if (sourceCreditError) return fail(sourceCreditError, wallets);
 
   const destinationCreditError = assertCreditPaymentAllowed(destinationWallet, input.amount);
   if (destinationCreditError) return fail(destinationCreditError, wallets);
 
   const nextSourceBalance = sourceWallet.wallet_type === 'credit_card'
-    ? sourceWallet.current_balance + totalAmount
-    : sourceWallet.current_balance - totalAmount;
+    ? fromPhpCentavos(toPhpCentavos(sourceWallet.current_balance) + totalCentavos)
+    : fromPhpCentavos(toPhpCentavos(sourceWallet.current_balance) - totalCentavos);
 
   const nextDestinationBalance = destinationWallet.wallet_type === 'credit_card'
-    ? destinationWallet.current_balance - input.amount
-    : destinationWallet.current_balance + input.amount;
+    ? fromPhpCentavos(toPhpCentavos(destinationWallet.current_balance) - amountCentavos)
+    : fromPhpCentavos(toPhpCentavos(destinationWallet.current_balance) + amountCentavos);
 
   nextWallets = updateWalletBalance(nextWallets, sourceWallet.id, nextSourceBalance);
   nextWallets = updateWalletBalance(nextWallets, destinationWallet.id, nextDestinationBalance);
@@ -213,21 +249,30 @@ export function reverseTransactionBalanceChange(wallets: Wallet[], input: Transa
   const sourceWallet = findWallet(normalizedWallets, input.wallet_id);
   if (!sourceWallet) return fail('Source wallet not found', wallets);
 
-  const feeAmount = input.fee || 0;
-  const totalAmount = input.amount + feeAmount;
+  const amountCentavos = toPhpCentavos(input.amount);
+  const feeCentavos = toPhpCentavos(input.fee || 0);
+  const totalCentavos = amountCentavos + feeCentavos;
   let nextWallets = cloneWallets(normalizedWallets);
 
   if (input.type === 'loan' && input.destination_wallet_id) {
     const destinationWallet = findWallet(normalizedWallets, input.destination_wallet_id);
     if (!destinationWallet) return fail('Destination wallet not found', wallets);
 
-    nextWallets = updateWalletBalance(nextWallets, sourceWallet.id, sourceWallet.current_balance + totalAmount);
-    const serviceFeeAmount = input.service_fee_amount || 0;
+    nextWallets = updateWalletBalance(
+      nextWallets,
+      sourceWallet.id,
+      fromPhpCentavos(toPhpCentavos(sourceWallet.current_balance) + totalCentavos),
+    );
+    const serviceFeeCentavos = toPhpCentavos(input.service_fee_amount || 0);
     nextWallets = nextWallets.map(wallet => wallet.id === destinationWallet.id
       ? {
           ...wallet,
-          current_balance: wallet.current_balance + input.amount - serviceFeeAmount,
-          service_fee_balance: getCreditCardServiceFeeBalance(wallet) + serviceFeeAmount,
+          current_balance: fromPhpCentavos(
+            toPhpCentavos(wallet.current_balance) + amountCentavos - serviceFeeCentavos,
+          ),
+          service_fee_balance: fromPhpCentavos(
+            toPhpCentavos(getCreditCardServiceFeeBalance(wallet)) + serviceFeeCentavos,
+          ),
         }
       : wallet);
     return ok(nextWallets, [sourceWallet.id, destinationWallet.id]);
@@ -235,8 +280,8 @@ export function reverseTransactionBalanceChange(wallets: Wallet[], input: Transa
 
   if (input.type === 'expense' || input.type === 'loan') {
     const nextBalance = sourceWallet.wallet_type === 'credit_card'
-      ? Math.max(0, sourceWallet.current_balance - totalAmount)
-      : sourceWallet.current_balance + totalAmount;
+      ? fromPhpCentavos(Math.max(0, toPhpCentavos(sourceWallet.current_balance) - totalCentavos))
+      : fromPhpCentavos(toPhpCentavos(sourceWallet.current_balance) + totalCentavos);
 
     nextWallets = updateWalletBalance(nextWallets, sourceWallet.id, nextBalance);
     return ok(nextWallets, [sourceWallet.id]);
@@ -244,8 +289,8 @@ export function reverseTransactionBalanceChange(wallets: Wallet[], input: Transa
 
   if (input.type === 'income') {
     const nextBalance = sourceWallet.wallet_type === 'credit_card'
-      ? sourceWallet.current_balance + Math.max(0, input.amount - feeAmount)
-      : sourceWallet.current_balance - (input.amount - feeAmount);
+      ? fromPhpCentavos(toPhpCentavos(sourceWallet.current_balance) + Math.max(0, amountCentavos - feeCentavos))
+      : fromPhpCentavos(toPhpCentavos(sourceWallet.current_balance) - amountCentavos + feeCentavos);
 
     nextWallets = updateWalletBalance(nextWallets, sourceWallet.id, nextBalance);
     return ok(nextWallets, [sourceWallet.id]);
@@ -255,12 +300,12 @@ export function reverseTransactionBalanceChange(wallets: Wallet[], input: Transa
   if (!destinationWallet) return fail('Destination wallet not found', wallets);
 
   const nextSourceBalance = sourceWallet.wallet_type === 'credit_card'
-    ? Math.max(0, sourceWallet.current_balance - totalAmount)
-    : sourceWallet.current_balance + totalAmount;
+    ? fromPhpCentavos(Math.max(0, toPhpCentavos(sourceWallet.current_balance) - totalCentavos))
+    : fromPhpCentavos(toPhpCentavos(sourceWallet.current_balance) + totalCentavos);
 
   const nextDestinationBalance = destinationWallet.wallet_type === 'credit_card'
-    ? destinationWallet.current_balance + input.amount
-    : destinationWallet.current_balance - input.amount;
+    ? fromPhpCentavos(toPhpCentavos(destinationWallet.current_balance) + amountCentavos)
+    : fromPhpCentavos(toPhpCentavos(destinationWallet.current_balance) - amountCentavos);
 
   nextWallets = updateWalletBalance(nextWallets, sourceWallet.id, nextSourceBalance);
   nextWallets = updateWalletBalance(nextWallets, destinationWallet.id, nextDestinationBalance);

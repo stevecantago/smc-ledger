@@ -35,6 +35,10 @@ vi.mock('../lib/supabase', async importOriginal => {
         ? { ...wallet, current_balance: 7000, service_fee_balance: 1000 }
         : wallet),
     supabase: {
+      rpc: (name: string, payload: unknown) => {
+        harness.writes.push({ table: name, operation: 'rpc', payload });
+        return Promise.resolve({ error: null });
+      },
       from: (table: string) => ({
         insert: (payload: unknown) => {
           harness.writes.push({ table, operation: 'insert', payload });
@@ -129,5 +133,48 @@ describe('household service-fee persistence', () => {
     renderProvider().updateWallet(payment.destination_wallet_id, { service_fee_balance: value });
     expect(renderProvider().wallets.find(wallet => wallet.id === payment.destination_wallet_id)?.service_fee_balance).toBe(0);
     expect(harness.writes.find(write => write.table === 'wallets')?.payload).toEqual({ service_fee_balance: 0 });
+  });
+
+  it('restores wallets and transactions through one remote atomic operation with saved allocations', () => {
+    const backupWallets = [
+      { ...renderProvider().wallets.find(wallet => wallet.id === payment.wallet_id)!, current_balance: 42450 },
+      {
+        ...renderProvider().wallets.find(wallet => wallet.id === payment.destination_wallet_id)!,
+        current_balance: 500,
+        service_fee_balance: 0,
+      },
+    ];
+    const backupTransactions = [{
+      id: 'historical-payment',
+      household_id: 'hh-101',
+      payer_id: 'member-steve-admin',
+      category_id: null,
+      receipt_url: null,
+      note: 'Historical payment',
+      created_at: '2026-09-01T00:00:00.000Z',
+      ...payment,
+      service_fee_amount: 1000,
+    }];
+
+    const result = renderProvider().restoreFullHouseholdBackup(JSON.stringify({
+      wallets: backupWallets,
+      transactions: backupTransactions,
+    }));
+
+    expect(result.success).toBe(true);
+    expect(renderProvider().wallets.find(wallet => wallet.id === payment.destination_wallet_id)).toMatchObject({
+      current_balance: 500,
+      service_fee_balance: 0,
+    });
+    expect(renderProvider().transactions[0].service_fee_amount).toBe(1000);
+    expect(harness.writes.filter(write => ['wallets', 'transactions'].includes(write.table))).toEqual([]);
+    expect(harness.writes.find(write => write.operation === 'rpc')).toEqual({
+      table: 'restore_wallets_and_transactions',
+      operation: 'rpc',
+      payload: {
+        p_wallets: backupWallets,
+        p_transactions: backupTransactions,
+      },
+    });
   });
 });

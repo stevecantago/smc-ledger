@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   CreditCardPaymentPreview,
   TransactionsView,
+  getCreditCardDestinationHelpText,
   getCreditCardPaymentAmountError,
 } from './TransactionsView';
 
@@ -130,6 +131,20 @@ describe('credit-card payment entry', () => {
     );
     expect(getCreditCardPaymentAmountError(true, 8000, 8000)).toBeNull();
     expect(getCreditCardPaymentAmountError(false, 8000.01, 8000)).toBeNull();
+  });
+
+  it('accepts a decimal payment exactly equal to the card total due', () => {
+    expect(getCreditCardPaymentAmountError(true, 3510.40, 3500.20 + 10.20)).toBeNull();
+  });
+
+  it('uses fee-first copy only for actual credit-card payments', () => {
+    expect(getCreditCardDestinationHelpText(true, 'credit_card')).toBe(
+      'This payment clears service fees first, then reduces used balance.',
+    );
+    expect(getCreditCardDestinationHelpText(false, 'credit_card')).toBe(
+      'Transfers into this card reduce used balance only; service fees stay unchanged.',
+    );
+    expect(getCreditCardDestinationHelpText(false, 'bank')).toBeNull();
   });
 
   it('shows a positive stored service-fee allocation in desktop and mobile ledgers only', () => {

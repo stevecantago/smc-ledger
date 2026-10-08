@@ -163,5 +163,81 @@ select is((select current_balance from wallets where id = 'fee-test-bank'), 5000
 select is((select current_balance from wallets where id = 'fee-test-card'), 7000::numeric, 'upserted payment reversal restores principal exactly');
 select is((select service_fee_balance from wallets where id = 'fee-test-card'), 1000::numeric, 'upserted payment reversal restores outstanding fees exactly');
 
+-- Full backup restoration must treat saved wallet balances and allocations as source data.
+select is(
+  (select prosecdef from pg_proc where oid = 'public.restore_wallets_and_transactions(jsonb,jsonb)'::regprocedure),
+  false,
+  'backup restore RPC runs with invoker rights'
+);
+
+select lives_ok(
+  $$select public.restore_wallets_and_transactions(
+    jsonb_build_array(
+      jsonb_build_object(
+        'id', 'fee-test-bank', 'household_id', 'fee-test-household', 'owner_id', 'fee-test-member',
+        'name', 'Bank', 'wallet_type', 'bank', 'is_shared', true,
+        'current_balance', 42450.00, 'credit_limit', null, 'service_fee_balance', 0,
+        'created_at', '2026-10-03T00:00:00Z'
+      ),
+      jsonb_build_object(
+        'id', 'fee-test-card', 'household_id', 'fee-test-household', 'owner_id', 'fee-test-member',
+        'name', 'Card', 'wallet_type', 'credit_card', 'is_shared', false,
+        'current_balance', 500.00, 'credit_limit', 10000.00, 'service_fee_balance', 0,
+        'created_at', '2026-10-03T00:00:00Z'
+      )
+    ),
+    jsonb_build_array(
+      jsonb_build_object(
+        'id', 'fee-test-historical-payment', 'household_id', 'fee-test-household',
+        'wallet_id', 'fee-test-bank', 'destination_wallet_id', 'fee-test-card',
+        'category_id', null, 'payer_id', 'fee-test-member', 'type', 'loan',
+        'amount', 7500.00, 'fee', 50.00, 'service_fee_amount', 1000.00,
+        'transaction_date', current_date, 'note', 'Historical payment', 'receipt_url', null,
+        'created_at', '2026-10-03T00:00:00Z'
+      )
+    )
+  )$$,
+  'restores a missing historical payment even when the saved card has a smaller remaining due'
+);
+select is((select current_balance from wallets where id = 'fee-test-bank'), 42450::numeric, 'backup restore preserves saved funding balance');
+select is((select current_balance from wallets where id = 'fee-test-card'), 500::numeric, 'backup restore preserves saved card principal');
+select is((select service_fee_balance from wallets where id = 'fee-test-card'), 0::numeric, 'backup restore preserves saved card fees');
+select is((select service_fee_amount from transactions where id = 'fee-test-historical-payment'), 1000::numeric, 'backup restore preserves missing payment allocation');
+
+update transactions set service_fee_amount = 900 where id = 'fee-test-historical-payment';
+select lives_ok(
+  $$select public.restore_wallets_and_transactions(
+    jsonb_build_array(
+      jsonb_build_object(
+        'id', 'fee-test-bank', 'household_id', 'fee-test-household', 'owner_id', 'fee-test-member',
+        'name', 'Bank', 'wallet_type', 'bank', 'is_shared', true,
+        'current_balance', 42450.00, 'credit_limit', null, 'service_fee_balance', 0,
+        'created_at', '2026-10-03T00:00:00Z'
+      ),
+      jsonb_build_object(
+        'id', 'fee-test-card', 'household_id', 'fee-test-household', 'owner_id', 'fee-test-member',
+        'name', 'Card', 'wallet_type', 'credit_card', 'is_shared', false,
+        'current_balance', 500.00, 'credit_limit', 10000.00, 'service_fee_balance', 0,
+        'created_at', '2026-10-03T00:00:00Z'
+      )
+    ),
+    jsonb_build_array(
+      jsonb_build_object(
+        'id', 'fee-test-historical-payment', 'household_id', 'fee-test-household',
+        'wallet_id', 'fee-test-bank', 'destination_wallet_id', 'fee-test-card',
+        'category_id', null, 'payer_id', 'fee-test-member', 'type', 'loan',
+        'amount', 7500.00, 'fee', 50.00, 'service_fee_amount', 1000.00,
+        'transaction_date', current_date, 'note', 'Historical payment', 'receipt_url', null,
+        'created_at', '2026-10-03T00:00:00Z'
+      )
+    )
+  )$$,
+  'restores an existing historical payment without moving saved balances'
+);
+select is((select service_fee_amount from transactions where id = 'fee-test-historical-payment'), 1000::numeric, 'backup restore replaces an existing payment with its saved allocation');
+select is((select current_balance from wallets where id = 'fee-test-bank'), 42450::numeric, 'existing payment restore keeps saved funding balance');
+select is((select current_balance from wallets where id = 'fee-test-card'), 500::numeric, 'existing payment restore keeps saved principal');
+select is((select service_fee_balance from wallets where id = 'fee-test-card'), 0::numeric, 'existing payment restore keeps saved fees');
+
 select * from finish();
 rollback;
