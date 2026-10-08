@@ -10,10 +10,42 @@ import { Transaction, TransactionType } from '../types/database';
 import { exportTransactionsToCsv } from '../lib/exportCsv';
 import { getTransactionSubmissionAction } from '../lib/transactionFlow';
 import {
+  type CreditCardPaymentAllocation,
   getCreditCardAvailableCredit,
+  getCreditCardPaymentAllocation,
+  getCreditCardTotalDue,
   getCreditCardUsedBalance,
   getRequiredCreditCardFunding,
 } from '../lib/creditCardTransactions';
+
+export function getCreditCardPaymentAmountError(
+  isCardLoanPayment: boolean,
+  paymentAmount: number,
+  cardTotalDue: number,
+): string | null {
+  return isCardLoanPayment && paymentAmount > cardTotalDue
+    ? 'Credit card payment cannot exceed total due.'
+    : null;
+}
+
+interface CreditCardPaymentPreviewProps {
+  allocation: CreditCardPaymentAllocation;
+  transactionFee: number;
+  totalCashDeducted: number;
+}
+
+export const CreditCardPaymentPreview: React.FC<CreditCardPaymentPreviewProps> = ({
+  allocation,
+  transactionFee,
+  totalCashDeducted,
+}) => (
+  <div className="grid grid-cols-2 gap-2 rounded-lg border border-purple-500/30 bg-purple-500/10 p-3 text-[11px]">
+    <div><span className="text-slate-400">Service Fees Paid</span><p className="font-mono font-bold text-amber-300">₱{allocation.serviceFeePaid.toFixed(2)}</p></div>
+    <div><span className="text-slate-400">Used Balance Paid</span><p className="font-mono font-bold text-purple-300">₱{allocation.usedBalancePaid.toFixed(2)}</p></div>
+    <div><span className="text-slate-400">Transaction Fee</span><p className="font-mono font-bold text-amber-300">₱{transactionFee.toFixed(2)}</p></div>
+    <div><span className="text-slate-400">Total Cash Deducted</span><p className="font-mono font-bold text-rose-300">₱{totalCashDeducted.toFixed(2)}</p></div>
+  </div>
+);
 
 interface TransactionsViewProps {
   showModal: boolean;
@@ -65,6 +97,15 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
   const requiredCardFunding = getRequiredCreditCardFunding(selectedDestinationWallet, visibleWallets);
   const isFundingAccountLocked = isCreditCardPayment && requiredCardFunding.locked;
   const requiredFundingWalletId = isFundingAccountLocked ? requiredCardFunding.walletId : null;
+  const parsedPaymentAmount = parseFloat(amount) || 0;
+  const parsedTransactionFee = parseFloat(fee) || 0;
+  const cardPaymentAllocation = isCreditCardPayment && selectedDestinationWallet?.wallet_type === 'credit_card'
+    ? getCreditCardPaymentAllocation(selectedDestinationWallet, parsedPaymentAmount)
+    : null;
+  const cardTotalDue = selectedDestinationWallet?.wallet_type === 'credit_card'
+    ? getCreditCardTotalDue(selectedDestinationWallet)
+    : 0;
+  const totalCashDeducted = parsedPaymentAmount + parsedTransactionFee;
 
   useEffect(() => {
     if (!showModal || !draft) return;
@@ -179,6 +220,16 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
 
     if (isCreditCardPayment && selectedDestinationWallet?.wallet_type !== 'credit_card') {
       setErrorMsg('Please select a credit card or credit line for this loan payment.');
+      return;
+    }
+
+    const cardPaymentAmountError = getCreditCardPaymentAmountError(
+      isCardLoanPayment,
+      parsedAmount,
+      cardTotalDue,
+    );
+    if (cardPaymentAmountError) {
+      setErrorMsg(cardPaymentAmountError);
       return;
     }
 
@@ -874,6 +925,14 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                 </div>
               </div>
 
+              {isCreditCardPayment && cardPaymentAllocation && (
+                <CreditCardPaymentPreview
+                  allocation={cardPaymentAllocation}
+                  transactionFee={parsedTransactionFee}
+                  totalCashDeducted={totalCashDeducted}
+                />
+              )}
+
               {/* Source Wallet */}
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">
@@ -955,7 +1014,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                   </select>
                   {selectedDestinationWallet?.wallet_type === 'credit_card' && (
                     <p className="mt-1 text-[11px] text-purple-300">
-                      This loan payment will reduce the selected credit card used balance.
+                      This payment clears service fees first, then reduces used balance.
                     </p>
                   )}
                 </div>
