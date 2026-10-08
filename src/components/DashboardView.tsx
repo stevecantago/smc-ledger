@@ -505,7 +505,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
                 <h4 className="text-sm font-bold text-white">Upcoming Credit Card Payments</h4>
-                <p className="mt-0.5 text-[11px] text-slate-400">Full used balances due on the next 5th or 20th.</p>
+                <p className="mt-0.5 text-[11px] text-slate-400">Full card totals due on the next 5th or 20th.</p>
               </div>
               <CreditCard className="h-5 w-5 text-purple-300" />
             </div>

@@ -28,12 +28,12 @@ export const ActivityLogView: React.FC = () => {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       const content = event.target?.result as string;
       if (content) {
         if (!window.confirm('Restoring from backup file will update your household accounts, loans, and settings. Proceed with restoration?')) return;
         
-        const res = restoreFullHouseholdBackup(content);
+        const res = await restoreFullHouseholdBackup(content);
         if (res.success) {
           setMessage({ type: 'success', text: 'Household data restored successfully from backup file!' });
         } else {

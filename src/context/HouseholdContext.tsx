@@ -20,7 +20,7 @@ import {
   supabase
 } from '../lib/supabase';
 import { linkMemberToAuthenticatedUser, resolveAuthenticatedMember } from '../lib/authProfile';
-import { getSyncFailureWarning, getSyncStatus, MutationResult } from '../lib/persistence';
+import { getErrorMessage, getSyncFailureWarning, getSyncStatus, MutationResult } from '../lib/persistence';
 import { AUTH_STORAGE_KEYS, STORAGE_KEYS, clearAuthStorage, clearHouseholdStorage } from '../lib/storageKeys';
 import {
   canDeleteRole,
@@ -30,7 +30,14 @@ import {
   hasPermission as hasRolePermission,
   isHeadParent as getIsHeadParent,
 } from '../lib/permissions';
-import { applyTransactionBalanceChange, normalizeCreditCardWalletBalance, reverseTransactionBalanceChange } from '../lib/creditCardTransactions';
+import {
+  applyTransactionBalanceChange,
+  getCreditCardPaymentAllocation,
+  getTransactionFeeValidationError,
+  normalizeCreditCardWalletBalance,
+  normalizeTransactionFee,
+  reverseTransactionBalanceChange,
+} from '../lib/creditCardTransactions';
 import { getWalletDeleteBlocker } from '../lib/walletDeletion';
 import { syncLoanAndOptionalSchedule } from '../lib/loanScheduleSync';
 import {
@@ -66,11 +73,11 @@ interface HouseholdContextType {
   // Activity Logging & Backup/Restoration
   logActivity: (action: ActivityLogAction, description: string, details?: any) => MutationResult;
   exportFullHouseholdBackup: () => void;
-  restoreFullHouseholdBackup: (jsonContent: string) => { success: boolean; error?: string };
+  restoreFullHouseholdBackup: (jsonContent: string) => Promise<MutationResult>;
 
   // Wallets CRUD
   addWallet: (wallet: { name: string; wallet_type: Wallet['wallet_type']; is_shared: boolean; owner_id?: string | null; initial_balance: number; credit_limit?: number | null }) => MutationResult;
-  updateWallet: (id: string, updates: { name?: string; wallet_type?: Wallet['wallet_type']; current_balance?: number; credit_limit?: number | null; is_shared?: boolean }) => MutationResult;
+  updateWallet: (id: string, updates: { name?: string; wallet_type?: Wallet['wallet_type']; current_balance?: number; service_fee_balance?: number | null; credit_limit?: number | null; is_shared?: boolean }) => MutationResult;
   deleteWallet: (id: string) => MutationResult;
 
   // Categories CRUD
@@ -220,10 +227,20 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return { success: true, syncStatus: getSyncStatus(true) };
   };
 
-  // Helper to sync single wallet balance to Supabase
-  const updateWalletBalanceInSupabase = (walletId: string, newBalance: number) => {
-    if (supabase) {
-      trackSupabaseWrite('Update wallet balance', supabase.from('wallets').update({ current_balance: newBalance }).eq('id', walletId));
+  const awaitSupabaseRestoreWrite = async <T,>(
+    operation: string,
+    request: PromiseLike<{ error?: unknown } | T>,
+  ): Promise<void> => {
+    try {
+      const result = await request;
+      const maybeError = result && typeof result === 'object' && 'error' in result
+        ? (result as { error?: unknown }).error
+        : null;
+      if (maybeError) throw maybeError;
+    } catch (error) {
+      const message = `${operation} failed: ${getErrorMessage(error)}`;
+      setSyncWarning(message);
+      throw new Error(message);
     }
   };
 
@@ -514,7 +531,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   // Full Data Restoration Helper
-  const restoreFullHouseholdBackup = (jsonContent: string): { success: boolean; error?: string } => {
+  const restoreFullHouseholdBackup = async (jsonContent: string): Promise<MutationResult> => {
     if (!hasPermission('restore_backup')) {
       return { success: false, error: 'Your role cannot restore household backups.' };
     }
@@ -525,60 +542,107 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         return { success: false, error: 'Invalid JSON backup format.' };
       }
 
-      if (parsed.members && Array.isArray(parsed.members)) {
-        setMembers(parsed.members);
-        if (supabase) {
-          const db = supabase;
-          trackSupabaseWrite(
-            'Restore household members',
-            retryMemberWriteWithSchemaFallbacks(
-              () => db.from('household_members').upsert(parsed.members),
-              () => db.from('household_members').upsert(parsed.members.map(omitMemberRoleId)),
-              () => db.from('household_members').upsert(parsed.members.map(omitMemberProfileFields)),
-              () => db.from('household_members').upsert(parsed.members.map(omitUnsupportedMemberColumns))
-            )
-          );
-        }
-      }
-      if (parsed.wallets && Array.isArray(parsed.wallets)) {
-        const normalizedWallets = parsed.wallets.map(normalizeCreditCardWalletBalance);
-        setWallets(normalizedWallets);
-        if (supabase) trackSupabaseWrite('Restore wallets', supabase.from('wallets').upsert(normalizedWallets));
-      }
-      if (parsed.categories && Array.isArray(parsed.categories)) {
-        setCategories(parsed.categories);
-        if (supabase) trackSupabaseWrite('Restore categories', supabase.from('categories').upsert(parsed.categories));
-      }
-      if (parsed.transactions && Array.isArray(parsed.transactions)) {
-        setTransactions(parsed.transactions);
-        if (supabase) trackSupabaseWrite('Restore transactions', supabase.from('transactions').upsert(parsed.transactions));
-      }
-      if (parsed.savingsGoals && Array.isArray(parsed.savingsGoals)) {
-        setSavingsGoals(parsed.savingsGoals);
-        if (supabase) trackSupabaseWrite('Restore savings goals', supabase.from('savings_goals').upsert(parsed.savingsGoals));
-      }
-      if (parsed.loans && Array.isArray(parsed.loans)) {
-        setLoans(parsed.loans);
-        if (supabase) trackSupabaseWrite('Restore loans', supabase.from('loans').upsert(parsed.loans));
-      }
-      if (parsed.recurringTransfers && Array.isArray(parsed.recurringTransfers)) {
-        setRecurringTransfers(parsed.recurringTransfers);
-        if (supabase) trackSupabaseWrite('Restore recurring transfers', supabase.from('recurring_transfers').upsert(parsed.recurringTransfers));
-      }
-      if (parsed.customRoles && Array.isArray(parsed.customRoles)) {
-        setCustomRoles(parsed.customRoles);
-        if (supabase) trackSupabaseWrite('Restore household roles', supabase.from('household_roles').upsert(parsed.customRoles));
-      }
-      if (parsed.rolePermissions && Array.isArray(parsed.rolePermissions)) {
-        setRolePermissions(parsed.rolePermissions);
-        if (supabase) trackSupabaseWrite('Restore role permissions', supabase.from('role_permissions').upsert(parsed.rolePermissions));
-      }
-      if (parsed.activityLogs && Array.isArray(parsed.activityLogs)) {
-        setActivityLogs(parsed.activityLogs);
-        if (supabase) trackSupabaseWrite('Restore activity logs', supabase.from('activity_logs').upsert(parsed.activityLogs));
+      const backupWallets = Array.isArray(parsed.wallets) ? parsed.wallets : null;
+      const backupTransactions = Array.isArray(parsed.transactions) ? parsed.transactions : null;
+      const backupWalletIds = new Set<string>();
+      const hasInvalidWalletSnapshot = !backupWallets
+        || !backupTransactions
+        || backupWallets.length === 0
+        || backupWallets.some((wallet: Wallet) => {
+          if (!wallet?.id || backupWalletIds.has(wallet.id)) return true;
+          backupWalletIds.add(wallet.id);
+          return false;
+        })
+        || backupTransactions.some((transaction: Transaction) =>
+          !transaction?.wallet_id
+          || !backupWalletIds.has(transaction.wallet_id)
+          || Boolean(transaction.destination_wallet_id && !backupWalletIds.has(transaction.destination_wallet_id))
+        );
+
+      if (hasInvalidWalletSnapshot) {
+        return {
+          success: false,
+          error: 'Backup must include a complete, unique wallet snapshot for every transaction.',
+        };
       }
 
-      logActivity('backup_restore', `Restored full household dataset from uploaded backup file.`);
+      const normalizedBackupWallets = backupWallets.map(normalizeCreditCardWalletBalance);
+      const restoredMembers = Array.isArray(parsed.members) ? parsed.members : null;
+      const restoredCategories = Array.isArray(parsed.categories) ? parsed.categories : null;
+      const restoredSavingsGoals = Array.isArray(parsed.savingsGoals) ? parsed.savingsGoals : null;
+      const restoredLoans = Array.isArray(parsed.loans) ? parsed.loans : null;
+      const restoredRecurringTransfers = Array.isArray(parsed.recurringTransfers) ? parsed.recurringTransfers : null;
+      const restoredCustomRoles = Array.isArray(parsed.customRoles) ? parsed.customRoles : null;
+      const restoredRolePermissions = Array.isArray(parsed.rolePermissions) ? parsed.rolePermissions : null;
+      const restoredActivityLogs = Array.isArray(parsed.activityLogs) ? parsed.activityLogs : null;
+      const restoreLog: ActivityLogEntry = {
+        id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        household_id: household.id,
+        member_id: currentMember.id,
+        member_name: currentMember.display_name,
+        action: 'backup_restore',
+        description: 'Restored full household dataset from uploaded backup file.',
+        details: null,
+        created_at: new Date().toISOString(),
+      };
+
+      if (supabase) {
+        const db = supabase;
+        if (restoredCustomRoles) {
+          await awaitSupabaseRestoreWrite('Restore household roles', db.from('household_roles').upsert(restoredCustomRoles));
+        }
+        if (restoredMembers) {
+          await awaitSupabaseRestoreWrite(
+            'Restore household members',
+            retryMemberWriteWithSchemaFallbacks(
+              () => db.from('household_members').upsert(restoredMembers),
+              () => db.from('household_members').upsert(restoredMembers.map(omitMemberRoleId)),
+              () => db.from('household_members').upsert(restoredMembers.map(omitMemberProfileFields)),
+              () => db.from('household_members').upsert(restoredMembers.map(omitUnsupportedMemberColumns)),
+            ),
+          );
+        }
+        if (restoredCategories) {
+          await awaitSupabaseRestoreWrite(
+            'Restore categories',
+            db.from('categories').upsert(restoredCategories),
+          );
+        }
+        await awaitSupabaseRestoreWrite(
+          'Restore wallets and transactions',
+          db.rpc('restore_wallets_and_transactions', {
+            p_wallets: normalizedBackupWallets,
+            p_transactions: backupTransactions,
+          }),
+        );
+        if (restoredSavingsGoals) {
+          await awaitSupabaseRestoreWrite('Restore savings goals', db.from('savings_goals').upsert(restoredSavingsGoals));
+        }
+        if (restoredLoans) {
+          await awaitSupabaseRestoreWrite('Restore loans', db.from('loans').upsert(restoredLoans));
+        }
+        if (restoredRecurringTransfers) {
+          await awaitSupabaseRestoreWrite('Restore recurring transfers', db.from('recurring_transfers').upsert(restoredRecurringTransfers));
+        }
+        if (restoredRolePermissions) {
+          await awaitSupabaseRestoreWrite('Restore role permissions', db.from('role_permissions').upsert(restoredRolePermissions));
+        }
+        if (restoredActivityLogs) {
+          await awaitSupabaseRestoreWrite('Restore activity logs', db.from('activity_logs').upsert(restoredActivityLogs));
+        }
+        await awaitSupabaseRestoreWrite('Record backup restore', db.from('activity_logs').insert([restoreLog]));
+      }
+
+      if (restoredMembers) setMembers(restoredMembers);
+      setWallets(normalizedBackupWallets);
+      if (restoredCategories) setCategories(restoredCategories);
+      setTransactions(backupTransactions);
+      if (restoredSavingsGoals) setSavingsGoals(restoredSavingsGoals);
+      if (restoredLoans) setLoans(restoredLoans);
+      if (restoredRecurringTransfers) setRecurringTransfers(restoredRecurringTransfers);
+      if (restoredCustomRoles) setCustomRoles(restoredCustomRoles);
+      if (restoredRolePermissions) setRolePermissions(restoredRolePermissions);
+      setActivityLogs(restoredActivityLogs ? [restoreLog, ...restoredActivityLogs] : prev => [restoreLog, ...prev]);
       return { success: true };
     } catch (err: any) {
       return { success: false, error: err.message || 'Failed to parse JSON backup file.' };
@@ -688,6 +752,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       wallet_type: data.wallet_type,
       is_shared: data.is_shared,
       current_balance: data.wallet_type === 'credit_card' ? Math.abs(data.initial_balance) : data.initial_balance,
+      service_fee_balance: 0,
       credit_limit: data.credit_limit || null,
       created_at: new Date().toISOString(),
     };
@@ -699,14 +764,18 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       : localSaveResult();
   };
 
-  const updateWallet = (id: string, updates: { name?: string; wallet_type?: Wallet['wallet_type']; current_balance?: number; credit_limit?: number | null; is_shared?: boolean }) => {
+  const updateWallet = (id: string, updates: { name?: string; wallet_type?: Wallet['wallet_type']; current_balance?: number; service_fee_balance?: number | null; credit_limit?: number | null; is_shared?: boolean }) => {
     const target = wallets.find(w => w.id === id);
     if (!target) return { success: false, error: 'Wallet account not found.' };
     if (!hasPermission('manage_wallets', target.owner_id)) return { success: false, error: 'Your role cannot edit this wallet or credit line.' };
     const nextWalletType = updates.wallet_type || target.wallet_type;
-    const normalizedUpdates = updates.current_balance !== undefined && nextWalletType === 'credit_card'
-      ? { ...updates, current_balance: Math.abs(updates.current_balance) }
-      : updates;
+    const normalizedUpdates = {
+      ...updates,
+      ...(updates.current_balance !== undefined && nextWalletType === 'credit_card'
+        ? { current_balance: Math.abs(updates.current_balance) } : {}),
+      ...('service_fee_balance' in updates
+        ? { service_fee_balance: Math.max(0, updates.service_fee_balance || 0) } : {}),
+    };
     setWallets(prev => prev.map(w => w.id === id ? { ...w, ...normalizedUpdates } : w));
     logActivity('update_wallet', `Updated account "${updates.name || target?.name || id}"`);
 
@@ -774,7 +843,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       : localSaveResult();
   };
 
-  // Transactions CRUD with Processing Fee Accounting & Supabase Wallet Balance Sync
+  // Transactions update local balances optimistically; the database trigger owns remote balances.
   const addTransaction = (data: { 
     wallet_id: string; 
     destination_wallet_id?: string | null; 
@@ -793,9 +862,19 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const sourceWallet = wallets.find(w => w.id === data.wallet_id);
     if (!sourceWallet) return { success: false, error: 'Source wallet not found' };
 
-    const feeAmount = data.fee || 0;
-    const balanceResult = applyTransactionBalanceChange(wallets, data);
+    const feeError = getTransactionFeeValidationError(data.fee);
+    if (feeError) return { success: false, error: feeError };
+    const feeAmount = normalizeTransactionFee(data.fee);
+    const normalizedData = { ...data, fee: feeAmount };
+    const balanceResult = applyTransactionBalanceChange(wallets, normalizedData);
     if (!balanceResult.success) return { success: false, error: balanceResult.error };
+
+    const destinationWallet = data.destination_wallet_id
+      ? wallets.find(wallet => wallet.id === data.destination_wallet_id)
+      : undefined;
+    const serviceFeeAmount = data.type === 'loan' && destinationWallet?.wallet_type === 'credit_card'
+      ? getCreditCardPaymentAllocation(destinationWallet, data.amount).serviceFeePaid
+      : 0;
 
     const newTx: Transaction = {
       id: `tx-${Date.now()}`,
@@ -807,6 +886,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       type: data.type,
       amount: data.amount,
       fee: feeAmount > 0 ? feeAmount : null,
+      service_fee_amount: serviceFeeAmount,
       transaction_date: data.transaction_date,
       note: data.note || null,
       receipt_url: data.receipt_url || null,
@@ -814,10 +894,6 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
 
     setWallets(balanceResult.wallets);
-    balanceResult.changedWalletIds.forEach(walletId => {
-      const changedWallet = balanceResult.wallets.find(wallet => wallet.id === walletId);
-      if (changedWallet) updateWalletBalanceInSupabase(walletId, changedWallet.current_balance);
-    });
     setTransactions(prev => [newTx, ...prev]);
     logActivity('create_tx', `Logged ${data.type.toUpperCase()} transaction of ₱${data.amount} (${data.note || 'No note'})`);
 
@@ -837,11 +913,19 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       };
     }
 
-    setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
+    const normalizedUpdates = { ...updates };
+    if (Object.prototype.hasOwnProperty.call(updates, 'fee')) {
+      const feeError = getTransactionFeeValidationError(updates.fee);
+      if (feeError) return { success: false, error: feeError };
+      const normalizedFee = normalizeTransactionFee(updates.fee);
+      normalizedUpdates.fee = normalizedFee > 0 ? normalizedFee : null;
+    }
+
+    setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...normalizedUpdates } : t));
     logActivity('update_tx', `Updated transaction "${target.note || id}"`);
 
     return supabase
-      ? trackSupabaseWrite('Update transaction', supabase.from('transactions').update(updates).eq('id', id))
+      ? trackSupabaseWrite('Update transaction', supabase.from('transactions').update(normalizedUpdates).eq('id', id))
       : localSaveResult();
   };
 
@@ -860,10 +944,6 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (!balanceResult.success) return { success: false, error: balanceResult.error };
 
     setWallets(balanceResult.wallets);
-    balanceResult.changedWalletIds.forEach(walletId => {
-      const changedWallet = balanceResult.wallets.find(wallet => wallet.id === walletId);
-      if (changedWallet) updateWalletBalanceInSupabase(walletId, changedWallet.current_balance);
-    });
     setTransactions(prev => prev.filter(t => t.id !== id));
     logActivity('delete_tx', `Deleted transaction "${target.note || id}" of ₱${target.amount}`);
 

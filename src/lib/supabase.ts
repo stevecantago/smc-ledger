@@ -45,6 +45,7 @@ export const initialWallets: Wallet[] = [
     is_shared: true,
     current_balance: 0.00,
     credit_limit: null,
+    service_fee_balance: 0.00,
     created_at: new Date().toISOString(),
   },
   {
@@ -56,6 +57,7 @@ export const initialWallets: Wallet[] = [
     is_shared: false,
     current_balance: 0.00,
     credit_limit: 30000.00,
+    service_fee_balance: 0.00,
     created_at: new Date().toISOString(),
   },
   {
@@ -67,6 +69,7 @@ export const initialWallets: Wallet[] = [
     is_shared: false,
     current_balance: 0.00,
     credit_limit: 50000.00,
+    service_fee_balance: 0.00,
     created_at: new Date().toISOString(),
   },
   {
@@ -78,6 +81,7 @@ export const initialWallets: Wallet[] = [
     is_shared: true,
     current_balance: 0.00,
     credit_limit: null,
+    service_fee_balance: 0.00,
     created_at: new Date().toISOString(),
   },
   {
@@ -89,6 +93,7 @@ export const initialWallets: Wallet[] = [
     is_shared: true,
     current_balance: 0.00,
     credit_limit: null,
+    service_fee_balance: 0.00,
     created_at: new Date().toISOString(),
   },
   {
@@ -100,6 +105,7 @@ export const initialWallets: Wallet[] = [
     is_shared: true,
     current_balance: 0.00,
     credit_limit: null,
+    service_fee_balance: 0.00,
     created_at: new Date().toISOString(),
   },
   {
@@ -111,6 +117,7 @@ export const initialWallets: Wallet[] = [
     is_shared: true,
     current_balance: 0.00,
     credit_limit: null,
+    service_fee_balance: 0.00,
     created_at: new Date().toISOString(),
   },
   {
@@ -122,6 +129,7 @@ export const initialWallets: Wallet[] = [
     is_shared: true,
     current_balance: 0.00,
     credit_limit: null,
+    service_fee_balance: 0.00,
     created_at: new Date().toISOString(),
   },
   {
@@ -133,6 +141,7 @@ export const initialWallets: Wallet[] = [
     is_shared: true,
     current_balance: 0.00,
     credit_limit: null,
+    service_fee_balance: 0.00,
     created_at: new Date().toISOString(),
   },
   {
@@ -144,6 +153,7 @@ export const initialWallets: Wallet[] = [
     is_shared: true,
     current_balance: 0.00,
     credit_limit: null,
+    service_fee_balance: 0.00,
     created_at: new Date().toISOString(),
   },
   {
@@ -155,6 +165,7 @@ export const initialWallets: Wallet[] = [
     is_shared: false,
     current_balance: 0.00,
     credit_limit: 100000.00,
+    service_fee_balance: 0.00,
     created_at: new Date().toISOString(),
   },
 ];

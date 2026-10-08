@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useHousehold } from '../context/HouseholdContext';
 import { Banknote, CreditCard, Edit2, Landmark, Lock, PiggyBank, Plus, Shield, Smartphone, Trash2, Wallet as WalletIcon } from 'lucide-react';
 import { Wallet, WalletType } from '../types/database';
-import { getCreditCardAvailableCredit, getCreditCardUsedBalance } from '../lib/creditCardTransactions';
+import { getCreditCardAvailableCredit, getCreditCardServiceFeeBalance, getCreditCardTotalDue, getCreditCardUsedBalance } from '../lib/creditCardTransactions';
 import { getWalletTypeLabel, WALLET_TYPE_OPTIONS } from '../lib/walletTypes';
 
 interface WalletsViewProps {
@@ -33,6 +33,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
   const [editName, setEditName] = useState('');
   const [editType, setEditType] = useState<WalletType>('bank');
   const [editBalance, setEditBalance] = useState('');
+  const [editServiceFees, setEditServiceFees] = useState('');
   const [editCreditLimit, setEditCreditLimit] = useState('');
   const [editIsShared, setEditIsShared] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
@@ -81,11 +82,18 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
     if (!editingWallet) return;
     setErrorMsg('');
 
+    const parsedServiceFees = parseFloat(editServiceFees) || 0;
+    if (editType === 'credit_card' && parsedServiceFees < 0) {
+      setErrorMsg('Service fees cannot be negative.');
+      return;
+    }
+
     const result = updateWallet(editingWallet.id, {
       name: editName.trim(),
       wallet_type: editType,
       current_balance: editType === 'credit_card' ? Math.abs(parseFloat(editBalance) || 0) : (parseFloat(editBalance) || 0),
       credit_limit: editType === 'credit_card' ? (parseFloat(editCreditLimit) || 0) : null,
+      service_fee_balance: editType === 'credit_card' ? parsedServiceFees : 0,
       is_shared: editIsShared,
     });
 
@@ -142,8 +150,10 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
           const isCreditCard = wallet.wallet_type === 'credit_card';
           const creditLimitValue = wallet.credit_limit || 0;
           const usedBalance = getCreditCardUsedBalance(wallet);
+          const serviceFees = getCreditCardServiceFeeBalance(wallet);
+          const totalDue = getCreditCardTotalDue(wallet);
           const availableCredit = getCreditCardAvailableCredit(wallet);
-          const utilPercent = isCreditCard && creditLimitValue > 0 ? Math.min(Math.round((usedBalance / creditLimitValue) * 100), 100) : 0;
+          const utilPercent = isCreditCard && creditLimitValue > 0 ? Math.min(Math.round((totalDue / creditLimitValue) * 100), 100) : 0;
 
           return (
             <div
@@ -182,18 +192,26 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
                     <div className="flex justify-between items-baseline text-xs">
                       <span className="text-slate-400">Available Credit:</span>
                       <span className="font-bold text-emerald-400 text-base">
-                        ₱{availableCredit.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        ₱{availableCredit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 text-[11px] bg-slate-900/60 p-2.5 rounded-lg border border-slate-700/50">
                       <div>
                         <span className="text-slate-400">Credit Limit:</span>
-                        <p className="font-semibold text-white">₱{creditLimitValue.toLocaleString()}</p>
+                        <p className="font-semibold text-white">₱{creditLimitValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                       </div>
                       <div>
                         <span className="text-slate-400">Used Balance:</span>
-                        <p className="font-bold text-rose-400">₱{usedBalance.toLocaleString()}</p>
+                        <p className="font-bold text-rose-400">₱{usedBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">Service Fees:</span>
+                        <p className="font-bold text-amber-300">₱{serviceFees.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">Total Due:</span>
+                        <p className="font-bold text-purple-300">₱{totalDue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                       </div>
                     </div>
 
@@ -253,6 +271,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
                           setEditName(wallet.name);
                           setEditType(wallet.wallet_type);
                           setEditBalance(getCreditCardUsedBalance(wallet).toString());
+                          setEditServiceFees(getCreditCardServiceFeeBalance(wallet).toString());
                           setEditCreditLimit((wallet.credit_limit || 0).toString());
                           setEditIsShared(wallet.is_shared);
                         }}
@@ -440,6 +459,19 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
                       value={editBalance}
                       onChange={(e) => setEditBalance(e.target.value)}
                       className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold text-rose-400"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="editServiceFees" className="block text-xs font-medium text-slate-300 mb-1">Service Fees (₱ PHP)</label>
+                    <input
+                      id="editServiceFees"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      required
+                      value={editServiceFees}
+                      onChange={(event) => setEditServiceFees(event.target.value)}
+                      className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold text-amber-300"
                     />
                   </div>
                 </>

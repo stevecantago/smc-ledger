@@ -1,7 +1,9 @@
 # Credit Card Interest Payment Design
 
 Date: 2026-09-17
-Status: Approved in chat; awaiting written-spec review
+Status: Superseded by `2026-10-03-credit-card-service-fees-design.md`
+
+This earlier proposal treated payments above used balance as interest paid immediately. The approved replacement tracks outstanding service fees on each credit account and applies payments to those fees before reducing used balance.
 
 ## Objective
 

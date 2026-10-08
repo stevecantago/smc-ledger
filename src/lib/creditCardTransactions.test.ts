@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   applyTransactionBalanceChange,
   getCreditCardAvailableCredit,
+  getCreditCardPaymentAllocation,
+  getCreditCardServiceFeeBalance,
+  getCreditCardTotalDue,
   getCreditCardUsedBalance,
   getRequiredCreditCardFunding,
   reverseTransactionBalanceChange,
@@ -29,6 +32,7 @@ const card: Wallet = {
   is_shared: false,
   current_balance: 1000,
   credit_limit: 5000,
+  service_fee_balance: 0,
   created_at: '2026-09-06T00:00:00.000Z',
 };
 
@@ -264,5 +268,218 @@ describe('credit card transaction balance rules', () => {
     if (!result.success) {
       expect(result.error).toBe('Credit card payments require a non-credit funding account.');
     }
+  });
+
+  it('calculates total due and available credit from used balance plus service fees', () => {
+    const cardWithFees = {
+      ...card,
+      current_balance: 7000,
+      service_fee_balance: 1000,
+      credit_limit: 10000,
+    };
+
+    expect(getCreditCardServiceFeeBalance(cardWithFees)).toBe(1000);
+    expect(getCreditCardTotalDue(cardWithFees)).toBe(8000);
+    expect(getCreditCardAvailableCredit(cardWithFees)).toBe(2000);
+  });
+
+  it.each([
+    [500, 500, 0, 500, 7000],
+    [1000, 1000, 0, 0, 7000],
+    [7500, 1000, 6500, 0, 500],
+    [8000, 1000, 7000, 0, 0],
+  ])('allocates a payment of %s to fees before used balance', (
+    payment,
+    serviceFeePaid,
+    usedBalancePaid,
+    remainingServiceFees,
+    remainingUsedBalance,
+  ) => {
+    const allocation = getCreditCardPaymentAllocation({
+      ...card,
+      current_balance: 7000,
+      service_fee_balance: 1000,
+    }, payment);
+
+    expect(allocation).toEqual({
+      serviceFeePaid,
+      usedBalancePaid,
+      remainingServiceFees,
+      remainingUsedBalance,
+    });
+  });
+
+  it('applies and reverses the stored fee-first allocation exactly', () => {
+    const cardWithFees = { ...card, current_balance: 7000, service_fee_balance: 1000 };
+    const applied = applyTransactionBalanceChange([bank, cardWithFees], {
+      wallet_id: bank.id,
+      destination_wallet_id: card.id,
+      type: 'loan',
+      amount: 7500,
+      fee: 50,
+    });
+
+    expect(applied.success).toBe(true);
+    expect(applied.wallets.find(wallet => wallet.id === bank.id)?.current_balance).toBe(42450);
+    expect(applied.wallets.find(wallet => wallet.id === card.id)).toMatchObject({
+      current_balance: 500,
+      service_fee_balance: 0,
+    });
+
+    const reversed = reverseTransactionBalanceChange(applied.wallets, {
+      wallet_id: bank.id,
+      destination_wallet_id: card.id,
+      type: 'loan',
+      amount: 7500,
+      fee: 50,
+      service_fee_amount: 1000,
+    });
+
+    expect(reversed.wallets.find(wallet => wallet.id === bank.id)?.current_balance).toBe(50000);
+    expect(reversed.wallets.find(wallet => wallet.id === card.id)).toMatchObject({
+      current_balance: 7000,
+      service_fee_balance: 1000,
+    });
+  });
+
+  it('rejects a negative transaction fee before applying any balance change', () => {
+    const result = applyTransactionBalanceChange([
+      bank,
+      { ...card, current_balance: 7000, service_fee_balance: 1000 },
+    ], {
+      wallet_id: bank.id,
+      destination_wallet_id: card.id,
+      type: 'loan',
+      amount: 7500,
+      fee: -50,
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: 'Transaction fee cannot be negative.',
+      wallets: [bank, { ...card, current_balance: 7000, service_fee_balance: 1000 }],
+      changedWalletIds: [],
+    });
+  });
+
+  it('reverses a historical negative stored fee using its exact original arithmetic', () => {
+    const paidWallets = [
+      { ...bank, current_balance: 42550 },
+      { ...card, current_balance: 500, service_fee_balance: 0 },
+    ];
+    const result = reverseTransactionBalanceChange(paidWallets, {
+      wallet_id: bank.id,
+      destination_wallet_id: card.id,
+      type: 'loan',
+      amount: 7500,
+      fee: -50,
+      service_fee_amount: 1000,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.wallets.find(wallet => wallet.id === bank.id)?.current_balance).toBe(50000);
+    expect(result.wallets.find(wallet => wallet.id === card.id)).toMatchObject({
+      current_balance: 7000,
+      service_fee_balance: 1000,
+    });
+  });
+
+  it('restores the exact funding balance after a payment with a positive fee is deleted', () => {
+    const cardWithFees = { ...card, current_balance: 7000, service_fee_balance: 1000 };
+    const applied = applyTransactionBalanceChange([bank, cardWithFees], {
+      wallet_id: bank.id,
+      destination_wallet_id: card.id,
+      type: 'loan',
+      amount: 7500,
+      fee: 50,
+    });
+
+    expect(applied.success).toBe(true);
+    const reversed = reverseTransactionBalanceChange(applied.wallets, {
+      wallet_id: bank.id,
+      destination_wallet_id: card.id,
+      type: 'loan',
+      amount: 7500,
+      fee: 50,
+      service_fee_amount: 1000,
+    });
+
+    expect(reversed.success).toBe(true);
+    expect(reversed.wallets.find(wallet => wallet.id === bank.id)?.current_balance).toBe(50000);
+  });
+
+  it('rejects a credit payment above total due', () => {
+    const result = applyTransactionBalanceChange([
+      bank,
+      { ...card, current_balance: 7000, service_fee_balance: 1000 },
+    ], {
+      wallet_id: bank.id,
+      destination_wallet_id: card.id,
+      type: 'loan',
+      amount: 8000.01,
+      fee: 0,
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toBe('Credit card payment cannot exceed total due.');
+  });
+
+  it('normalizes a missing legacy service-fee balance to zero', () => {
+    expect(getCreditCardServiceFeeBalance({ ...card, service_fee_balance: undefined })).toBe(0);
+  });
+
+  it('uses exact centavos for a decimal total due and full payment', () => {
+    const decimalCard = {
+      ...card,
+      current_balance: 7000.35,
+      service_fee_balance: 1000.10,
+      credit_limit: 10000.55,
+    };
+
+    expect(getCreditCardTotalDue(decimalCard)).toBe(8000.45);
+    expect(getCreditCardAvailableCredit(decimalCard)).toBe(2000.10);
+    expect(getCreditCardPaymentAllocation(decimalCard, 8000.45)).toEqual({
+      serviceFeePaid: 1000.10,
+      usedBalancePaid: 7000.35,
+      remainingServiceFees: 0,
+      remainingUsedBalance: 0,
+    });
+  });
+
+  it('applies and reverses a decimal payment without phantom centavos', () => {
+    const decimalCard = {
+      ...card,
+      current_balance: 7000.35,
+      service_fee_balance: 1000.10,
+    };
+    const applied = applyTransactionBalanceChange([bank, decimalCard], {
+      wallet_id: bank.id,
+      destination_wallet_id: decimalCard.id,
+      type: 'loan',
+      amount: 8000.45,
+      fee: 0.10,
+    });
+
+    expect(applied.success).toBe(true);
+    expect(applied.wallets.find(wallet => wallet.id === bank.id)?.current_balance).toBe(41999.45);
+    expect(applied.wallets.find(wallet => wallet.id === decimalCard.id)).toMatchObject({
+      current_balance: 0,
+      service_fee_balance: 0,
+    });
+
+    const reversed = reverseTransactionBalanceChange(applied.wallets, {
+      wallet_id: bank.id,
+      destination_wallet_id: decimalCard.id,
+      type: 'loan',
+      amount: 8000.45,
+      fee: 0.10,
+      service_fee_amount: 1000.10,
+    });
+
+    expect(reversed.wallets.find(wallet => wallet.id === bank.id)?.current_balance).toBe(50000);
+    expect(reversed.wallets.find(wallet => wallet.id === decimalCard.id)).toMatchObject({
+      current_balance: 7000.35,
+      service_fee_balance: 1000.10,
+    });
   });
 });

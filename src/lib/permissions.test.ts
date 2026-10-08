@@ -58,6 +58,16 @@ describe('role permissions', () => {
     expect(hasPermission(teen, blocked, 'create_transactions')).toBe(false);
   });
 
+  it('allows an ownerless backup restore check when the custom permission is own-only', () => {
+    const ownOnlyRestore: RolePermission[] = DEFAULT_ROLE_PERMISSIONS.map(permission =>
+      permission.role_id === 'role-teen-dependent' && permission.permission_key === 'restore_backup'
+        ? { ...permission, level: 'own_only' }
+        : permission
+    );
+
+    expect(hasPermission(teen, ownOnlyRestore, 'restore_backup')).toBe(true);
+  });
+
   it('does not allow an assigned custom role to be deleted', () => {
     expect(canDeleteRole('role-teen-dependent', [headParent, teen], DEFAULT_ROLES)).toEqual({
       success: false,

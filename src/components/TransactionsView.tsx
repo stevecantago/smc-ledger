@@ -6,14 +6,64 @@ import {
   TrendingDown, TrendingUp, ArrowRightLeft, Landmark, Search, Filter, Trash2, Edit3, Clock, 
   ExternalLink, Plus, AlertCircle, CheckCircle2, ShieldAlert, Download, Image, Upload, DollarSign 
 } from 'lucide-react';
-import { Transaction, TransactionType } from '../types/database';
+import { Transaction, TransactionType, Wallet } from '../types/database';
 import { exportTransactionsToCsv } from '../lib/exportCsv';
 import { getTransactionSubmissionAction } from '../lib/transactionFlow';
 import {
+  type CreditCardPaymentAllocation,
+  addPhpAmounts,
   getCreditCardAvailableCredit,
+  getCreditCardPaymentAllocation,
+  getCreditCardTotalDue,
   getCreditCardUsedBalance,
   getRequiredCreditCardFunding,
+  getTransactionFeeValidationError,
+  isPhpAmountGreaterThan,
+  normalizeTransactionFee,
 } from '../lib/creditCardTransactions';
+
+export function getCreditCardPaymentAmountError(
+  isCardLoanPayment: boolean,
+  paymentAmount: number,
+  cardTotalDue: number,
+): string | null {
+  return isCardLoanPayment && isPhpAmountGreaterThan(paymentAmount, cardTotalDue)
+    ? 'Credit card payment cannot exceed total due.'
+    : null;
+}
+
+export function getTransactionFeeError(fee: number): string | null {
+  return getTransactionFeeValidationError(fee);
+}
+
+export function getCreditCardDestinationHelpText(
+  isCreditCardPayment: boolean,
+  destinationWalletType: Wallet['wallet_type'] | undefined,
+): string | null {
+  if (destinationWalletType !== 'credit_card') return null;
+  return isCreditCardPayment
+    ? 'This payment clears service fees first, then reduces used balance.'
+    : 'Transfers into this card reduce used balance only; service fees stay unchanged.';
+}
+
+interface CreditCardPaymentPreviewProps {
+  allocation: CreditCardPaymentAllocation;
+  transactionFee: number;
+  totalCashDeducted: number;
+}
+
+export const CreditCardPaymentPreview: React.FC<CreditCardPaymentPreviewProps> = ({
+  allocation,
+  transactionFee,
+  totalCashDeducted,
+}) => (
+  <div className="grid grid-cols-2 gap-2 rounded-lg border border-purple-500/30 bg-purple-500/10 p-3 text-[11px]">
+    <div><span className="text-slate-400">Service Fees Paid</span><p className="font-mono font-bold text-amber-300">₱{allocation.serviceFeePaid.toFixed(2)}</p></div>
+    <div><span className="text-slate-400">Used Balance Paid</span><p className="font-mono font-bold text-purple-300">₱{allocation.usedBalancePaid.toFixed(2)}</p></div>
+    <div><span className="text-slate-400">Transaction Fee</span><p className="font-mono font-bold text-amber-300">₱{transactionFee.toFixed(2)}</p></div>
+    <div><span className="text-slate-400">Total Cash Deducted</span><p className="font-mono font-bold text-rose-300">₱{totalCashDeducted.toFixed(2)}</p></div>
+  </div>
+);
 
 interface TransactionsViewProps {
   showModal: boolean;
@@ -65,6 +115,15 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
   const requiredCardFunding = getRequiredCreditCardFunding(selectedDestinationWallet, visibleWallets);
   const isFundingAccountLocked = isCreditCardPayment && requiredCardFunding.locked;
   const requiredFundingWalletId = isFundingAccountLocked ? requiredCardFunding.walletId : null;
+  const parsedPaymentAmount = parseFloat(amount) || 0;
+  const parsedTransactionFee = parseFloat(fee) || 0;
+  const cardPaymentAllocation = isCreditCardPayment && selectedDestinationWallet?.wallet_type === 'credit_card'
+    ? getCreditCardPaymentAllocation(selectedDestinationWallet, parsedPaymentAmount)
+    : null;
+  const cardTotalDue = selectedDestinationWallet?.wallet_type === 'credit_card'
+    ? getCreditCardTotalDue(selectedDestinationWallet)
+    : 0;
+  const totalCashDeducted = addPhpAmounts(parsedPaymentAmount, parsedTransactionFee);
 
   useEffect(() => {
     if (!showModal || !draft) return;
@@ -155,6 +214,14 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
       return;
     }
 
+    const rawFee = fee.trim() ? Number(fee) : 0;
+    const feeError = getTransactionFeeError(rawFee);
+    if (feeError) {
+      setErrorMsg(feeError);
+      return;
+    }
+    const parsedFee = normalizeTransactionFee(rawFee);
+
     if (isFundingAccountLocked && !requiredFundingWalletId) {
       setErrorMsg('The required funding account "Maya Wallet - Steve" was not found for this card.');
       return;
@@ -182,6 +249,16 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
       return;
     }
 
+    const cardPaymentAmountError = getCreditCardPaymentAmountError(
+      isCardLoanPayment,
+      parsedAmount,
+      cardTotalDue,
+    );
+    if (cardPaymentAmountError) {
+      setErrorMsg(cardPaymentAmountError);
+      return;
+    }
+
     if (txType === 'transfer' && walletId === destWalletId) {
       setErrorMsg('Source and Destination wallets cannot be the same for transfers.');
       return;
@@ -192,7 +269,6 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
       return;
     }
 
-    const parsedFee = parseFloat(fee) || 0;
     const submissionAction = getTransactionSubmissionAction({ type: txType, selectedLoanId });
 
     if (submissionAction === 'loan_payment' && selectedLoanId) {
@@ -383,6 +459,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                   const payer = members.find(m => m.id === tx.payer_id);
                   const editable = canEditTransaction(tx);
                   const txFee = tx.fee || 0;
+                  const serviceFeeAmount = tx.service_fee_amount || 0;
 
                   return (
                     <tr key={tx.id} className="hover:bg-slate-800/50 transition-colors">
@@ -461,6 +538,11 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                               + Fee: ₱{txFee.toFixed(2)}
                             </span>
                           )}
+                          {tx.type === 'loan' && dstWallet?.wallet_type === 'credit_card' && serviceFeeAmount > 0 && (
+                            <span className="text-[10px] text-purple-300 font-normal">
+                              Service fees paid: ₱{serviceFeeAmount.toFixed(2)}
+                            </span>
+                          )}
                         </div>
                       </td>
 
@@ -502,6 +584,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
             const payer = members.find(m => m.id === tx.payer_id);
             const editable = canEditTransaction(tx);
             const txFee = tx.fee || 0;
+            const serviceFeeAmount = tx.service_fee_amount || 0;
 
             return (
               <div 
@@ -540,6 +623,11 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                     {txFee > 0 && (
                       <span className="text-[10px] text-amber-400 font-mono font-medium block">
                         Fee: ₱{txFee.toFixed(2)}
+                      </span>
+                    )}
+                    {tx.type === 'loan' && dstWallet?.wallet_type === 'credit_card' && serviceFeeAmount > 0 && (
+                      <span className="text-[10px] text-purple-300 font-mono font-medium block">
+                        Service fees paid: ₱{serviceFeeAmount.toFixed(2)}
                       </span>
                     )}
                   </div>
@@ -874,6 +962,14 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                 </div>
               </div>
 
+              {isCreditCardPayment && cardPaymentAllocation && (
+                <CreditCardPaymentPreview
+                  allocation={cardPaymentAllocation}
+                  transactionFee={parsedTransactionFee}
+                  totalCashDeducted={totalCashDeducted}
+                />
+              )}
+
               {/* Source Wallet */}
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">
@@ -953,9 +1049,9 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                       </option>
                     ))}
                   </select>
-                  {selectedDestinationWallet?.wallet_type === 'credit_card' && (
+                  {getCreditCardDestinationHelpText(isCreditCardPayment, selectedDestinationWallet?.wallet_type) && (
                     <p className="mt-1 text-[11px] text-purple-300">
-                      This loan payment will reduce the selected credit card used balance.
+                      {getCreditCardDestinationHelpText(isCreditCardPayment, selectedDestinationWallet?.wallet_type)}
                     </p>
                   )}
                 </div>
