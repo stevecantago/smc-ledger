@@ -1,0 +1,1308 @@
+{
+  "schemaVersion": 1,
+  "reviewDate": "2026-10-09",
+  "files": [
+    {
+      "path": "frontend-design/LICENSE.txt",
+      "sha256": "eb3d7b5485466acbd81f2b496f595ab637d2792e268206b27d99e793bdb67549",
+      "bytes": 10351,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "frontend-design/SKILL.md",
+      "sha256": "35c43b9d10c2388dbb228047ad028c989a14033750812125f351c85aa42c7a4a",
+      "bytes": 8315,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "imagegen/LICENSE.txt",
+      "sha256": "44e03f7e263eb3ad256440c1eeab5e49168baff5a78ecef9a5447261cf3a91bc",
+      "bytes": 10977,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "imagegen/SKILL.md",
+      "sha256": "706d4d96e1d5c9e6023fe3ccabba1bb34b364024d344fd25b8515ec7d28fe3c4",
+      "bytes": 19516,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "imagegen/agents/openai.yaml",
+      "sha256": "1797be4076717806df54aa9331c07ac8eebe32c69f32132d5858712b05406146",
+      "bytes": 281,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "imagegen/assets/imagegen-small.svg",
+      "sha256": "087c1632a3b8a2ed4d6218952e7ba7ae2221a979f84233667ed2c587998784da",
+      "bytes": 2894,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "imagegen/assets/imagegen.png",
+      "sha256": "95952f644064eb9e890f98d8db07216347186526e4c41ad66d3420629eb86e20",
+      "bytes": 1711,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "imagegen/references/cli.md",
+      "sha256": "29dc8c1e3e5d9a20aee587fedb46a464552b6ec118d93bbd90c8d86e30502c8c",
+      "bytes": 9897,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "imagegen/references/codex-network.md",
+      "sha256": "cba3b4d24d30f38adf8021b6e9b49ec5261a9e45e7df31047ec451c916c99b0a",
+      "bytes": 1812,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "imagegen/references/image-api.md",
+      "sha256": "695909437b792aff171477dba127476a11235c220beb06533cce7c1495a042c8",
+      "bytes": 6162,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "imagegen/references/prompting.md",
+      "sha256": "d957a45cb24fe2cf1a85858674fc533f15a5f4621355f559a13a93168999c2dd",
+      "bytes": 8394,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "imagegen/references/sample-prompts.md",
+      "sha256": "76cc8a2988efb6e844a99ff9908b2b11cc07467510fc909002abcc0ee3f0701b",
+      "bytes": 18039,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "imagegen/scripts/image_gen.py",
+      "sha256": "3666b807de3f0a1d0a4a767b886d612c0b8f71025c500bba6693d1c6995a0873",
+      "bytes": 35697,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "imagegen/scripts/remove_chroma_key.py",
+      "sha256": "fa2989807052b857bed08f7fee0caa2502b54c46afc0a6f28cd706c25f636630",
+      "bytes": 14354,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/LICENSE",
+      "sha256": "02bb8c3b4e70190e3986c0404ad2fd8d639b4f534252d82379cc1b502b6d1812",
+      "bytes": 10766,
+      "origin": "upstream-license-or-notice"
+    },
+    {
+      "path": "impeccable/NOTICE.md",
+      "sha256": "c60a093c2845fd9fb82f9c6f742ece31f379f8190b535309d32d66c45ccffdcb",
+      "bytes": 503,
+      "origin": "upstream-license-or-notice"
+    },
+    {
+      "path": "impeccable/SKILL.md",
+      "sha256": "c2c0d8e5ea5dc3f36b879f099e72d83f506a6e626dcc075c1a7e14763f200d4d",
+      "bytes": 10773,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/agents/impeccable_asset_producer.toml",
+      "sha256": "e69f902dc96a63c9566f30361ced3dc83765097d9f3dd2f9cbd83ec50f6af1b3",
+      "bytes": 6161,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/agents/impeccable_documenter.toml",
+      "sha256": "d5922228b571900e21a47855d7de9e081c2246fc9cec6c6235b1a6da31098896",
+      "bytes": 3243,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/agents/impeccable_finish_reviewer.toml",
+      "sha256": "b3c6137e444e2e54a853413161958c0532f332f8d8159dfe48d7e1ea5996b1f1",
+      "bytes": 15290,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/agents/impeccable_manual_edit_applier.toml",
+      "sha256": "7c519ed4a94aa01677b741afa9ae56c71d3b9bc19f48f4166d87b1e4579613ed",
+      "bytes": 7018,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/agents/openai.yaml",
+      "sha256": "cbd8bd68fa00935dd0f179adb169252629cf7ee443ea9dc7db77e7ef2cf77446",
+      "bytes": 235,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/licenses/modern-screenshot-LICENSE",
+      "sha256": "1daae2db27daba18a7e21bb56e12e19b8de6c1197658921f09bbe550f7106579",
+      "bytes": 1077,
+      "origin": "upstream-license-or-notice"
+    },
+    {
+      "path": "impeccable/licenses/platform-design-skills-LICENSE",
+      "sha256": "1126322e2cc8d165adc4c792eeb195717de2bcc7b39be1ce77959d78e87ef685",
+      "bytes": 1056,
+      "origin": "upstream-license-or-notice"
+    },
+    {
+      "path": "impeccable/reference/adapt.md",
+      "sha256": "bead87679caad7c537dd7c04c3bb78be56ac7eec279ad6aad7322f48ff2df2d9",
+      "bytes": 10307,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/adapt.native.md",
+      "sha256": "6acc0bf221a4ddc6e5c6438348920b2ca2393b29c4314dbde2cdc23f2b1a9639",
+      "bytes": 3910,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/android.md",
+      "sha256": "058f81f256134841875fd3183e06b37a023de0c877fd2b9eecd97011640791fe",
+      "bytes": 4093,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/animate.md",
+      "sha256": "d658c48ffbe0031e8e3b318996cad6ceafe29e40aa50d5bb25e4bf1d6839dc7c",
+      "bytes": 5236,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/audit.md",
+      "sha256": "910461b1c1f8216155165955c860a884a1e2f557cb38f21ef512ea90ef6503c2",
+      "bytes": 7873,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/audit.native.md",
+      "sha256": "1b10f9ad3d3a1494ee1bbdf35bb6aa453e98defa6e1ae99177b167795054a4f1",
+      "bytes": 8357,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/bolder.md",
+      "sha256": "f964506c0fae87b3c2c1db7016ddc9be9ef970bbcf5548d684b997b5d5991586",
+      "bytes": 3564,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/clarify.md",
+      "sha256": "173dd66abe65633910dcb04a51f40d6ff2a793f87088f022a02fc4cad24dd133",
+      "bytes": 4590,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/colorize.md",
+      "sha256": "bc5f71f1129d0f2c310d913d07c8dc609a1d25644121bd78c308f42d52a0b9e9",
+      "bytes": 4537,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/craft-floor.md",
+      "sha256": "e802e4f7bdc89050a9c0f2ca506e1d493a2316e6e810c0336c57aa073717ef3e",
+      "bytes": 5500,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/craft.md",
+      "sha256": "9205e222bc6565b37fb504ceec93233c2d2a456802b69d16e6b1c44723907c4c",
+      "bytes": 555,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/critique.md",
+      "sha256": "a763d1474f5c1125a937b5872abb1fc40b2bd44dd7d4a7701ac2147401bf4b2b",
+      "bytes": 45920,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/degraded/asset-producer.md",
+      "sha256": "2993ce6409702ae2e01e4ee37f8f98089aeccc4877c4c9d836e161dee364b510",
+      "bytes": 6323,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/degraded/documenter.md",
+      "sha256": "97a09e350c383cb2f6bba027b83bedffd12a23b1b439ad4a045a48953eb19365",
+      "bytes": 3365,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/degraded/finish-reviewer.md",
+      "sha256": "5ae494910f0a7c6eca239cdd866f70833b42655ed6e2f88b8c756dfca028c1fd",
+      "bytes": 15390,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/degraded/manual-edit-applier.md",
+      "sha256": "9aae8d5bfb72a8cf3473dca74d5046e28002c0b43a7f9b3c14cd0f1a06c8deb4",
+      "bytes": 7182,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/delight.md",
+      "sha256": "098a891028ce59c212b747d3c70468dd750aff7053a703d1336045ed31e0da7c",
+      "bytes": 3716,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/distill.md",
+      "sha256": "ea8432c90c30ecb0426662a681ead5c0941113079704e1a766cda09e85b15b4f",
+      "bytes": 5717,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/doctor.md",
+      "sha256": "c7a439efd70bdc232da970d0695c60502525e5b7e882ad9d5b1f4794b00dd260",
+      "bytes": 5463,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/document.md",
+      "sha256": "3673248740bcdd1122ccc610093ba2fe52f3943a61ce0b7170b74dc49e5b6098",
+      "bytes": 27521,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/extract.md",
+      "sha256": "31b90048c0b540daec46762a10c2b6b6434737a89af005054d8b848d829d003b",
+      "bytes": 3433,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/harden.md",
+      "sha256": "b31ff29c7a1ea979c6d039f7e8d17007410697ab49536690dca109f0af3f20f8",
+      "bytes": 8539,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/hooks.md",
+      "sha256": "e61722ab3ace649d9ad016f564e3cd137926d562418ec2e3fd73de8a7e3e94d6",
+      "bytes": 13310,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/init.md",
+      "sha256": "09edecac88d50cd6046c8a43e741685c0f845cf59254116bc85f543a6aa81384",
+      "bytes": 11491,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/ios.md",
+      "sha256": "40c87038b5f75147a5952a96237acf312a327bf70c1bcd8e0a5f064625ae9668",
+      "bytes": 3812,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/layout.md",
+      "sha256": "2d5eba1b9493f85c149a197fe6c4e9d015f5e68c49f24f5210a237cee4e44348",
+      "bytes": 5159,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/live-setup.md",
+      "sha256": "d649665aaead9e8ac4ccba57bbc7726d276c5bcb464130eb914f6c08cd79d711",
+      "bytes": 7422,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/live.md",
+      "sha256": "2b4b05cae6d54fe0f9633e79cfc5bc58262548de89c25225b7a7728221ca64be",
+      "bytes": 35841,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/new-work.md",
+      "sha256": "e378818dc2095c701b3affe8a6d8e46c2b7788206b5a025e67af07b75199419c",
+      "bytes": 52029,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/onboard.md",
+      "sha256": "ef2dde00030580ed2765cbf7be9b2ea4a6f64cb915b804fd6f6abcf38051c7b9",
+      "bytes": 7740,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/operate.md",
+      "sha256": "a9d2203acd45ca33a13d5c68b02b23ed512425ac15f0e8438318ed124b43729d",
+      "bytes": 4145,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/optimize.md",
+      "sha256": "f672ef8251a3ed4051a053d30819664951b17540b2899acd27d20e500c234abc",
+      "bytes": 7614,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/overdrive.md",
+      "sha256": "fce6688138d2ceb1e3d2cde5231f54b1d8dc8748b4c95a7919aa83b6f924cf96",
+      "bytes": 9178,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/polish.md",
+      "sha256": "e25e675a476e08fa9dc33eecef6c0538a36fcef39c052c9728b8be9209bba124",
+      "bytes": 6635,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/quieter.md",
+      "sha256": "190a4e642ca362d7499f3c3ab123e21f18f75457d11f072b545a183f296e6495",
+      "bytes": 4952,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/routing.md",
+      "sha256": "35a5cd381e2bba7ef7cfcd48c9b6316ebcf40fe9e7abb4fb212b24106e08195b",
+      "bytes": 2901,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/shape.md",
+      "sha256": "a55f016c046cb6a27c55bd7f346375aeb506a755c4fbca19a5f92dbd42309c23",
+      "bytes": 3547,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/typeset.md",
+      "sha256": "6d803447fb419ee718012f6263d2685ad462a14dc08c338392e28b79823a0553",
+      "bytes": 5254,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/reference/visualize.md",
+      "sha256": "9080ea9439a24e005367128389fc5b1a3f58f63d1eb4c16b4ca8dc197053c6c4",
+      "bytes": 11204,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/build-phase.mjs",
+      "sha256": "38006f01777542f1f111a2b4e4079d6fa406b8d27fad149138fba57eca7f287f",
+      "bytes": 77334,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/command-metadata.json",
+      "sha256": "6bdbc3f745ceee15e10b050f109ce42bbeb53ab3c3b5239257de1d596654dee7",
+      "bytes": 7934,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/comp-diff.mjs",
+      "sha256": "943560b54fbc37e48e0e6b503cb48f6904ecce8c413ae84773a050b2850b2c08",
+      "bytes": 21349,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/comp-spec.mjs",
+      "sha256": "95a492b2a3ab53f5971c5af5d9ca474c6f7a01fb96a6c0b010c5f7a9baefd8ff",
+      "bytes": 31488,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/concept-seed.mjs",
+      "sha256": "b9088d654fc652a9a23e94fe7ed6c2ffeaf2e846a90972f49eecac26a8133072",
+      "bytes": 45418,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/context-signals.mjs",
+      "sha256": "c7c70735fae0834576636fb9b9c32504a7f08efc95fdc4db97a469f6ca4dd2c4",
+      "bytes": 14033,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/context.mjs",
+      "sha256": "70abfb0923efe99950f6969b49f05f4e872b198f54ab8930a96ccbed9b4dc90f",
+      "bytes": 67543,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/critique-storage.mjs",
+      "sha256": "12f9fece61dc54c56f106c2c999a3b7f3583a378f3aa32619db3356f34a3fe75",
+      "bytes": 18703,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/data/font-index-failures.json",
+      "sha256": "835f19a0a3812f3652dd6979a2ce5597f654fd01f26e1b420b92d5f42b997ce4",
+      "bytes": 2437,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/data/font-index.json",
+      "sha256": "47edbdfaf27073c47033d1ac7dfee881be49e2dcbda7671d1157300481dde6da",
+      "bytes": 1100013,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/detect-csp.mjs",
+      "sha256": "2d80520bef13cb93107699714bc0d2be5a2787a9aa079ecec91b94508a8125a4",
+      "bytes": 6761,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/detect.mjs",
+      "sha256": "b2c5731c367c129e361bdfb28c4f697e84818c77e04d88ad21eeb89320f06a0e",
+      "bytes": 1235,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/detector/browser/injected/index.mjs",
+      "sha256": "30d70ec4d1804b333be05f2448a0cc5a39b517fc8fc860d650215457dfd93402",
+      "bytes": 91086,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/detector/cli/main.mjs",
+      "sha256": "a319e56a41da58b1f6cccff8ca77dbc1f090fadce693fbc057276a315f53891f",
+      "bytes": 18913,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/detector/design-system.mjs",
+      "sha256": "b6aefa5c9f4e3fea8449e1cbaa345a68570689654ade16cddc5c900659892112",
+      "bytes": 49814,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/detector/detect-antipatterns-browser.js",
+      "sha256": "7000a035408efb5869dd5739cb66b475905fa5cc017bf6ddea8941f7231d18f6",
+      "bytes": 410083,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/detector/detect-antipatterns.mjs",
+      "sha256": "c48465e64d390d97e7a3891fbe443e2abe45c3c6da58b5df26cb847bb88018cc",
+      "bytes": 1868,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/detector/engines/browser/detect-url.mjs",
+      "sha256": "af6d28bfb1bb2fc667f56823b9fa12d4ee56ee5b3afbea28c5b81fecb66b84dc",
+      "bytes": 16196,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/detector/engines/regex/detect-text.mjs",
+      "sha256": "32f01ce8d231a9189997444c91a542abef419c6448fac44fae66ebf14c628539",
+      "bytes": 51783,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/detector/engines/static-html/css-cascade.mjs",
+      "sha256": "5cf85f8a00b50c12c0cd0a5e2f5ad456c414cf67bc34f4a5c36eb64a7e667cc3",
+      "bytes": 46017,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/detector/engines/static-html/detect-html.mjs",
+      "sha256": "9fedd7d3d42c51058bd491d98193abd5931ce83550269124bb788efadb7b7c97",
+      "bytes": 12726,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/detector/engines/visual/screenshot-contrast.mjs",
+      "sha256": "b4520b3f001079bd175bf20d46c5197b1b8ec5fb98fdf72c50a24c0b6598ee99",
+      "bytes": 6529,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/detector/findings.mjs",
+      "sha256": "8b8af7212c8515d6791a8af1375d0619a9f9a707a881e6fbd850e4216b3f8eca",
+      "bytes": 766,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/detector/node/file-system.mjs",
+      "sha256": "a6369b2573cf8af096a5f38f85a9cf4ee3af68817846a0ec9047534cbe05d05e",
+      "bytes": 7740,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/detector/profile/profiler.mjs",
+      "sha256": "5e201f3557360bd368a3977fecf925f376fd95f8a4dd6c4cc63fbd62848cda43",
+      "bytes": 4550,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/detector/registry/antipatterns.mjs",
+      "sha256": "57aaf32be744db6375d604a36079bc731fa60eaa4b34bb61d00d002d56af6079",
+      "bytes": 29094,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/detector/rules/checks.mjs",
+      "sha256": "320de7c1d70381ab794e166699f51db7e0562e7118e61736ab9f1d62bdeae2e7",
+      "bytes": 265809,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/detector/shared/color.mjs",
+      "sha256": "c9664cdfcb5cc964a6c78fba82c51640bf20258601572ea0bb413c00446489f5",
+      "bytes": 23586,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/detector/shared/constants.mjs",
+      "sha256": "fcf86301e635bd1591ae5d9fdbaae0696ac4bbc9d2e52d38c5c3232faa366a9f",
+      "bytes": 5183,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/detector/shared/fonts.mjs",
+      "sha256": "869c297295a10082d87988f31c136c5df9ddad84da0c2bbba2e85e1261e320a6",
+      "bytes": 852,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/detector/shared/inline-ignores.mjs",
+      "sha256": "74c80303e25f017b4671ae299b9fca424a5f7714203d19207a8d8896dfd2eecc",
+      "bytes": 6194,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/detector/shared/page.mjs",
+      "sha256": "b4cef5548d84fa90d15e6b42b20be9ef74ed05e4e6e46076ec5acc61b343315c",
+      "bytes": 252,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/doctor.mjs",
+      "sha256": "4d68dc2884516c2ab17090020154417dc644075acf7c4657f60e6cf12df0a2d9",
+      "bytes": 11577,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/embed-prompt.mjs",
+      "sha256": "4227f850b60a32cc6b8a167d9b49e4e00817823a1b93a9fdb9a3823345140daf",
+      "bytes": 7354,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/font-match.mjs",
+      "sha256": "8f8303918a92af6ddd2cdeac3344223e43d66059e5098741bf059e89b409d9c6",
+      "bytes": 28759,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/generate-image.mjs",
+      "sha256": "121d366da52fc16df6c44efd2676652ae4706196d5db1fc4c1d025335c586b7f",
+      "bytes": 22797,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/hook-admin.mjs",
+      "sha256": "d6f3e24b5a83f7a5c52c734e5a9cb0a888a147ab7d7f572e0773e26f2e9ed89d",
+      "bytes": 32431,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/hook-before-edit.mjs",
+      "sha256": "49224a98a9addbeaca554b648c3973cb0250ba4cf9dfb56a1b4469c56d98dccc",
+      "bytes": 20029,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/hook-lib.mjs",
+      "sha256": "d6d65ecfd069c632b162b23b6bf4a46e8fe0014f0caddd32725a38dbf0e80206",
+      "bytes": 102895,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/hook.mjs",
+      "sha256": "c10d8b31213c5179cde45277eae517d4ef6fcd621b14261b7de54c64faac22a3",
+      "bytes": 2809,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/lib/artifact-schema.mjs",
+      "sha256": "ad0a72e96c74be09490b1aea095478e307f45d707b15021c922cbd4466619359",
+      "bytes": 3896,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/lib/composition-catalog.mjs",
+      "sha256": "a733122589e5bf6dbfcfbc2f9d016d6f54db0e4cebf278ac7f6a9cea374c9916",
+      "bytes": 10249,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/lib/concept-catalog.mjs",
+      "sha256": "43fa911f54d6f36384c727a62b4bfead8a7b282d0d7ad56230fdd59d1be2ac01",
+      "bytes": 19897,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/lib/design-parser.mjs",
+      "sha256": "d1012667cffaf8e0d24317077dd54386ed274f49313b53346e67b00cd96aa487",
+      "bytes": 27178,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/lib/font-fingerprint.mjs",
+      "sha256": "a35764b55d33d03cb0fe4dfac059306683fe3e89016bb62f4715c39deaa0f9c4",
+      "bytes": 29235,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/lib/font-index.mjs",
+      "sha256": "31cb952b43055ddd93ddc7e9ee35e86f9224ff57a14285467d772963ec603fa3",
+      "bytes": 6573,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/lib/hero-checks.mjs",
+      "sha256": "1315e294f713f542c2c996dbd14555d520d7484d3b5c78b3ba820042f19d44f7",
+      "bytes": 14926,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/lib/image-metrics.mjs",
+      "sha256": "c4844deaeadf0fe421d95b46ca020c0f9232228ad602f176e4d5cbd691694e97",
+      "bytes": 14207,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/lib/impeccable-config.mjs",
+      "sha256": "7297e323a700ef8f819641169ebb1c1ae09e7f730d947eaf77a83dd415c2e3fd",
+      "bytes": 22272,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/lib/impeccable-paths.mjs",
+      "sha256": "276ec7ac47e3c250e76616755d83cca4846f0f951b51c29f985ec84b51282aa2",
+      "bytes": 4976,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/lib/is-generated.mjs",
+      "sha256": "2d6c37f821cb42161264068b81c4c97629a653b661403cedadb5eb23099d0acc",
+      "bytes": 2502,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/lib/live-path-globs.mjs",
+      "sha256": "f2657a25351ae5bc4d503e7257f84e014815fc562225ebf8fe15d3e277ca6f53",
+      "bytes": 847,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/lib/open-system-browser.mjs",
+      "sha256": "3785ef4ba47bbbe176469e2536e8ef29e885f955970404f46ff34763f831bf11",
+      "bytes": 848,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/lib/png.mjs",
+      "sha256": "6994615c52f75af071664e0675b9cac91de39ac5ad0ecc7de4873ee0fd227926",
+      "bytes": 10735,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/lib/provider.mjs",
+      "sha256": "998c57324fdab98a0bfbd01a6099eadac7276038da961697d6069bbdeb0e5856",
+      "bytes": 327,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/lib/raster.mjs",
+      "sha256": "97038c3790f9a76e0dc09a8aa967e0679778a6015723873715a577d21ac7172a",
+      "bytes": 9876,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/lib/roll-selection.mjs",
+      "sha256": "769cf0d4f8ea8aaee78ae29c7ee9ec27a18070b2137e0ee18adff862c84634e5",
+      "bytes": 17803,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/lib/staleness-deep.mjs",
+      "sha256": "c6ea09855e346a3b3bdb9601bbe843db07cbd25e9ebac67d93bc75e14a372725",
+      "bytes": 21403,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/lib/staleness-notice.mjs",
+      "sha256": "2770f3360119836822a5823d08248976e327d49adbb06caee1492493e257c8c4",
+      "bytes": 6706,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/lib/staleness.mjs",
+      "sha256": "f900a3ce0cd836194859c575dd32f8802d6a078bb8af27e1b8b6bb49485ad7d6",
+      "bytes": 23416,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/lib/surface-briefs.mjs",
+      "sha256": "33b35099b95d40e034b6a65657a1fd90fd011cdcb752f1c7a51e8470df37e668",
+      "bytes": 6110,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/lib/target-args.mjs",
+      "sha256": "8f8b902d9ec7dbad0431226bb8aea935cd67d68878d19d95a605be0585056f31",
+      "bytes": 1145,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/lib/target-slug.mjs",
+      "sha256": "dbc2670ad1461658d1b43fe15778ac220bc0db57af1f3fd8ccb6251b5ca5a2a4",
+      "bytes": 1075,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/lib/template-extensions.mjs",
+      "sha256": "1a3808237835998f3fea600424c64ab1775beac7e0c344d6b23f472ffc2a3e64",
+      "bytes": 5457,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live-accept.mjs",
+      "sha256": "f823b4f71a6ae21ffb8b52aa3a78768f0bee551329cf76ad4144e4680a05c154",
+      "bytes": 35874,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live-browser-dom.js",
+      "sha256": "de1b7404f4cdfd7b515196afb17b74b1980f0bc88cb8681ae93a76ca48ec7bdb",
+      "bytes": 4917,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live-browser-ignores.js",
+      "sha256": "c1cb6877ca99a0c1b38ba0c7d59f32702d3022f6821d8045f7133f7c40b6362f",
+      "bytes": 10346,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live-browser-session.js",
+      "sha256": "edddeb3fad88adec9a055b1bf9d5c75418cbe97a13b1a7f6765e73249e482563",
+      "bytes": 4090,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live-browser.js",
+      "sha256": "2f88de4b5072a4d3deef958efc9d9c53a6637300cbf6fed3e490390bbd35002c",
+      "bytes": 513389,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live-commit-manual-edits.mjs",
+      "sha256": "dfdc9a128e26a293a12bbf2a21ad34f64ba9b8da73cf0d3d0a24603cca13c051",
+      "bytes": 40852,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live-complete.mjs",
+      "sha256": "28db300c3a5b42ee01d4250a664020523d2b85158fa987d92c403cab19ae030c",
+      "bytes": 4808,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live-copy-edit-agent.mjs",
+      "sha256": "e33514592d56b8e8416f3e7c58ee11a2416047ad559c096c3f16c4e9fc57c41c",
+      "bytes": 33453,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live-discard-manual-edits.mjs",
+      "sha256": "fa967fe27e442dd6c9b467713dd4a05c5d2189af03ad76b98bae9f6642cda545",
+      "bytes": 1687,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live-inject.mjs",
+      "sha256": "bb3a120472b757e96dbc2f5e24b37f39f31dee3c54d785c571baf686cf71096d",
+      "bytes": 17585,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live-insert.mjs",
+      "sha256": "057c81807b2f02d565edd41456fb10a43fb01209cb60a541b58f653e480f8991",
+      "bytes": 10081,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live-manual-edit-evidence.mjs",
+      "sha256": "c5a36c361c435fc023e17be16a78aaf672adb48a6a74e8177cfa775592502638",
+      "bytes": 11857,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live-poll.mjs",
+      "sha256": "1999e61dbf7f3708c9a7944b26004f4a294e4c7129a23db417b200cb1c09a7b5",
+      "bytes": 16167,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live-resume.mjs",
+      "sha256": "b5c9e4b1c27ea2dbbf95b563df7314ddb77c6aa75ce2c760cde15f7082ccbec0",
+      "bytes": 6132,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live-server.mjs",
+      "sha256": "56ec481aa2b024baca1798a182695e1ff44a632f744f4eb2f12e2912041965c9",
+      "bytes": 69577,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live-status.mjs",
+      "sha256": "12ce152c6aec4ea2c938bd629b8406de0ee9926586e5af9fe550ab06bba88639",
+      "bytes": 2626,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live-target.mjs",
+      "sha256": "7f18323b89167804c2d9005d4766b159c81268c9f21daab9fdec24f513f25eb0",
+      "bytes": 934,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live-wrap.mjs",
+      "sha256": "f0c5845155c76cd01422a5de92e15e1bb81bb531a2c2985edb21965c5ad38c0a",
+      "bytes": 39116,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live.mjs",
+      "sha256": "9188f42a93e02ec341335c3441af5de16391196efdf78710e87dd7ef0fb6cb7e",
+      "bytes": 12909,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live/accept-css.mjs",
+      "sha256": "b72ea8f2cfc445598e8948f55e1625f5045ff1c5b968c246b92dbc839d4b6f1e",
+      "bytes": 22505,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live/accept-verify.mjs",
+      "sha256": "fcb04462d65b664f6d663a4fe993acd41921dea7d3c387b7755332290f951580",
+      "bytes": 2739,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live/browser-script-parts.mjs",
+      "sha256": "2ceb3083de7fe80160f40379c0ed47220bade5e4a1964cde4ae8e745049061c5",
+      "bytes": 3674,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live/completion.mjs",
+      "sha256": "d7821979aec5fbc2028a6d98aa3d0abe34b88b0e2527f6df4e4f71e5782430bd",
+      "bytes": 1444,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live/event-validation.mjs",
+      "sha256": "ef06987cfc2c8d8cde0e292fafec4a1aeba9fb43d84dffe2526fac803668c598",
+      "bytes": 9579,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live/frameworks/astro.mjs",
+      "sha256": "9bc679fd9e2f2800e97519bd16f36af7afb696d61391a08f7c9bbc687f03e87d",
+      "bytes": 1725,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live/frameworks/detect-utils.mjs",
+      "sha256": "c69d859d73574784c33e6ac81e537022d619dbaf7f6f2d3637317a3df41b30f8",
+      "bytes": 2102,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live/frameworks/index.mjs",
+      "sha256": "54936fa60f0abb9483fbaac59ba9797c4173e9a77f504ff3df9a32b208ae1bab",
+      "bytes": 5847,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live/frameworks/journal.mjs",
+      "sha256": "536535b977a063fe220447a78cdd351fbc224ac1bfb1bdd1f0827577ad4a5954",
+      "bytes": 7182,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live/frameworks/nextjs.mjs",
+      "sha256": "a724f8fd9be4ef0c58c268c81e0ff651da4ee6c5a7a7a96258932aaab0d3842e",
+      "bytes": 1732,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live/frameworks/nuxt.mjs",
+      "sha256": "8f243e1e91f59b1a61036c0adf45ba4ea49e78983ee56d4634a6d567dfa7d263",
+      "bytes": 5242,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live/frameworks/script-src.mjs",
+      "sha256": "3594a9941214bcea837f2807bd1e77aca33aeb5cea5f4212f5c03f802e6d7f26",
+      "bytes": 699,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live/frameworks/static-html.mjs",
+      "sha256": "4521a21f9b2d171d78a923d4e2c000b729549055f1f82ca1f1725be9455c10f1",
+      "bytes": 656,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live/frameworks/sveltekit.mjs",
+      "sha256": "4f4cb04e6c584f7f179933c79f75514f2c7086a29205527667ba214a60022c2b",
+      "bytes": 1801,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live/frameworks/tag-strategy.mjs",
+      "sha256": "deb03caaaaef15da569c7453d7a6839dc9a47cf504d5c6c74f1127a84d23c4eb",
+      "bytes": 10866,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live/frameworks/tanstack-start.mjs",
+      "sha256": "be7b9135a7b934f29f119c301cf3572b622045120d65ec47444ee58ca51acd62",
+      "bytes": 1646,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live/frameworks/vite-generic.mjs",
+      "sha256": "63fadafbecf340f037e9d52912483774aa9a41761b1680b9c8cf9c2e5bba30b3",
+      "bytes": 1324,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live/generation-preflight.mjs",
+      "sha256": "d98806a798bc0425c204e3dcbbf40071fe9ab46a95bcfb3624f36740b6a0f1da",
+      "bytes": 5937,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live/insert-ui.mjs",
+      "sha256": "c86839fc9be98eadc0ff6afaa6ab010a7539e9af77e8deeba898cb93f7f311f4",
+      "bytes": 15664,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live/instructions.mjs",
+      "sha256": "9bebb2689fbf4f454b3c3afb2b58e1bcb70705113b05041f959f67caa5c802e1",
+      "bytes": 13216,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live/manual-apply.mjs",
+      "sha256": "c0e7fc5c3d4a7d6e1d6a8e6f85cbe005e5dc01d77b16fd0735605f287c4c8b66",
+      "bytes": 34898,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live/manual-edit-routes.mjs",
+      "sha256": "5517c40db7c91a5b24b134f79cb0f87c90e307b2f7831b1de670d60e529557c0",
+      "bytes": 14933,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live/manual-edits-buffer.mjs",
+      "sha256": "bbd1aba1b9bc891cba771ee8b891d344542119967ae4666e7147da59de5485fd",
+      "bytes": 5112,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live/poll-lanes.mjs",
+      "sha256": "a516bc942c55b66be915619794f4ec79aadf94d6966c6fc7aee24f1fbaa60ab3",
+      "bytes": 759,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live/project-ignores.mjs",
+      "sha256": "b4088c6fbc231bc13b11804bea90a223d077d3762f3d93990c6044c7ea10d9e1",
+      "bytes": 6427,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live/roots.mjs",
+      "sha256": "715e9658cb28746c126faf24bbd3cd949e1ebc5dd189eb455887544ae4efbf12",
+      "bytes": 20887,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live/session-store.mjs",
+      "sha256": "03217be8aad575f3ce44c1a634c40a013ca18edeefa81894450637af2603c411",
+      "bytes": 22916,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live/source-lock.mjs",
+      "sha256": "2919dd7641a5ff2320a01a1bf9f9adcff6e7e2f2b3ccb1b48cdf0b5c091b3803",
+      "bytes": 3707,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live/source-search.mjs",
+      "sha256": "429dcbcf21785df225fa97a24906dec11b5170e76df6ed0a2b098fa2c2057de2",
+      "bytes": 4349,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live/svelte-ast.mjs",
+      "sha256": "11feee00b0637e5960c2045f3dca290eb00ceef00f9a09e3fbf3458abfa8779d",
+      "bytes": 39160,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live/svelte-component.mjs",
+      "sha256": "234dae2735aae9385716416a4e958d6890ec7cb42dec2e158fe128e8856eaf97",
+      "bytes": 52297,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live/sveltekit-adapter.mjs",
+      "sha256": "a17e39a2dc0cad436fc00aebeab64dcb2ec1b408e0fdba1a6a8a37844a3b46c3",
+      "bytes": 10915,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live/tanstack-adapter.mjs",
+      "sha256": "5f59be858d71e40a8b70ce114a892511072547608a9e69858a8a66d6c782968c",
+      "bytes": 9282,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live/ui-surfaces.mjs",
+      "sha256": "eccf5853861fd2df44a094037b9fa9302f7de8035e53c956bf8cbac7cd6c4baa",
+      "bytes": 3614,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/live/vocabulary.mjs",
+      "sha256": "f1765c853a8894074f511f7b34bda815552e45ea6458babee0ace97416c652ed",
+      "bytes": 7191,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/modern-screenshot.umd.js",
+      "sha256": "bb36665889124a0b6e15f16045265737449c3bdcf2712cdb08af3cfa01563e2b",
+      "bytes": 29290,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/palette.mjs",
+      "sha256": "6e09e15188033bfb8fe1f8de66f667c2b8b13d48cb55b1f50808330856e5fe16",
+      "bytes": 56787,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/pin.mjs",
+      "sha256": "6bd80982a96e3571c7f1222f296d659010d28d25e6097c8d360d77906931b73a",
+      "bytes": 12051,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/serve-question.mjs",
+      "sha256": "48999dd4d8e68797da20ece68618008e395f73ace6f3b8e029303153ca097785",
+      "bytes": 121787,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "impeccable/scripts/surface-brief.mjs",
+      "sha256": "acd03bf38f6aef2b5d5287cefccacac018063b5b5356c99d191b3bd012f28ed3",
+      "bytes": 2517,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "make-interfaces-feel-better/LICENSE",
+      "sha256": "ed1dfe988fc40511b4845ccd9050a143a2002fee3bedc8064c47fa342b5d8d4f",
+      "bytes": 1069,
+      "origin": "upstream-license-or-notice"
+    },
+    {
+      "path": "make-interfaces-feel-better/SKILL.md",
+      "sha256": "ee05e66e71bf3472df02d29e3a88a659751b36b09cd5cc5d47f42db5c5cac07f",
+      "bytes": 12005,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "make-interfaces-feel-better/agents/openai.yaml",
+      "sha256": "72dda9653b1deecccb6d963954e48fd79f2b6bd075ae0b2c786b3d0dce369064",
+      "bytes": 133,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "make-interfaces-feel-better/animations.md",
+      "sha256": "94e98ccd647228dc8413d3fc224b888e43b07152ac0c0f12e6248d8ace996ec9",
+      "bytes": 13114,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "make-interfaces-feel-better/icons.md",
+      "sha256": "935d81dbf2ee7fdb1c6921a75c0ba424ee3ef31c47ba3c098b056a075b23ec11",
+      "bytes": 2340,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "make-interfaces-feel-better/performance.md",
+      "sha256": "77ea64e5767fdf54ac01e5d22c2dc6725a716004173ad9b4c2a91af647b344fe",
+      "bytes": 3134,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "make-interfaces-feel-better/surfaces.md",
+      "sha256": "786cb39185e42a86ace22bcf4aeb0d5204237d38fe9a1c052cfc0d40c316e86c",
+      "bytes": 7495,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "make-interfaces-feel-better/typography.md",
+      "sha256": "d4127be8f786495a528de1961d3f41e07586c113e1425599785da9500380c5fc",
+      "bytes": 4847,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "shadcn/LICENSE.md",
+      "sha256": "1564074e13439397221ffd522e2e504d56561994a23d371aa5e3ad43e4f5423f",
+      "bytes": 1063,
+      "origin": "upstream-license-or-notice"
+    },
+    {
+      "path": "shadcn/SKILL.md",
+      "sha256": "e39871b64b1ba34f1aefc50ffea1b162c5a0750bc42a9ba54282ac503534429b",
+      "bytes": 19804,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "shadcn/agents/openai.yml",
+      "sha256": "92be2f46bf42718ad62fd987d1c0dff5baacc37895bf8ab5e7ba858442b5f997",
+      "bytes": 243,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "shadcn/assets/shadcn-small.png",
+      "sha256": "0ecc62d682727f68fc4937eed19960c706714fa084d44f63028d611ae02bf3d7",
+      "bytes": 1049,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "shadcn/assets/shadcn.png",
+      "sha256": "7d60ad6fec4d89a0d44ba5a3c9283d2fea0047af5467f9227040e20d927d39b7",
+      "bytes": 3852,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "shadcn/cli.md",
+      "sha256": "7ae4ab0a9cbd275f8a1ec7c2a133531b0492b856bf6a23c82419f7d9d0bc5082",
+      "bytes": 17594,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "shadcn/customization.md",
+      "sha256": "8b34cdc4c3ac3dd37031a5fa09092c3678c6eecc7283c2f5dad2eae29ef13d41",
+      "bytes": 6283,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "shadcn/evals/evals.json",
+      "sha256": "ed08d9a32ce1152955dd6080e392a7cf0c17cf590e092d69e0e3639d9f1038ed",
+      "bytes": 6407,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "shadcn/mcp.md",
+      "sha256": "aff91c8cc8878bf52f7cd300e7e3dffbe0202d199a2d9be19a86d808039b93fe",
+      "bytes": 3615,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "shadcn/registry.md",
+      "sha256": "581b5b6f25ff59a0f8f0746a6de9786023ea4f8224c9adaf19dd5963ccaa600b",
+      "bytes": 9094,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "shadcn/rules/base-vs-radix.md",
+      "sha256": "d0b66cd55a921602e7ca1f3b8c03a2f744b8d688f843155bbb2d9c7cef08eb0a",
+      "bytes": 7260,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "shadcn/rules/chat.md",
+      "sha256": "347d36a2e4af8a6abb15a2c1aeaa4c91107e22c5cc9de00135efe9dd280bff61",
+      "bytes": 8268,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "shadcn/rules/composition.md",
+      "sha256": "eaea5290eaef7cfd8c135af32cee7c6b6c490dbe8b7f74152dbec2dcfe1de1c6",
+      "bytes": 5105,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "shadcn/rules/forms.md",
+      "sha256": "a5422ccca0bcaa9ccb5e8a3745bacd08eadcf9a96f54e1b39f5ffe725f316feb",
+      "bytes": 5049,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "shadcn/rules/icons.md",
+      "sha256": "08a07baacbbef0926002b88ca1fc410bf70eb7938a3f3521e4d8f643f6621908",
+      "bytes": 2059,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "shadcn/rules/styling.md",
+      "sha256": "1aae00e05c06f13bbca22116061d1bef796e9627c9d0b1cbab121db76ec99e3a",
+      "bytes": 4869,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "tailwind-design-system/LICENSE",
+      "sha256": "f89abb55d9f073f38f1703e4518f0613c788c6174be7f13b8dfe48a1c076c746",
+      "bytes": 1068,
+      "origin": "upstream-license-or-notice"
+    },
+    {
+      "path": "tailwind-design-system/SKILL.md",
+      "sha256": "dc3723ef5db351ff9bd725f121789a4b30c7e73109c6546d7787d7563474d4d6",
+      "bytes": 5476,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "tailwind-design-system/references/advanced-patterns.md",
+      "sha256": "3115a12da147a0bb8924dd0ae85b01a6bb2a26a852e6f7146b131e23d5117f13",
+      "bytes": 8427,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "tailwind-design-system/references/details.md",
+      "sha256": "9a56d81187ed8432787f76a20a603fa5f0f4a4881a29bc37cd95d3780a0c76c1",
+      "bytes": 11064,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "web-design-guidelines/LICENSE.txt",
+      "sha256": "0d30f07ea6a97f3aa50eae73d0d5fd64052fcfc1425789a40cf003d6b90c6680",
+      "bytes": 1296,
+      "origin": "license-terms-from-upstream-MIT-declaration"
+    },
+    {
+      "path": "web-design-guidelines/SKILL.md",
+      "sha256": "f4647ca866a3accf763777f83e7682954f0187cd6bea7eea0399796652414e8f",
+      "bytes": 1231,
+      "origin": "installed-skill"
+    },
+    {
+      "path": "web-design-guidelines/UPSTREAM-README.md",
+      "sha256": "7c02f64b08fc6c4eef03c01d64f3e2ed478193ccfcbd14edba379abe23304651",
+      "bytes": 7838,
+      "origin": "upstream-license-or-notice"
+    }
+  ]
+}
