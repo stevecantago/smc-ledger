@@ -228,7 +228,7 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard })
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-white">{payment.walletName} payment</h3>
-                    <p className="mt-1 text-xs text-slate-400">Full current used balance</p>
+                    <p className="mt-1 text-xs text-slate-400">Full current total due</p>
                     <p className="mt-1 text-[11px] font-semibold text-purple-300">Automatic card payment schedule</p>
                   </div>
                 </div>

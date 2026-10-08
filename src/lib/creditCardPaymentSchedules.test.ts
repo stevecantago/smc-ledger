@@ -14,6 +14,7 @@ const baseWallet: Wallet = {
   wallet_type: 'credit_card',
   is_shared: false,
   current_balance: 7000,
+  service_fee_balance: 1000,
   credit_limit: 7000,
   created_at: '2026-09-01T00:00:00.000Z',
 };
@@ -30,28 +31,42 @@ describe('credit card payment schedules', () => {
     expect(getNextCreditCardPaymentDate(today)).toBe(expected);
   });
 
-  it('creates a payment due for the full live used balance', () => {
+  it('creates a payment due for the full current total due', () => {
     expect(buildCreditCardPaymentSchedules([baseWallet], new Date(2026, 8, 17))).toEqual([
       {
         id: 'credit-card-payment-wallet-card',
         walletId: 'wallet-card',
         walletName: 'Maya Credit',
-        amount: 7000,
+        amount: 8000,
         dueDate: '2026-09-20',
       },
     ]);
   });
 
+  it('keeps a schedule when only service fees remain', () => {
+    const schedules = buildCreditCardPaymentSchedules([
+      { ...baseWallet, current_balance: 0, service_fee_balance: 250 },
+    ], new Date(2026, 8, 17));
+
+    expect(schedules[0]?.amount).toBe(250);
+  });
+
+  it('omits a card only when used balance and service fees are both zero', () => {
+    expect(buildCreditCardPaymentSchedules([
+      { ...baseWallet, current_balance: 0, service_fee_balance: 0 },
+    ], new Date(2026, 8, 17))).toEqual([]);
+  });
+
   it('omits paid-off cards and non-credit wallets', () => {
     expect(buildCreditCardPaymentSchedules([
-      { ...baseWallet, current_balance: 0 },
+      { ...baseWallet, current_balance: 0, service_fee_balance: 0 },
       { ...baseWallet, id: 'wallet-cash', wallet_type: 'cash', current_balance: 500 },
     ], new Date(2026, 8, 17))).toEqual([]);
   });
 
   it('normalizes a legacy negative card balance into the scheduled amount', () => {
     const schedules = buildCreditCardPaymentSchedules([
-      { ...baseWallet, current_balance: -1250.5 },
+      { ...baseWallet, current_balance: -1250.5, service_fee_balance: 0 },
     ], new Date(2026, 8, 17));
 
     expect(schedules[0]?.amount).toBe(1250.5);

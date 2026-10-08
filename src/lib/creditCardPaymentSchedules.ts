@@ -1,5 +1,5 @@
 import { Wallet } from '../types/database';
-import { getCreditCardUsedBalance } from './creditCardTransactions';
+import { getCreditCardTotalDue } from './creditCardTransactions';
 
 export interface CreditCardPaymentSchedule {
   id: string;
@@ -40,7 +40,7 @@ export function buildCreditCardPaymentSchedules(
 
   return wallets.flatMap(wallet => {
     if (wallet.wallet_type !== 'credit_card') return [];
-    const amount = getCreditCardUsedBalance(wallet);
+    const amount = getCreditCardTotalDue(wallet);
     if (amount <= 0) return [];
 
     return [{
