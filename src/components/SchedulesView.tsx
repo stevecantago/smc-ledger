@@ -405,7 +405,7 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard })
                   <label className="mb-1 block text-xs font-medium text-slate-300">Envelope Category</label>
                   <select value={categoryId} onChange={event => setCategoryId(event.target.value)} className="w-full rounded-lg border border-slate-700 bg-slate-800 p-2.5 text-xs text-white">
                     <option value="">-- None / Uncategorized --</option>
-                    {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+                    {categories.filter(category => category.category_type === 'expense').map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
                   </select>
                 </div>
               )}

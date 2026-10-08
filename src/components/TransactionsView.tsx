@@ -126,10 +126,12 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
     ? getCreditCardTotalDue(selectedDestinationWallet)
     : 0;
   const totalCashDeducted = addPhpAmounts(parsedPaymentAmount, parsedTransactionFee);
+  const transactionCategories = categories.filter(category => category.category_type === (txType === 'income' ? 'income' : 'expense'));
 
   useEffect(() => {
     if (!showModal || !draft) return;
     if (draft.type) setTxType(draft.type);
+    setCategoryId('');
     if (draft.requireSourceSelection) {
       setWalletId('');
     } else if (draft.walletId) {
@@ -239,6 +241,14 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
       return;
     }
 
+    if (txType === 'income' || txType === 'expense') {
+      const selectedCategory = categories.find(category => category.id === categoryId);
+      if (categoryId && selectedCategory?.category_type !== txType) {
+        setErrorMsg(`Choose a category from the ${txType} list.`);
+        return;
+      }
+    }
+
     if ((txType === 'transfer' || isCreditCardPayment) && !destWalletId) {
       setErrorMsg(isCreditCardPayment
         ? 'Please select the credit card or credit line being paid.'
@@ -290,7 +300,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
       const res = addTransaction({
         wallet_id: walletId,
         destination_wallet_id: txType === 'transfer' || isCardLoanPayment ? destWalletId : null,
-        category_id: txType === 'expense' ? (categoryId || null) : null,
+        category_id: txType === 'expense' || txType === 'income' ? (categoryId || null) : null,
         type: txType,
         amount: parsedAmount,
         fee: parsedFee,
@@ -321,6 +331,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
     setNote('');
     setSelectedRecurringId('');
     setSelectedLoanId('');
+    setCategoryId('');
     setShowCustomNote(false);
     setIsCreditCardPayment(false);
     setReceiptUrl('');
@@ -363,6 +374,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
             onClick={() => {
               setErrorMsg('');
               if (visibleWallets.length > 0) setWalletId(visibleWallets[0].id);
+              setCategoryId('');
               setSelectedRecurringId('');
               setSelectedLoanId('');
               setShowCustomNote(false);
@@ -411,7 +423,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
             onChange={(e) => setCategoryFilter(e.target.value)}
             className="bg-slate-900/80 text-white text-xs px-3 py-2 rounded-lg border border-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500"
           >
-            <option value="all">All Envelope Categories</option>
+            <option value="all">All Categories</option>
             {categories.map(c => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
@@ -508,7 +520,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                       </td>
 
                       <td className="py-3 px-4">
-                        {tx.type === 'expense' ? (
+                        {tx.type === 'expense' || tx.type === 'income' ? (
                           <span className="text-sky-300 font-medium">{category?.name || 'General'}</span>
                         ) : tx.type === 'transfer' ? (
                           <span className="text-indigo-300 font-medium">➔ {dstWallet?.name || 'Destination'}</span>
@@ -669,9 +681,9 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                     <div className="text-slate-400">
                       Account: <strong className="text-slate-200">{srcWallet?.name || 'Unknown'}</strong>
                     </div>
-                    {tx.type === 'expense' && (
+                    {(tx.type === 'expense' || tx.type === 'income') && (
                       <div className="text-slate-400">
-                        Envelope: <strong className="text-sky-300">{category?.name || 'General'}</strong>
+                        Category: <strong className="text-sky-300">{category?.name || 'General'}</strong>
                       </div>
                     )}
                     {tx.type === 'transfer' && (
@@ -747,6 +759,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                     type="button"
                     onClick={() => {
                       setTxType('expense');
+                      setCategoryId('');
                       setSelectedRecurringId('');
                       setSelectedLoanId('');
                       setShowCustomNote(false);
@@ -764,6 +777,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                     type="button"
                     onClick={() => {
                       setTxType('income');
+                      setCategoryId('');
                       setSelectedRecurringId('');
                       setSelectedLoanId('');
                       setShowCustomNote(false);
@@ -781,6 +795,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                     type="button"
                     onClick={() => {
                       setTxType('transfer');
+                      setCategoryId('');
                       setSelectedRecurringId('');
                       setSelectedLoanId('');
                       setShowCustomNote(false);
@@ -798,6 +813,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                     type="button"
                     onClick={() => {
                       setTxType('loan');
+                      setCategoryId('');
                       setSelectedRecurringId('');
                       setSelectedLoanId(loans[0]?.id || '');
                       setShowCustomNote(false);
@@ -1038,18 +1054,20 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                 )}
               </div>
 
-              {/* Category for Expense */}
-              {txType === 'expense' && (
+              {/* Category for Income or Expense */}
+              {(txType === 'expense' || txType === 'income') && (
                 <div>
-                  <label htmlFor="transaction-category" className="block text-xs font-medium text-slate-300 mb-1">Envelope Category</label>
+                  <label htmlFor="transaction-category" className="block text-xs font-medium text-slate-300 mb-1">
+                    {txType === 'income' ? 'Income Category' : 'Envelope Category'}
+                  </label>
                   <select
                     id="transaction-category"
                     value={categoryId}
                     onChange={(e) => setCategoryId(e.target.value)}
                     className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
                   >
-                    <option value="">-- General Expense --</option>
-                    {categories.map(c => (
+                    <option value="">-- General {txType === 'income' ? 'Income' : 'Expense'} --</option>
+                    {transactionCategories.map(c => (
                       <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
                   </select>

@@ -129,11 +129,12 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
           <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[.14em] text-brand-muted">Household</p>
           <div className="space-y-1">{primaryNavigationItems.map(item => navButton(item))}</div>
           <p className="mb-2 mt-7 px-3 text-[10px] font-bold uppercase tracking-[.14em] text-brand-muted">More</p>
-          <div className="space-y-1">{moreNavigationItems.map(item => navButton(item))}</div>
+          <div className="space-y-1">{moreNavigationItems.filter(item => item.id !== 'settings').map(item => navButton(item))}</div>
           <button
             type="button"
-            onClick={() => setShowProfileModal(true)}
-            className="mt-auto flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-white hover:text-brand-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange"
+            onClick={() => navigate('settings')}
+            aria-current={activeTab === 'settings' ? 'page' : undefined}
+            className={`mt-auto flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange ${activeTab === 'settings' ? 'bg-brand-ink text-white shadow-sm' : 'text-slate-600 hover:bg-white hover:text-brand-ink'}`}
           >
             <Settings className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
             <span>Setting</span>

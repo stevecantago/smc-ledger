@@ -32,9 +32,9 @@ vi.mock('../lib/supabase', async importOriginal => {
   const actual = await importOriginal<typeof import('../lib/supabase')>();
   return {
     ...actual,
-    initialWallets: actual.initialWallets.map(wallet => wallet.id === 'wallet-metrobank'
+    initialWallets: actual.initialWallets.map(wallet => wallet.id === 'wallet-demo-bank'
       ? { ...wallet, current_balance: 50000 }
-      : wallet.id === 'wallet-unionbank-cc'
+      : wallet.id === 'wallet-demo-credit'
         ? { ...wallet, current_balance: 7000, service_fee_balance: 1000 }
         : wallet),
     supabase: {
@@ -81,7 +81,7 @@ function renderProvider(): Household {
 }
 
 const payment = {
-  wallet_id: 'wallet-metrobank', destination_wallet_id: 'wallet-unionbank-cc',
+  wallet_id: 'wallet-demo-bank', destination_wallet_id: 'wallet-demo-credit',
   type: 'loan' as const, amount: 7500, fee: 50, transaction_date: '2026-10-03',
 };
 
@@ -196,7 +196,7 @@ describe('household service-fee persistence', () => {
     const backupTransactions = [{
       id: 'historical-payment',
       household_id: 'hh-101',
-      payer_id: 'member-steve-admin',
+      payer_id: 'member-demo-admin',
       category_id: null,
       receipt_url: null,
       note: 'Historical payment',
@@ -247,7 +247,7 @@ describe('household service-fee persistence', () => {
       transactions: [{
         id: 'historical-payment',
         household_id: 'hh-101',
-        payer_id: 'member-steve-admin',
+        payer_id: 'member-demo-admin',
         category_id: null,
         receipt_url: null,
         note: 'Historical payment',
@@ -276,7 +276,7 @@ describe('household service-fee persistence', () => {
     const backupTransactions = [{
       id: 'ordered-payment',
       household_id: 'hh-101',
-      payer_id: 'member-steve-admin',
+      payer_id: 'member-demo-admin',
       category_id: null,
       receipt_url: null,
       note: 'Ordered payment',

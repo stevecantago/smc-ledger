@@ -1,4 +1,4 @@
-import { ShieldCheck, Wallet, Home, Users, Landmark, Target, History, Clock, ArrowLeftRight } from 'lucide-react';
+import { ShieldCheck, Wallet, Home, Users, Landmark, Target, History, Clock, ArrowLeftRight, Settings } from 'lucide-react';
 
 export const primaryNavigationItems = [
   { id: 'dashboard', label: 'Dashboard', icon: Home },
@@ -13,6 +13,7 @@ export const moreNavigationItems = [
   { id: 'schedules', label: 'Schedules', icon: Clock },
   { id: 'members', label: 'Roster', icon: Users },
   { id: 'activity', label: 'Activity Log', icon: History },
+  { id: 'settings', label: 'Setting', icon: Settings },
 ] as const;
 
 export const allNavigationItems = [...primaryNavigationItems, ...moreNavigationItems];

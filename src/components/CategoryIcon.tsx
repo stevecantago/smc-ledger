@@ -4,7 +4,7 @@ import React from 'react';
 import { 
   ShoppingCart, Zap, Utensils, Film, BookOpen, GraduationCap, Bus, Car, Fuel, 
   HeartPulse, Home, ShieldCheck, Gift, Gamepad2, Plane, Scissors, Wifi, Smartphone, 
-  Dumbbell, Baby, PawPrint, Wrench, Coffee, Music, CreditCard, Receipt, LucideIcon 
+  Dumbbell, Baby, PawPrint, Wrench, Coffee, Music, CreditCard, Receipt, LucideIcon, TrendingUp
 } from 'lucide-react';
 
 export interface IconOption {
@@ -39,6 +39,7 @@ export const AVAILABLE_ICONS: IconOption[] = [
   { slug: 'coffee', label: 'Cafes & Snacks', icon: Coffee, color: 'text-amber-600' },
   { slug: 'music', label: 'Music & Streaming', icon: Music, color: 'text-violet-400' },
   { slug: 'credit-card', label: 'Loans & Bills', icon: CreditCard, color: 'text-rose-300' },
+  { slug: 'trending-up', label: 'Income & Salary', icon: TrendingUp, color: 'text-emerald-400' },
   { slug: 'receipt', label: 'General Receipt', icon: Receipt, color: 'text-slate-300' },
 ];
 

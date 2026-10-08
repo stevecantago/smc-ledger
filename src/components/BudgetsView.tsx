@@ -28,7 +28,8 @@ export const BudgetsView: React.FC = () => {
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   });
 
-  const categoriesWithAlerts = categories.map(cat => {
+  const expenseCategories = categories.filter(category => category.category_type === 'expense');
+  const categoriesWithAlerts = expenseCategories.map(cat => {
     const catSpend = currentMonthTx
       .filter(t => t.type === 'expense' && t.category_id === cat.id)
       .reduce((sum, t) => sum + t.amount, 0);
@@ -45,7 +46,7 @@ export const BudgetsView: React.FC = () => {
   const warningCategories = categoriesWithAlerts.filter(c => c.isWarning);
 
   const handleExportCsv = () => {
-    exportBudgetSummaryToCsv(categories, transactions);
+    exportBudgetSummaryToCsv(expenseCategories, transactions);
   };
 
   const handleAddSubmit = (e: React.FormEvent) => {
@@ -79,7 +80,7 @@ export const BudgetsView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 pb-28 md:pb-6">
+    <div className="famledger-view space-y-6 pb-28 md:pb-6">
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-800/80 border border-slate-700/70 p-5 rounded-xl">
         <div>
@@ -147,96 +148,91 @@ export const BudgetsView: React.FC = () => {
         </div>
       )}
 
-      {/* Categories Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {categoriesWithAlerts.map(cat => (
-          <div 
-            key={cat.id} 
-            className={`bg-slate-800/90 border rounded-xl p-5 space-y-4 shadow-lg transition-all flex flex-col justify-between ${
-              cat.isOver 
-                ? 'border-rose-500/60 ring-1 ring-rose-500/30' 
-                : cat.isWarning 
-                  ? 'border-amber-500/60 ring-1 ring-amber-500/30' 
-                  : 'border-slate-700/80'
-            }`}
-          >
-            <div className="space-y-4">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="p-3 rounded-xl bg-slate-900 border border-slate-700/60 flex items-center justify-center">
-                    <CategoryIcon slug={cat.icon_slug} className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-sm text-white">{cat.name}</h3>
-                    <div className="flex items-center space-x-2 mt-0.5">
-                      <span className="text-[11px] text-slate-400">Monthly Envelope</span>
-                      {cat.isOver ? (
-                        <span className="text-[10px] bg-rose-500/20 text-rose-300 font-bold px-1.5 py-0.2 rounded border border-rose-500/40">
-                          OVER BUDGET
+      {/* Envelope category table */}
+      <div className="overflow-hidden rounded-2xl border border-brand-line bg-brand-paper shadow-[var(--fam-shadow)]">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px] border-collapse text-left" aria-label="Monthly envelope category budgets">
+            <thead className="bg-brand-canvas text-[11px] font-semibold uppercase tracking-wide text-brand-muted">
+              <tr>
+                <th scope="col" className="px-4 py-3">Category</th>
+                <th scope="col" className="px-4 py-3 text-right">Monthly limit</th>
+                <th scope="col" className="px-4 py-3 text-right">Spent this month</th>
+                <th scope="col" className="px-4 py-3 text-right">Remaining</th>
+                <th scope="col" className="px-4 py-3">Usage</th>
+                {isAdmin && <th scope="col" className="px-4 py-3 text-right">Actions</th>}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-brand-line">
+              {categoriesWithAlerts.map(cat => {
+                const statusText = cat.isOver ? 'Over budget' : cat.isWarning ? 'Near limit' : 'On track';
+                const statusClass = cat.isOver ? 'text-[#A43838] bg-[#FBEEEE]' : cat.isWarning ? 'text-[#89520E] bg-[#FAF1E3]' : 'text-[#356326] bg-[#EFF5E8]';
+                const usageWidth = Math.min(Math.max(cat.percent, 0), 100);
+                return (
+                  <tr key={cat.id} className="bg-white align-middle hover:bg-[#F7F8FA]">
+                    <th scope="row" className="px-4 py-3.5 font-semibold text-brand-ink">
+                      <span className="flex min-w-44 items-center gap-3">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-sky">
+                          <CategoryIcon slug={cat.icon_slug} className="h-4 w-4" />
                         </span>
-                      ) : cat.isWarning ? (
-                        <span className="text-[10px] bg-amber-500/20 text-amber-300 font-bold px-1.5 py-0.2 rounded border border-amber-500/40">
-                          &gt;85% SPENT
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Meter */}
-              <div className="space-y-2">
-                <div className="flex justify-between text-xs">
-                  <span className="text-slate-400">Spent this month</span>
-                  <span className={`font-mono font-bold ${cat.isOver ? 'text-rose-400' : 'text-slate-200'}`}>
-                    ₱{cat.catSpend.toFixed(2)} / ₱{cat.monthly_budget_limit.toFixed(2)}
-                  </span>
-                </div>
-
-                <div className="w-full h-2.5 rounded-full bg-slate-900 overflow-hidden">
-                  <div 
-                    className={`h-full rounded-full transition-all ${
-                      cat.isOver ? 'bg-rose-500' : cat.isWarning ? 'bg-amber-500' : 'bg-emerald-500'
-                    }`}
-                    style={{ width: `${cat.percent}%` }}
-                  />
-                </div>
-
-                <div className="flex justify-between text-[11px] font-medium pt-1">
-                  <span className={cat.isOver ? 'text-rose-400 font-bold' : 'text-emerald-400'}>
-                    {cat.isOver ? `Over budget by ₱${Math.abs(cat.remaining).toFixed(2)}` : `₱${cat.remaining.toFixed(2)} remaining`}
-                  </span>
-                  <span className="text-slate-400">{cat.percent}% used</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Admin Actions */}
-            {isAdmin && (
-              <div className="pt-3 border-t border-slate-700/60 flex items-center justify-end space-x-2">
-                <button
-                  onClick={() => {
-                    setEditingCategory(cat);
-                    setEditName(cat.name);
-                    setEditIconSlug(cat.icon_slug);
-                    setEditLimit(cat.monthly_budget_limit.toString());
-                  }}
-                  title="Edit Envelope Category"
-                  className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-amber-400/10 rounded transition-colors"
-                >
-                  <Edit2 className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => handleDeleteCategory(cat)}
-                  title="Delete Envelope Category"
-                  className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded transition-colors"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-          </div>
-        ))}
+                        <span className="truncate">{cat.name}</span>
+                      </span>
+                    </th>
+                    <td className="whitespace-nowrap px-4 py-3.5 text-right text-sm tabular-nums text-brand-ink">₱{cat.monthly_budget_limit.toFixed(2)}</td>
+                    <td className="whitespace-nowrap px-4 py-3.5 text-right text-sm tabular-nums text-brand-ink">₱{cat.catSpend.toFixed(2)}</td>
+                    <td className={`whitespace-nowrap px-4 py-3.5 text-right text-sm font-semibold tabular-nums ${cat.isOver ? 'text-[#A43838]' : 'text-[#356326]'}`}>
+                      {cat.isOver ? `−₱${Math.abs(cat.remaining).toFixed(2)}` : `₱${cat.remaining.toFixed(2)}`}
+                    </td>
+                    <td className="min-w-40 px-4 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-brand-canvas" aria-hidden="true">
+                          <div className={`h-full rounded-full ${cat.isOver ? 'bg-brand-orange' : cat.isWarning ? 'bg-[#D48A26]' : 'bg-[#6F8F49]'}`} style={{ width: `${usageWidth}%` }} />
+                        </div>
+                        <span className="w-12 text-right text-xs tabular-nums text-brand-muted">{cat.percent}%</span>
+                        <span className="sr-only">{statusText}</span>
+                      </div>
+                    </td>
+                    {isAdmin && (
+                      <td className="whitespace-nowrap px-4 py-3.5 text-right">
+                        <div className="flex justify-end gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingCategory(cat);
+                              setEditName(cat.name);
+                              setEditIconSlug(cat.icon_slug);
+                              setEditLimit(cat.monthly_budget_limit.toString());
+                            }}
+                            title="Edit Envelope Category"
+                            aria-label={`Edit ${cat.name}`}
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-brand-muted hover:bg-brand-sky hover:text-brand-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange"
+                          >
+                            <Edit2 className="h-4 w-4" aria-hidden="true" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCategory(cat)}
+                            title="Delete Envelope Category"
+                            aria-label={`Delete ${cat.name}`}
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-brand-muted hover:bg-[#FBEEEE] hover:text-[#A43838] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange"
+                          >
+                            <Trash2 className="h-4 w-4" aria-hidden="true" />
+                          </button>
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+              {categoriesWithAlerts.length === 0 && (
+                <tr>
+                  <td colSpan={isAdmin ? 6 : 5} className="px-6 py-12 text-center text-sm text-brand-muted">
+                    No envelope categories yet. Create one to start tracking monthly limits.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Add Category Modal with Visual Icon Picker Grid */}

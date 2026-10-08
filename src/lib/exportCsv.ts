@@ -54,7 +54,7 @@ export function exportBudgetSummaryToCsv(
 
   const headers = ['Category Name', 'Icon', 'Monthly Budget Limit (PHP)', 'Spent This Month (PHP)', 'Remaining Balance (PHP)', 'Utilization Status'];
 
-  const rows = categories.map(c => {
+  const rows = categories.filter(c => c.category_type === 'expense').map(c => {
     const spent = currentMonthTx
       .filter(t => t.type === 'expense' && t.category_id === c.id)
       .reduce((sum, t) => sum + t.amount, 0);

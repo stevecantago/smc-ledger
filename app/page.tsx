@@ -12,6 +12,7 @@ import { SavingsGoalsView } from '../src/components/SavingsGoalsView';
 import { MembersView } from '../src/components/MembersView';
 import { ActivityLogView } from '../src/components/ActivityLogView';
 import { SchedulesView } from '../src/components/SchedulesView';
+import { SettingsView } from '../src/components/SettingsView';
 import { supabase } from '../src/lib/supabase';
 import { getRootAuthAction } from '../src/lib/authFlow';
 import { TransactionType } from '../src/types/database';
@@ -102,7 +103,7 @@ export default function Home() {
   }
 
   return (
-    <AppShell activeTab={activeTab} setActiveTab={setActiveTab} onOpenAddTxModal={handleOpenAddTxModal} legacy={!['dashboard', 'wallets', 'transactions', 'goals'].includes(activeTab)}>
+    <AppShell activeTab={activeTab} setActiveTab={setActiveTab} onOpenAddTxModal={handleOpenAddTxModal} legacy={!['dashboard', 'wallets', 'transactions', 'goals', 'budgets', 'settings'].includes(activeTab)}>
         {activeTab === 'dashboard' && (
           <DashboardView 
             setActiveTab={setActiveTab} 
@@ -124,6 +125,7 @@ export default function Home() {
         {activeTab === 'goals' && <SavingsGoalsView />}
         {activeTab === 'members' && <MembersView />}
         {activeTab === 'activity' && <ActivityLogView />}
+        {activeTab === 'settings' && <SettingsView />}
     </AppShell>
   );
 }

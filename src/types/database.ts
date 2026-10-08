@@ -1,6 +1,7 @@
 export type HouseholdRole = 'admin' | 'parent_member' | 'member';
 export type WalletType = 'bank' | 'e_wallet' | 'e_wallet_savings' | 'cash' | 'credit_card';
 export type TransactionType = 'income' | 'expense' | 'transfer' | 'loan';
+export type CategoryType = 'income' | 'expense';
 export type RecurringFrequency = 'daily' | 'weekly' | 'biweekly' | 'bimonthly' | 'monthly' | 'quarterly' | 'semi_annual' | 'annual' | 'custom_days';
 export type RecurringRuleType = 'transfer' | 'expense' | 'loan_payment';
 export type LoanPaymentFrequency = 'monthly' | 'bi_monthly';
@@ -95,6 +96,7 @@ export interface Category {
   household_id: string;
   name: string;
   icon_slug: string;
+  category_type: CategoryType;
   monthly_budget_limit: number;
   created_at: string;
 }

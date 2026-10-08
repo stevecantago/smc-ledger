@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { 
   Household, HouseholdMember, Wallet, Category, Transaction, SavingsGoal, 
   Loan, RecurringTransfer, HouseholdRole, RecurringRuleType, RecurringFrequency, LoanPaymentFrequency,
-  ActivityLogEntry, ActivityLogAction, HouseholdCustomRole, RolePermission, PermissionKey, PermissionLevel
+  ActivityLogEntry, ActivityLogAction, HouseholdCustomRole, RolePermission, PermissionKey, PermissionLevel, CategoryType
 } from '../types/database';
 import {
   initialHousehold,
@@ -81,7 +81,7 @@ interface HouseholdContextType {
   deleteWallet: (id: string) => MutationResult;
 
   // Categories CRUD
-  addCategory: (category: { name: string; icon_slug: string; monthly_budget_limit: number }) => MutationResult;
+  addCategory: (category: { name: string; icon_slug: string; monthly_budget_limit: number; category_type?: CategoryType }) => MutationResult;
   updateCategory: (id: string, updates: { name?: string; icon_slug?: string; monthly_budget_limit?: number }) => MutationResult;
   updateCategoryLimit: (id: string, limit: number) => MutationResult;
   deleteCategory: (id: string) => MutationResult;
@@ -181,6 +181,11 @@ interface HouseholdContextType {
 
 const HouseholdContext = createContext<HouseholdContextType | undefined>(undefined);
 
+const normalizeCategory = (category: Partial<Category> & Pick<Category, 'id' | 'household_id' | 'name' | 'icon_slug' | 'monthly_budget_limit' | 'created_at'>): Category => ({
+  ...category,
+  category_type: category.category_type === 'income' ? 'income' : 'expense',
+});
+
 export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [household] = useState<Household>(initialHousehold);
   const [isHydrated, setIsHydrated] = useState(false);
@@ -265,7 +270,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           const savedCategories = localStorage.getItem(STORAGE_KEYS.categories);
           if (savedCategories) {
             const parsed = JSON.parse(savedCategories);
-            if (Array.isArray(parsed) && parsed.length > 0) setCategories(parsed);
+            if (Array.isArray(parsed) && parsed.length > 0) setCategories(parsed.map(normalizeCategory));
           }
 
           const savedTransactions = localStorage.getItem(STORAGE_KEYS.transactions);
@@ -341,8 +346,9 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               // 3. Categories
               const { data: remoteCategories, error: cErr } = await supabase.from('categories').select('*');
               if (remoteCategories && remoteCategories.length > 0) {
-                setCategories(remoteCategories);
-                localStorage.setItem(STORAGE_KEYS.categories, JSON.stringify(remoteCategories));
+                const normalizedRemoteCategories = remoteCategories.map(category => normalizeCategory(category));
+                setCategories(normalizedRemoteCategories);
+                localStorage.setItem(STORAGE_KEYS.categories, JSON.stringify(normalizedRemoteCategories));
               } else if (!cErr && initialCategories.length > 0) {
                 await supabase.from('categories').insert(initialCategories);
               }
@@ -568,7 +574,9 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       const normalizedBackupWallets = backupWallets.map(normalizeCreditCardWalletBalance);
       const restoredMembers = Array.isArray(parsed.members) ? parsed.members : null;
-      const restoredCategories = Array.isArray(parsed.categories) ? parsed.categories : null;
+      const restoredCategories = Array.isArray(parsed.categories)
+        ? parsed.categories.map((category: Category) => normalizeCategory(category))
+        : null;
       const restoredSavingsGoals = Array.isArray(parsed.savingsGoals) ? parsed.savingsGoals : null;
       const restoredLoans = Array.isArray(parsed.loans) ? parsed.loans : null;
       const restoredRecurringTransfers = Array.isArray(parsed.recurringTransfers) ? parsed.recurringTransfers : null;
@@ -800,18 +808,20 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   // Categories CRUD
-  const addCategory = (data: { name: string; icon_slug: string; monthly_budget_limit: number }) => {
-    if (!hasPermission('manage_categories')) return { success: false, error: 'Your role cannot create envelope categories.' };
+  const addCategory = (data: { name: string; icon_slug: string; monthly_budget_limit: number; category_type?: CategoryType }) => {
+    if (!hasPermission('manage_categories')) return { success: false, error: 'Your role cannot manage categories.' };
+    const categoryType = data.category_type || 'expense';
     const newCat: Category = {
       id: `cat-${Date.now()}`,
       household_id: household.id,
       name: data.name,
       icon_slug: data.icon_slug,
+      category_type: categoryType,
       monthly_budget_limit: data.monthly_budget_limit,
       created_at: new Date().toISOString(),
     };
     setCategories(prev => [...prev, newCat]);
-    logActivity('create_category', `Created envelope category "${data.name}" with monthly budget ₱${data.monthly_budget_limit}`);
+    logActivity('create_category', `Created ${categoryType} category "${data.name}"${categoryType === 'expense' ? ` with monthly budget ₱${data.monthly_budget_limit}` : ''}`);
 
     return supabase
       ? trackSupabaseWrite('Create category', supabase.from('categories').insert([newCat]))
@@ -819,7 +829,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const updateCategory = (id: string, updates: { name?: string; icon_slug?: string; monthly_budget_limit?: number }) => {
-    if (!hasPermission('manage_categories')) return { success: false, error: 'Your role cannot edit envelope categories.' };
+    if (!hasPermission('manage_categories')) return { success: false, error: 'Your role cannot edit categories.' };
     setCategories(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
     logActivity('update_category', `Updated category envelope "${updates.name || id}"`);
 
@@ -833,7 +843,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const deleteCategory = (id: string) => {
-    if (!hasPermission('manage_categories')) return { success: false, error: 'Your role cannot delete envelope categories.' };
+    if (!hasPermission('manage_categories')) return { success: false, error: 'Your role cannot delete categories.' };
     const target = categories.find(c => c.id === id);
     setCategories(prev => prev.filter(c => c.id !== id));
     logActivity('delete_category', `Deleted envelope category "${target?.name || id}"`);
