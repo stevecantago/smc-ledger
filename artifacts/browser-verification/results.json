@@ -92,6 +92,34 @@
     {
       "check": "initial secure-session loading state",
       "status": "passed"
+    },
+    {
+      "check": "390px Dashboard Quick Log has one plus icon and no duplicate plus character",
+      "status": "passed",
+      "renderedText": "Quick Log Transaction",
+      "plusIconCount": 1
+    },
+    {
+      "check": "390px wallet summary separates available money from unused credit capacity",
+      "status": "passed",
+      "renderedText": "Available money in wallets and unused credit card capacity are shown separately"
+    },
+    {
+      "check": "390px Activity Log Restore Backup control stays within the header card",
+      "status": "passed",
+      "viewportWidth": 390,
+      "headerCard": {
+        "x": 20,
+        "right": 370,
+        "width": 350
+      },
+      "restoreControl": {
+        "x": 138.2,
+        "right": 273.8,
+        "width": 135.6
+      },
+      "documentScrollWidth": 390,
+      "bodyScrollWidth": 390
     }
   ],
   "blockedRemoteRequests": {
@@ -112,6 +140,22 @@
     "dashboard-1440-SYNTHETIC.png",
     "dashboard-768-SYNTHETIC.png",
     "dashboard-390-SYNTHETIC.png",
-    "mobile-more-390-SYNTHETIC.png"
-  ]
+    "mobile-more-390-SYNTHETIC.png",
+    "activity-log-390-SYNTHETIC.png"
+  ],
+  "followUpBrowserRun": {
+    "date": "2026-10-09",
+    "viewport": {
+      "width": 390,
+      "height": 844,
+      "deviceScaleFactor": 1,
+      "isMobile": true
+    },
+    "data": "Synthetic household member, wallets, categories, transaction, and loan; remote Supabase host was local dummy 127.0.0.1:6543 and all non-local requests were aborted.",
+    "pageErrors": [],
+    "screenshots": [
+      "dashboard-390-SYNTHETIC.png",
+      "activity-log-390-SYNTHETIC.png"
+    ]
+  }
 }

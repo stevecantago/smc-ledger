@@ -85,17 +85,17 @@ export const ActivityLogView: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center space-x-3 w-full md:w-auto justify-end">
+        <div className="flex w-full flex-col items-stretch gap-2 md:w-auto md:flex-row md:items-center md:justify-end">
           <button
             onClick={exportFullHouseholdBackup}
-            className="flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-lg font-bold text-xs transition-all shadow shrink-0"
+            className="flex w-full items-center justify-center space-x-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-lg font-bold text-xs transition-all shadow md:w-auto"
             title="Download complete JSON backup file of household accounts, loans, and ledger"
           >
             <Download className="w-4 h-4" />
             <span>Export Backup (JSON)</span>
           </button>
 
-          <label className="flex items-center space-x-1.5 bg-sky-600 hover:bg-sky-500 text-white px-3.5 py-2 rounded-lg font-bold text-xs cursor-pointer transition-all shadow shrink-0">
+          <label className="flex w-full items-center justify-center space-x-1.5 bg-sky-600 hover:bg-sky-500 text-white px-3.5 py-2 rounded-lg font-bold text-xs cursor-pointer transition-all shadow md:w-auto">
             <Upload className="w-4 h-4" />
             <span>Restore Backup (JSON)</span>
             <input 
@@ -110,7 +110,7 @@ export const ActivityLogView: React.FC = () => {
             <button
               type="button"
               onClick={handleResetDemoData}
-              className="flex items-center space-x-1.5 bg-rose-600 hover:bg-rose-500 text-white px-3.5 py-2 rounded-lg font-bold text-xs transition-all shadow shrink-0"
+              className="flex w-full items-center justify-center space-x-1.5 bg-rose-600 hover:bg-rose-500 text-white px-3.5 py-2 rounded-lg font-bold text-xs transition-all shadow md:w-auto"
               title="Clear saved household demo data from this browser"
             >
               <Trash2 className="w-4 h-4" />

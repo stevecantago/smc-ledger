@@ -336,7 +336,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
             className="flex items-center justify-center space-x-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white font-bold text-xs px-4 py-2.5 rounded-lg transition-all shadow-lg active:scale-95"
           >
             <Plus className="w-4 h-4" />
-            <span>+ Quick Log Transaction</span>
+            <span>Quick Log Transaction</span>
           </button>
           <button
             type="button"
@@ -427,7 +427,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
             <WalletIcon className="w-5 h-5 text-sky-400" />
             <div>
               <h3 className="font-bold text-sm text-white">Household Wallets & Credit Lines Summary</h3>
-              <p className="text-[11px] text-slate-400">Total liquid funds across bank accounts, e-wallets, e-wallet savings, cash, and available credit card lines</p>
+              <p className="text-[11px] text-slate-400">Available money in wallets and unused credit card capacity are shown separately</p>
             </div>
           </div>
           <button
