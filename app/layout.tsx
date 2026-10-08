@@ -21,7 +21,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={plusJakartaSans.variable}>
-      <body className="bg-slate-900 text-slate-100 font-sans antialiased min-h-screen">
+      <body className="min-h-screen bg-brand-canvas font-sans text-brand-ink antialiased">
         <HouseholdProvider>
           {children}
         </HouseholdProvider>

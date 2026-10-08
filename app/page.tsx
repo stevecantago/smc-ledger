@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Navbar } from '../src/components/Navbar';
+import { AppShell } from '../src/components/layout/AppShell';
 import { DashboardView } from '../src/components/DashboardView';
 import { WalletsView } from '../src/components/WalletsView';
 import { TransactionsView } from '../src/components/TransactionsView';
@@ -94,22 +94,15 @@ export default function Home() {
     return (
       <div className="min-h-screen bg-slate-900 text-slate-100 flex items-center justify-center p-6">
         <div className="text-center space-y-2">
-          <p className="text-sm font-semibold text-white">Checking secure session...</p>
-          <p className="text-xs text-slate-400">Redirecting to sign in when needed.</p>
+          <p className="text-sm font-semibold text-brand-ink">Checking secure session...</p>
+          <p className="text-xs text-brand-muted">Redirecting to sign in when needed.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-900 text-slate-100">
-      <Navbar 
-        activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
-        onOpenAddTxModal={handleOpenAddTxModal} 
-      />
-
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-32 md:pb-8">
+    <AppShell activeTab={activeTab} setActiveTab={setActiveTab} onOpenAddTxModal={handleOpenAddTxModal} legacy={!['dashboard', 'wallets', 'transactions', 'goals'].includes(activeTab)}>
         {activeTab === 'dashboard' && (
           <DashboardView 
             setActiveTab={setActiveTab} 
@@ -131,11 +124,6 @@ export default function Home() {
         {activeTab === 'goals' && <SavingsGoalsView />}
         {activeTab === 'members' && <MembersView />}
         {activeTab === 'activity' && <ActivityLogView />}
-      </main>
-
-      <footer className="border-t border-slate-800 py-6 text-center text-xs text-slate-500 mb-20 md:mb-0">
-        <p>FamLedger • Multi-Tenant Family Financial Tracker (Next.js MVP 1.0.0)</p>
-      </footer>
-    </div>
+    </AppShell>
   );
 }

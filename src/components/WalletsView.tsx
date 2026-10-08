@@ -6,6 +6,8 @@ import { Banknote, CreditCard, Edit2, Landmark, Lock, PiggyBank, Plus, Shield, S
 import { Wallet, WalletType } from '../types/database';
 import { getCreditCardAvailableCredit, getCreditCardServiceFeeBalance, getCreditCardTotalDue, getCreditCardUsedBalance } from '../lib/creditCardTransactions';
 import { getWalletTypeLabel, WALLET_TYPE_OPTIONS } from '../lib/walletTypes';
+import { Dialog } from './ui/Dialog';
+import { EmptyState } from './ui/EmptyState';
 
 interface WalletsViewProps {
   onLogCardExpense?: (walletId: string) => void;
@@ -112,7 +114,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
   };
 
   return (
-    <div className="space-y-6 pb-28 md:pb-6">
+    <div className="famledger-view famledger-wallets space-y-6 pb-28 md:pb-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-800/80 border border-slate-700/70 p-5 rounded-xl">
         <div>
           <h2 className="text-lg font-bold text-white flex items-center space-x-2">
@@ -139,12 +141,16 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
       </div>
 
       {errorMsg && (
-        <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300">
+        <div role="alert" aria-live="polite" className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300">
           {errorMsg}
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      {wallets.length === 0 ? (
+        <EmptyState title="No wallets or credit lines yet">
+          Add an account to begin tracking the balances the household can see.
+        </EmptyState>
+      ) : <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {visibleWallets.map(wallet => {
           const owner = members.find(member => member.id === wallet.owner_id);
           const isCreditCard = wallet.wallet_type === 'credit_card';
@@ -224,7 +230,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
                       </div>
                       <div className="w-full h-2 rounded-full bg-slate-900 overflow-hidden">
                         <div
-                          className={`h-full rounded-full transition-all ${utilPercent > 80 ? 'bg-rose-500' : 'bg-gradient-to-r from-purple-500 to-indigo-400'}`}
+                          className={`h-full rounded-full transition-colors ${utilPercent > 80 ? 'bg-rose-600' : 'bg-brand-orange'}`}
                           style={{ width: `${utilPercent}%` }}
                         />
                       </div>
@@ -276,14 +282,16 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
                           setEditIsShared(wallet.is_shared);
                         }}
                         title="Edit Wallet Details"
-                        className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-amber-400/10 rounded transition-colors"
+                        aria-label={`Edit ${wallet.name}`}
+                        className="p-1.5 text-amber-900 hover:text-amber-950 hover:bg-amber-50 rounded transition-colors"
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleDeleteWallet(wallet)}
                         title="Delete Wallet Account"
-                        className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded transition-colors"
+                        aria-label={`Delete ${wallet.name}`}
+                        className="p-1.5 text-rose-800 hover:text-rose-950 hover:bg-rose-50 rounded transition-colors"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -294,20 +302,20 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
             </div>
           );
         })}
-      </div>
+      </div>}
 
-      {showWalletModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6 space-y-5 shadow-2xl">
-            <h3 className="text-base font-bold text-white flex items-center space-x-2">
+      <Dialog open={showWalletModal} onClose={() => setShowWalletModal(false)} titleId="create-wallet-dialog-title">
+        {showWalletModal && <div className="space-y-5">
+            <h3 id="create-wallet-dialog-title" className="text-base font-bold text-white flex items-center space-x-2">
               <WalletIcon className="w-5 h-5 text-sky-400" />
               <span>Create New Wallet Account or Credit Line</span>
             </h3>
 
             <form onSubmit={handleWalletSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Account Name</label>
+                <label htmlFor="create-wallet-name" className="block text-xs font-medium text-slate-300 mb-1">Account Name</label>
                 <input
+                  id="create-wallet-name"
                   type="text"
                   required
                   placeholder="e.g. BDO Platinum Visa, BPI Checking, GCash"
@@ -318,8 +326,9 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Account Type</label>
+                <label htmlFor="create-wallet-type" className="block text-xs font-medium text-slate-300 mb-1">Account Type</label>
                 <select
+                  id="create-wallet-type"
                   value={walletType}
                   onChange={(e) => setWalletType(e.target.value as WalletType)}
                   className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
@@ -333,8 +342,9 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
               {walletType === 'credit_card' ? (
                 <>
                   <div>
-                    <label className="block text-xs font-medium text-slate-300 mb-1">Approved Credit Limit (₱ PHP)</label>
+                    <label htmlFor="create-credit-limit" className="block text-xs font-medium text-slate-300 mb-1">Approved Credit Limit (₱ PHP)</label>
                     <input
+                      id="create-credit-limit"
                       type="number"
                       step="0.01"
                       required
@@ -346,8 +356,9 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-slate-300 mb-1">Current Used Balance (₱ PHP)</label>
+                    <label htmlFor="create-used-balance" className="block text-xs font-medium text-slate-300 mb-1">Current Used Balance (₱ PHP)</label>
                     <input
+                      id="create-used-balance"
                       type="number"
                       step="0.01"
                       placeholder="0.00"
@@ -359,8 +370,9 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
                 </>
               ) : (
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Initial Opening Balance (₱ PHP)</label>
+                  <label htmlFor="create-opening-balance" className="block text-xs font-medium text-slate-300 mb-1">Initial Opening Balance (₱ PHP)</label>
                   <input
+                    id="create-opening-balance"
                     type="number"
                     step="0.01"
                     placeholder="0.00"
@@ -402,19 +414,18 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </div>}
+      </Dialog>
 
-      {editingWallet && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6 space-y-5 shadow-2xl">
-            <h3 className="text-base font-bold text-white">Edit Account: {editingWallet.name}</h3>
+      <Dialog open={!!editingWallet} onClose={() => setEditingWallet(null)} titleId="edit-wallet-dialog-title">
+        {editingWallet && <div className="space-y-5">
+            <h3 id="edit-wallet-dialog-title" className="text-base font-bold text-white">Edit Account: {editingWallet.name}</h3>
 
             <form onSubmit={handleEditWalletSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Account Name</label>
+                <label htmlFor="edit-wallet-name" className="block text-xs font-medium text-slate-300 mb-1">Account Name</label>
                 <input
+                  id="edit-wallet-name"
                   type="text"
                   required
                   value={editName}
@@ -424,8 +435,9 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Account Type</label>
+                <label htmlFor="edit-wallet-type" className="block text-xs font-medium text-slate-300 mb-1">Account Type</label>
                 <select
+                  id="edit-wallet-type"
                   value={editType}
                   onChange={(e) => setEditType(e.target.value as WalletType)}
                   className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
@@ -439,8 +451,9 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
               {editType === 'credit_card' ? (
                 <>
                   <div>
-                    <label className="block text-xs font-medium text-slate-300 mb-1">Approved Credit Limit (₱ PHP)</label>
+                    <label htmlFor="edit-credit-limit" className="block text-xs font-medium text-slate-300 mb-1">Approved Credit Limit (₱ PHP)</label>
                     <input
+                      id="edit-credit-limit"
                       type="number"
                       step="0.01"
                       required
@@ -451,8 +464,9 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-slate-300 mb-1">Used Balance (₱ PHP)</label>
+                    <label htmlFor="edit-used-balance" className="block text-xs font-medium text-slate-300 mb-1">Used Balance (₱ PHP)</label>
                     <input
+                      id="edit-used-balance"
                       type="number"
                       step="0.01"
                       required
@@ -477,8 +491,9 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
                 </>
               ) : (
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Current Balance (₱ PHP)</label>
+                  <label htmlFor="edit-current-balance" className="block text-xs font-medium text-slate-300 mb-1">Current Balance (₱ PHP)</label>
                   <input
+                    id="edit-current-balance"
                     type="number"
                     step="0.01"
                     required
@@ -512,15 +527,14 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg transition-all shadow"
+                  className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-lg transition-all shadow"
                 >
                   Save Account Changes
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </div>}
+      </Dialog>
     </div>
   );
 };

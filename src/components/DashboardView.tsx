@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import NextImage from 'next/image';
 import { useHousehold } from '../context/HouseholdContext';
 import {
   TrendingDown, TrendingUp, Wallet as WalletIcon, ShieldCheck,
@@ -21,6 +22,7 @@ import {
 } from '../lib/dashboardGroups';
 import { getDisplayFirstName, getHouseholdDisplayName } from '../lib/householdNaming';
 import { buildCreditCardPaymentSchedules } from '../lib/creditCardPaymentSchedules';
+import { DASHBOARD_FINANCIAL_LABELS } from './dashboardLabels';
 
 const DASHBOARD_SCHEDULE_FILTER_KEY = 'smc_dashboard_schedule_filter';
 
@@ -306,10 +308,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
   };
 
   return (
-    <div className="space-y-6">
+    <div className="famledger-view famledger-dashboard space-y-6">
       
       {/* Welcome Banner */}
-      <div className="bg-gradient-to-r from-sky-900/90 via-slate-800 to-indigo-900/80 border border-slate-700/80 rounded-xl p-5 sm:p-6 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="bg-gradient-to-r from-sky-900/90 via-slate-800 to-indigo-900/80 border border-slate-700/80 rounded-xl p-5 sm:p-6 shadow-xl flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight mt-0.5">
             Hello, {greetingName}! 👋
@@ -318,6 +320,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
             <strong className="text-white">{householdDisplayName}</strong>
           </p>
         </div>
+
+        <NextImage
+          src="/illustrations/household-finance.webp"
+          alt="A couple reviewing their household budget together"
+          width={300}
+          height={200}
+          sizes="(min-width: 1280px) 240px, 200px"
+          className="hidden h-28 w-40 shrink-0 object-contain xl:block lg:h-32 lg:w-48"
+        />
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
           <button
@@ -339,11 +350,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
       </div>
 
       {/* Primary KPI Metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Net Assets */}
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
+        <div className="dashboard-overview min-w-0 space-y-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-2 2xl:grid-cols-4 gap-4">
+        {/* Liquid balance summary; formula remains liquid assets less used card balances. */}
         <div className="bg-slate-800/90 border border-slate-700/80 rounded-xl p-4 sm:p-5 shadow-md flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-400">Household Net Assets</span>
+            <span className="text-xs font-semibold text-slate-600">{DASHBOARD_FINANCIAL_LABELS.liquidBalances}</span>
             <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
               <WalletIcon className="w-4 h-4" />
             </div>
@@ -352,8 +365,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
             <div className="text-2xl font-bold font-mono text-emerald-400">
               ₱{netAssets.toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </div>
-            <p className="text-[11px] text-slate-500 mt-1 font-mono">
-              Liquid: ₱{liquidAssets.toLocaleString()} | CC Debt: ₱{creditCardDebt.toLocaleString()}
+            <p className="text-[11px] text-slate-600 mt-1">
+              {DASHBOARD_FINANCIAL_LABELS.liquidBalancesNote}
             </p>
           </div>
         </div>
@@ -361,7 +374,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
         {/* Monthly Inflow */}
         <div className="bg-slate-800/90 border border-slate-700/80 rounded-xl p-4 sm:p-5 shadow-md flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-400">Total Monthly Income</span>
+            <span className="text-xs font-semibold text-slate-600">{DASHBOARD_FINANCIAL_LABELS.income}</span>
             <div className="p-2 rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20">
               <TrendingUp className="w-4 h-4" />
             </div>
@@ -370,14 +383,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
             <div className="text-2xl font-bold font-mono text-sky-400">
               ₱{totalMonthlyIncome.toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </div>
-            <p className="text-[11px] text-slate-500 mt-1">Logged Inflows & Salary</p>
+            <p className="text-[11px] text-slate-600 mt-1">{DASHBOARD_FINANCIAL_LABELS.incomeNote}</p>
           </div>
         </div>
 
         {/* Monthly Expenses */}
         <div className="bg-slate-800/90 border border-slate-700/80 rounded-xl p-4 sm:p-5 shadow-md flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-400">Total Monthly Expenses</span>
+            <span className="text-xs font-semibold text-slate-600">{DASHBOARD_FINANCIAL_LABELS.expenses}</span>
             <div className="p-2 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20">
               <TrendingDown className="w-4 h-4" />
             </div>
@@ -386,7 +399,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
             <div className="text-2xl font-bold font-mono text-rose-400">
               ₱{totalMonthlyExpense.toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </div>
-            <p className="text-[11px] text-slate-500 mt-1">Logged Outflows & Fees</p>
+            <p className="text-[11px] text-slate-600 mt-1">{DASHBOARD_FINANCIAL_LABELS.expensesNote}</p>
           </div>
         </div>
 
@@ -408,7 +421,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
       </div>
 
       {/* Household Accounts Summary Widget */}
-      <div className="bg-slate-800/80 border border-slate-700/70 rounded-xl p-5 space-y-5 shadow-lg">
+      <div className="bg-slate-800/80 border border-slate-700/70 rounded-2xl p-5 space-y-5 shadow-lg">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center space-x-2">
             <WalletIcon className="w-5 h-5 text-sky-400" />
@@ -437,6 +450,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
       </div>
 
       {/* Recurring Bills & Transfers Schedule Section */}
+        </div>
+        <aside className="dashboard-obligations min-w-0 space-y-6" aria-label="Upcoming household obligations">
       <div className="bg-slate-800/80 border border-slate-700/70 rounded-xl p-5 space-y-5 shadow-lg">
         {/* Header & Date Range Toolbar */}
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 border-b border-slate-700/60 pb-4">
@@ -510,7 +525,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
               <CreditCard className="h-5 w-5 text-purple-300" />
             </div>
 
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-1">
               {creditCardPayments.map(payment => (
                 <div key={payment.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-700/70 bg-slate-900/70 p-3">
                   <div className="min-w-0">
@@ -534,7 +549,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
 
         {/* Overall Filter Summary Banner */}
         <div className="bg-slate-900/70 border border-slate-700/60 p-4 rounded-xl text-xs space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto] gap-4 items-start md:items-center">
+          <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto] xl:grid-cols-1 gap-4 items-start md:items-center">
             <div className="flex items-center space-x-3 min-w-0">
               <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
                 <Calendar className="w-4 h-4" />
@@ -550,7 +565,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-end gap-4 md:min-w-[360px]">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-end gap-4 md:min-w-[360px] xl:min-w-0 xl:flex-col xl:items-start">
               {walletGroups.length > 0 && (
                 <button
                   type="button"
@@ -567,7 +582,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
                 </button>
               )}
 
-              <div className="text-left sm:text-right">
+              <div className="text-left sm:text-right xl:text-left">
                 <span className="text-[10px] text-slate-400 uppercase font-mono tracking-wider block">Total Scheduled Outflow</span>
                 <span className="text-xl font-bold font-mono text-rose-400 block">
                   ₱{totalFilteredOutflow.toLocaleString('en-US', { minimumFractionDigits: 2 })}
@@ -699,6 +714,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
             </div>
           ) : null}
         </div>
+      </div>
+        </aside>
       </div>
 
     </div>

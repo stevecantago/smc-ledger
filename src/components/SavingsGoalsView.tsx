@@ -1,12 +1,15 @@
 'use client';
 
 import React, { useState } from 'react';
+import NextImage from 'next/image';
 import { useHousehold } from '../context/HouseholdContext';
 import { Target, Plus, Calendar, DollarSign, AlertCircle, Edit2, Trash2 } from 'lucide-react';
 import { SavingsGoal } from '../types/database';
 import { getCreditCardAvailableCredit, getCreditCardUsedBalance } from '../lib/creditCardTransactions';
 import { getSavingsGoalProgress } from '../lib/savingsGoalProgress';
 import { getWalletTypeLabel } from '../lib/walletTypes';
+import { Dialog } from './ui/Dialog';
+import { EmptyState } from './ui/EmptyState';
 
 export const SavingsGoalsView: React.FC = () => {
   const { 
@@ -106,7 +109,7 @@ export const SavingsGoalsView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 pb-28 md:pb-6">
+    <div className="famledger-view famledger-goals space-y-6 pb-28 md:pb-6">
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-800/80 border border-slate-700/70 p-5 rounded-xl">
         <div>
@@ -131,7 +134,14 @@ export const SavingsGoalsView: React.FC = () => {
       </div>
 
       {/* Goal Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      {savingsGoals.length === 0 ? (
+        <EmptyState
+          title="No savings goals yet"
+          illustration={<NextImage src="/illustrations/savings-goal.webp" alt="" width={220} height={220} sizes="220px" className="h-40 w-40 object-contain sm:h-48 sm:w-48" />}
+        >
+          Create a goal to track household progress from its linked contributions.
+        </EmptyState>
+      ) : <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {savingsGoals.map(goal => {
           const progress = getSavingsGoalProgress(goal, wallets);
           const percent = progress.percent;
@@ -176,14 +186,16 @@ export const SavingsGoalsView: React.FC = () => {
                             setEditGoalWalletId(goal.wallet_id || '');
                           }}
                           title="Edit Savings Goal"
-                          className="p-1 text-slate-400 hover:text-amber-400 hover:bg-amber-400/10 rounded transition-colors"
+                          aria-label={`Edit ${goal.name}`}
+                          className="p-1 text-amber-900 hover:text-amber-950 hover:bg-amber-50 rounded transition-colors"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => handleDeleteGoal(goal)}
                           title="Delete Savings Goal"
-                          className="p-1 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded transition-colors"
+                          aria-label={`Delete ${goal.name}`}
+                          className="p-1 text-rose-800 hover:text-rose-950 hover:bg-rose-50 rounded transition-colors"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -228,18 +240,18 @@ export const SavingsGoalsView: React.FC = () => {
             </div>
           );
         })}
-      </div>
+      </div>}
 
       {/* Add Savings Goal Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6 space-y-5 shadow-2xl">
-            <h3 className="text-base font-bold text-white">Create Shared Savings Goal</h3>
+      <Dialog open={showAddModal} onClose={() => setShowAddModal(false)} titleId="create-goal-dialog-title">
+        {showAddModal && <div className="space-y-5">
+            <h3 id="create-goal-dialog-title" className="text-base font-bold text-white">Create Shared Savings Goal</h3>
 
             <form onSubmit={handleAddSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Goal Name</label>
+                <label htmlFor="create-goal-name" className="block text-xs font-medium text-slate-300 mb-1">Goal Name</label>
                 <input
+                  id="create-goal-name"
                   type="text"
                   required
                   placeholder="e.g. Kid 1 Semester Tuition Fund, Summer Trip"
@@ -250,8 +262,9 @@ export const SavingsGoalsView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Target Amount (₱ PHP)</label>
+                <label htmlFor="create-goal-target" className="block text-xs font-medium text-slate-300 mb-1">Target Amount (₱ PHP)</label>
                 <input
+                  id="create-goal-target"
                   type="number"
                   step="0.01"
                   required
@@ -263,8 +276,9 @@ export const SavingsGoalsView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Target Date (Optional)</label>
+                <label htmlFor="create-goal-date" className="block text-xs font-medium text-slate-300 mb-1">Target Date (Optional)</label>
                 <input
+                  id="create-goal-date"
                   type="date"
                   value={targetDate}
                   onChange={(e) => setTargetDate(e.target.value)}
@@ -273,8 +287,9 @@ export const SavingsGoalsView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Wallet to Track</label>
+                <label htmlFor="create-goal-wallet" className="block text-xs font-medium text-slate-300 mb-1">Wallet to Track</label>
                 <select
+                  id="create-goal-wallet"
                   value={goalWalletId}
                   onChange={(e) => setGoalWalletId(e.target.value)}
                   className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
@@ -304,20 +319,19 @@ export const SavingsGoalsView: React.FC = () => {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </div>}
+      </Dialog>
 
       {/* Edit Savings Goal Modal */}
-      {editingGoal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6 space-y-5 shadow-2xl">
-            <h3 className="text-base font-bold text-white">Edit Savings Goal: {editingGoal.name}</h3>
+      <Dialog open={!!editingGoal} onClose={() => setEditingGoal(null)} titleId="edit-goal-dialog-title">
+        {editingGoal && <div className="space-y-5">
+            <h3 id="edit-goal-dialog-title" className="text-base font-bold text-white">Edit Savings Goal: {editingGoal.name}</h3>
 
             <form onSubmit={handleEditSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Goal Name</label>
+                <label htmlFor="edit-goal-name" className="block text-xs font-medium text-slate-300 mb-1">Goal Name</label>
                 <input
+                  id="edit-goal-name"
                   type="text"
                   required
                   value={editName}
@@ -327,8 +341,9 @@ export const SavingsGoalsView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Target Amount (₱ PHP)</label>
+                <label htmlFor="edit-goal-target" className="block text-xs font-medium text-slate-300 mb-1">Target Amount (₱ PHP)</label>
                 <input
+                  id="edit-goal-target"
                   type="number"
                   step="0.01"
                   required
@@ -339,8 +354,9 @@ export const SavingsGoalsView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Target Date (Optional)</label>
+                <label htmlFor="edit-goal-date" className="block text-xs font-medium text-slate-300 mb-1">Target Date (Optional)</label>
                 <input
+                  id="edit-goal-date"
                   type="date"
                   value={editDate}
                   onChange={(e) => setEditDate(e.target.value)}
@@ -349,8 +365,9 @@ export const SavingsGoalsView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Wallet to Track</label>
+                <label htmlFor="edit-goal-wallet" className="block text-xs font-medium text-slate-300 mb-1">Wallet to Track</label>
                 <select
+                  id="edit-goal-wallet"
                   value={editGoalWalletId}
                   onChange={(e) => setEditGoalWalletId(e.target.value)}
                   className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
@@ -374,24 +391,22 @@ export const SavingsGoalsView: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg transition-all shadow"
+                  className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-lg transition-all shadow"
                 >
                   Save Goal Changes
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </div>}
+      </Dialog>
 
       {/* Contribute / Fund Goal Modal */}
-      {fundingGoal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6 space-y-5 shadow-2xl">
-            <h3 className="text-base font-bold text-white">Contribute to: {fundingGoal.name}</h3>
+      <Dialog open={!!fundingGoal} onClose={() => setFundingGoal(null)} titleId="fund-goal-dialog-title">
+        {fundingGoal && <div className="space-y-5">
+            <h3 id="fund-goal-dialog-title" className="text-base font-bold text-white">Contribute to: {fundingGoal.name}</h3>
 
             {errorMsg && (
-              <div className="p-3 bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs rounded-lg flex items-center space-x-2">
+              <div role="alert" aria-live="assertive" className="p-3 bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs rounded-lg flex items-center space-x-2">
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>{errorMsg}</span>
               </div>
@@ -399,8 +414,9 @@ export const SavingsGoalsView: React.FC = () => {
 
             <form onSubmit={handleFundSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Contribution Amount (₱ PHP)</label>
+                <label htmlFor="fund-goal-amount" className="block text-xs font-medium text-slate-300 mb-1">Contribution Amount (₱ PHP)</label>
                 <input
+                  id="fund-goal-amount"
                   type="number"
                   step="0.01"
                   required
@@ -412,8 +428,9 @@ export const SavingsGoalsView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Source Account</label>
+                <label htmlFor="fund-goal-source" className="block text-xs font-medium text-slate-300 mb-1">Source Account</label>
                 <select
+                  id="fund-goal-source"
                   value={selectedWalletId}
                   onChange={(e) => setSelectedWalletId(e.target.value)}
                   className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
@@ -446,9 +463,8 @@ export const SavingsGoalsView: React.FC = () => {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </div>}
+      </Dialog>
     </div>
   );
 };
