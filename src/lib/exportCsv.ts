@@ -6,7 +6,17 @@ export function exportTransactionsToCsv(
   categories: Category[], 
   members: HouseholdMember[]
 ) {
-  const headers = ['Transaction ID', 'Date', 'Type', 'Payer', 'Source Account', 'Destination Account', 'Category', 'Amount (PHP)', 'Note', 'Receipt URL'];
+  const csvContent = buildTransactionsCsv(transactions, wallets, categories, members);
+  downloadBlob(csvContent, `FamLedger_Transactions_${new Date().toISOString().split('T')[0]}.csv`, 'text/csv;charset=utf-8;');
+}
+
+export function buildTransactionsCsv(
+  transactions: Transaction[],
+  wallets: Wallet[],
+  categories: Category[],
+  members: HouseholdMember[],
+): string {
+  const headers = ['Transaction ID', 'Date', 'Type', 'Payer', 'Source Account', 'Destination Account', 'Category', 'Amount (PHP)', 'Service Fee Amount (PHP)', 'Note', 'Receipt URL'];
   
   const rows = transactions.map(t => {
     const payer = members.find(m => m.id === t.payer_id)?.display_name || t.payer_id;
@@ -23,13 +33,13 @@ export function exportTransactionsToCsv(
       `"${dest}"`,
       `"${cat}"`,
       t.amount.toFixed(2),
+      (t.service_fee_amount || 0).toFixed(2),
       `"${(t.note || '').replace(/"/g, '""')}"`,
       `"${t.receipt_url || ''}"`
     ].join(',');
   });
 
-  const csvContent = [headers.join(','), ...rows].join('\n');
-  downloadBlob(csvContent, `FamLedger_Transactions_${new Date().toISOString().split('T')[0]}.csv`, 'text/csv;charset=utf-8;');
+  return [headers.join(','), ...rows].join('\n');
 }
 
 export function exportBudgetSummaryToCsv(

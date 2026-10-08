@@ -434,6 +434,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                   const payer = members.find(m => m.id === tx.payer_id);
                   const editable = canEditTransaction(tx);
                   const txFee = tx.fee || 0;
+                  const serviceFeeAmount = tx.service_fee_amount || 0;
 
                   return (
                     <tr key={tx.id} className="hover:bg-slate-800/50 transition-colors">
@@ -512,6 +513,11 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                               + Fee: ₱{txFee.toFixed(2)}
                             </span>
                           )}
+                          {tx.type === 'loan' && dstWallet?.wallet_type === 'credit_card' && serviceFeeAmount > 0 && (
+                            <span className="text-[10px] text-purple-300 font-normal">
+                              Service fees paid: ₱{serviceFeeAmount.toFixed(2)}
+                            </span>
+                          )}
                         </div>
                       </td>
 
@@ -553,6 +559,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
             const payer = members.find(m => m.id === tx.payer_id);
             const editable = canEditTransaction(tx);
             const txFee = tx.fee || 0;
+            const serviceFeeAmount = tx.service_fee_amount || 0;
 
             return (
               <div 
@@ -591,6 +598,11 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                     {txFee > 0 && (
                       <span className="text-[10px] text-amber-400 font-mono font-medium block">
                         Fee: ₱{txFee.toFixed(2)}
+                      </span>
+                    )}
+                    {tx.type === 'loan' && dstWallet?.wallet_type === 'credit_card' && serviceFeeAmount > 0 && (
+                      <span className="text-[10px] text-purple-300 font-mono font-medium block">
+                        Service fees paid: ₱{serviceFeeAmount.toFixed(2)}
                       </span>
                     )}
                   </div>
