@@ -1,0 +1,4 @@
+# Generated runtime state is not part of a redistributable skill package.
+skills/**/.impeccable/
+skills/**/__pycache__/
+skills/**/node_modules/

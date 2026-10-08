@@ -1,0 +1,161 @@
+{
+  "preview": "SYNTHETIC DATA ONLY — local app on 127.0.0.1:3010; dummy Supabase URL on 127.0.0.1:6543; all non-preview requests aborted by Playwright.",
+  "results": [
+    {
+      "check": "local synthetic auth and desktop app",
+      "status": "passed"
+    },
+    {
+      "check": "qualified dashboard labels",
+      "status": "passed"
+    },
+    {
+      "check": "large amounts, hero contrast and desktop obligations fit",
+      "status": "passed",
+      "secondaryActionContrast": 6.69
+    },
+    {
+      "check": "all nine desktop destinations",
+      "status": "passed",
+      "destinations": [
+        "Dashboard",
+        "Ledger",
+        "Wallets",
+        "Goals",
+        "Envelopes",
+        "Loans",
+        "Schedules",
+        "Roster",
+        "Activity Log"
+      ]
+    },
+    {
+      "check": "household illustration render",
+      "status": "passed",
+      "sourceDimensions": "1536x1024",
+      "renderedIntrinsicWidth": 239
+    },
+    {
+      "check": "selected desktop navigation contrast",
+      "status": "passed",
+      "ratio": 15.23
+    },
+    {
+      "check": "wallet breakdown and fee-first payment preview",
+      "status": "passed"
+    },
+    {
+      "check": "dialog focus, Tab containment, Escape and Cancel restoration",
+      "status": "passed"
+    },
+    {
+      "check": "browser back and forward stability",
+      "status": "passed"
+    },
+    {
+      "check": "filtered empty ledger state",
+      "status": "passed"
+    },
+    {
+      "check": "200% zoom/reflow equivalent",
+      "status": "passed",
+      "zoomMethod": "200% equivalent: 1440px viewport rendered at 720 CSS px",
+      "viewport": {
+        "dpr": 1,
+        "width": 720
+      }
+    },
+    {
+      "check": "768px tablet reflow and reduced motion",
+      "status": "passed",
+      "reducedMotionDuration": "1e-05s"
+    },
+    {
+      "check": "390px mobile navigation and all More destinations",
+      "status": "passed",
+      "destinations": [
+        "Envelopes",
+        "Loans",
+        "Schedules",
+        "Roster",
+        "Activity Log"
+      ]
+    },
+    {
+      "check": "empty Ledger and Goals states with illustrations",
+      "status": "passed"
+    },
+    {
+      "check": "transaction validation error announced accessibly",
+      "status": "passed"
+    },
+    {
+      "check": "initial secure-session loading state",
+      "status": "passed"
+    },
+    {
+      "check": "390px Dashboard Quick Log has one plus icon and no duplicate plus character",
+      "status": "passed",
+      "renderedText": "Quick Log Transaction",
+      "plusIconCount": 1
+    },
+    {
+      "check": "390px wallet summary separates available money from unused credit capacity",
+      "status": "passed",
+      "renderedText": "Available money in wallets and unused credit card capacity are shown separately"
+    },
+    {
+      "check": "390px Activity Log Restore Backup control stays within the header card",
+      "status": "passed",
+      "viewportWidth": 390,
+      "headerCard": {
+        "x": 20,
+        "right": 370,
+        "width": 350
+      },
+      "restoreControl": {
+        "x": 41,
+        "right": 349,
+        "width": 308
+      },
+      "documentScrollWidth": 390,
+      "bodyScrollWidth": 390
+    }
+  ],
+  "blockedRemoteRequests": {
+    "count": 17,
+    "origins": [
+      "http://127.0.0.1:6543"
+    ],
+    "paths": [
+      "/rest/v1/household_members",
+      "/rest/v1/wallets",
+      "/rest/v1/categories"
+    ]
+  },
+  "consoleErrorCount": 17,
+  "consoleErrorsAreExpectedBlockedRequests": true,
+  "pageErrors": [],
+  "screenshots": [
+    "dashboard-1440-SYNTHETIC.png",
+    "dashboard-768-SYNTHETIC.png",
+    "dashboard-390-SYNTHETIC.png",
+    "mobile-more-390-SYNTHETIC.png",
+    "activity-log-390-SYNTHETIC.png"
+  ],
+  "followUpBrowserRun": {
+    "date": "2026-10-09",
+    "viewport": {
+      "width": 390,
+      "height": 844,
+      "deviceScaleFactor": 1,
+      "isMobile": true
+    },
+    "data": "Synthetic household member, wallets, categories, transaction, and loan; remote Supabase host was local dummy 127.0.0.1:6543 and all non-local requests were aborted.",
+    "pageErrors": [],
+    "screenshots": [
+      "dashboard-390-SYNTHETIC.png",
+      "activity-log-390-SYNTHETIC.png"
+    ]
+  }
+}

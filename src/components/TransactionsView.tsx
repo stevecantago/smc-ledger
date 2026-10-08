@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import NextImage from 'next/image';
 import { useHousehold } from '../context/HouseholdContext';
 import { 
   TrendingDown, TrendingUp, ArrowRightLeft, Landmark, Search, Filter, Trash2, Edit3, Clock, 
@@ -9,6 +10,7 @@ import {
 import { Transaction, TransactionType, Wallet } from '../types/database';
 import { exportTransactionsToCsv } from '../lib/exportCsv';
 import { getTransactionSubmissionAction } from '../lib/transactionFlow';
+import { Dialog } from './ui/Dialog';
 import {
   type CreditCardPaymentAllocation,
   addPhpAmounts,
@@ -335,7 +337,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6 pb-28 md:pb-6">
+    <div className="famledger-view famledger-ledger space-y-4 sm:space-y-6 pb-28 md:pb-6">
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 bg-slate-800/80 border border-slate-700/70 p-4 sm:p-5 rounded-xl">
         <div>
@@ -448,7 +450,12 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
               {filteredTx.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-8 text-center text-slate-500 italic">
-                    No transaction entries found matching your filter criteria.
+                    {transactions.length === 0 ? (
+                      <div className="flex flex-col items-center gap-2 py-2 text-brand-muted not-italic">
+                        <NextImage src="/illustrations/empty-ledger.webp" alt="" width={220} height={165} sizes="220px" className="h-28 w-40 object-contain sm:h-32 sm:w-44" />
+                        <span>No transaction entries yet.</span>
+                      </div>
+                    ) : 'No transaction entries found matching your filter criteria.'}
                   </td>
                 </tr>
               ) : (
@@ -551,7 +558,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                           <button
                             onClick={() => handleDelete(tx)}
                             title="Delete Transaction"
-                            className="p-1 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded transition-colors"
+                            aria-label={`Delete transaction ${tx.note || ''}`}
+                            className="p-1 text-rose-800 hover:text-rose-950 hover:bg-rose-50 rounded transition-colors"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -573,9 +581,16 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
       {/* Mobile Touch-Optimized Cards (< md) */}
       <div className="md:hidden space-y-3 pb-24">
         {filteredTx.length === 0 ? (
-          <div className="bg-slate-800/80 border border-slate-700/70 rounded-xl p-6 text-center text-slate-500 italic text-xs">
-            No transaction entries match the selected filters.
-          </div>
+          transactions.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-brand-line bg-white/70 p-6 text-center text-sm text-brand-muted">
+              <NextImage src="/illustrations/empty-ledger.webp" alt="" width={220} height={165} sizes="220px" className="mx-auto h-32 w-44 object-contain" />
+              <p className="mt-2">No transaction entries yet.</p>
+            </div>
+          ) : (
+            <div className="bg-slate-800/80 border border-slate-700/70 rounded-xl p-6 text-center text-slate-500 italic text-xs">
+              No transaction entries match the selected filters.
+            </div>
+          )
         ) : (
           filteredTx.map(tx => {
             const srcWallet = wallets.find(w => w.id === tx.wallet_id);
@@ -684,7 +699,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                       <button
                         onClick={() => handleDelete(tx)}
                         title="Delete Transaction"
-                        className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded transition-colors"
+                        aria-label={`Delete transaction ${tx.note || ''}`}
+                        className="p-1.5 text-rose-800 hover:text-rose-950 hover:bg-rose-50 rounded transition-colors"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -698,16 +714,17 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
       </div>
 
       {/* Log Transaction Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6 space-y-5 shadow-2xl animate-in fade-in duration-200 max-h-[90vh] overflow-y-auto">
+      <Dialog open={showModal} onClose={() => setShowModal(false)} titleId="transaction-dialog-title">
+        {showModal && (
+          <div className="space-y-5">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-base font-bold text-white flex items-center space-x-2">
+              <h3 id="transaction-dialog-title" className="text-base font-bold text-white flex items-center space-x-2">
                 <Plus className="w-5 h-5 text-sky-400" />
                 <span>Log New Transaction</span>
               </h3>
               <button 
                 onClick={() => setShowModal(false)}
+                aria-label="Close transaction dialog"
                 className="text-slate-400 hover:text-white text-xs font-semibold px-2 py-1 rounded"
               >
                 ✕
@@ -715,7 +732,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
             </div>
 
             {errorMsg && (
-              <div className="p-3 bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs rounded-lg flex items-center space-x-2">
+              <div role="alert" aria-live="assertive" className="p-3 bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs rounded-lg flex items-center space-x-2">
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>{errorMsg}</span>
               </div>
@@ -724,8 +741,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
             <form onSubmit={handleCreateSubmit} className="space-y-4">
               {/* Type Switcher */}
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">Transaction Type</label>
-                <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
+                <p id="transaction-type-label" className="mb-1.5 block text-xs font-medium text-slate-300">Transaction Type</p>
+                <div className="grid grid-cols-4 gap-1.5 sm:gap-2" role="group" aria-labelledby="transaction-type-label">
                   <button
                     type="button"
                     onClick={() => {
@@ -807,8 +824,9 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
               {/* Conditional Dropdown PLACED ABOVE Amount & Fee Fields */}
               {txType === 'expense' && (
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Recurring Expenses</label>
+                  <label htmlFor="recurring-expense" className="block text-xs font-medium text-slate-300 mb-1">Recurring Expenses</label>
                   <select
+                    id="recurring-expense"
                     value={selectedRecurringId}
                     onChange={(e) => {
                       const val = e.target.value;
@@ -844,8 +862,9 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
 
               {txType === 'transfer' && (
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Recurring Transfer</label>
+                  <label htmlFor="recurring-transfer" className="block text-xs font-medium text-slate-300 mb-1">Recurring Transfer</label>
                   <select
+                    id="recurring-transfer"
                     value={selectedRecurringId}
                     onChange={(e) => {
                       const val = e.target.value;
@@ -882,8 +901,9 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
 
               {txType === 'loan' && !isCreditCardPayment && (
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Loan Payments</label>
+                  <label htmlFor="recurring-loan" className="block text-xs font-medium text-slate-300 mb-1">Loan Payments</label>
                   <select
+                    id="recurring-loan"
                     value={selectedRecurringId}
                     onChange={(e) => {
                       const val = e.target.value;
@@ -920,10 +940,11 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
               {/* Custom entry field when Others is selected */}
               {(selectedRecurringId === 'others' || showCustomNote) && (
                 <div>
-                  <label className="block text-xs font-medium text-amber-400 mb-1 font-mono">
+                  <label htmlFor="custom-transaction-note" className="block text-xs font-medium text-amber-400 mb-1 font-mono">
                     Custom {txType.toUpperCase()} Title / Description
                   </label>
                   <input
+                    id="custom-transaction-note"
                     type="text"
                     required
                     placeholder={`Indicate custom ${txType} transaction...`}
@@ -937,8 +958,9 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
               {/* Amount & Fee Fields */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Amount (₱ PHP)</label>
+                  <label htmlFor="transaction-amount" className="block text-xs font-medium text-slate-300 mb-1">Amount (₱ PHP)</label>
                   <input
+                    id="transaction-amount"
                     type="number"
                     step="0.01"
                     required
@@ -950,8 +972,9 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Transaction Fee (₱)</label>
+                  <label htmlFor="transaction-fee" className="block text-xs font-medium text-slate-300 mb-1">Transaction Fee (₱)</label>
                   <input
+                    id="transaction-fee"
                     type="number"
                     step="0.01"
                     placeholder="0.00 (Optional)"
@@ -972,7 +995,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
 
               {/* Source Wallet */}
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">
+                <label htmlFor="source-wallet" className="block text-xs font-medium text-slate-300 mb-1">
                   {isCreditCardPayment
                     ? 'Funding Account'
                     : selectedWallet?.wallet_type === 'credit_card' && txType === 'expense'
@@ -980,6 +1003,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                       : 'Source Wallet Account'}
                 </label>
                 <select
+                  id="source-wallet"
                   value={walletId}
                   onChange={(e) => setWalletId(e.target.value)}
                   required
@@ -1017,8 +1041,9 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
               {/* Category for Expense */}
               {txType === 'expense' && (
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Envelope Category</label>
+                  <label htmlFor="transaction-category" className="block text-xs font-medium text-slate-300 mb-1">Envelope Category</label>
                   <select
+                    id="transaction-category"
                     value={categoryId}
                     onChange={(e) => setCategoryId(e.target.value)}
                     className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
@@ -1034,10 +1059,11 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
               {/* Destination Wallet for Transfer or Credit Card Payment */}
               {(txType === 'transfer' || isCreditCardPayment) && (
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">
+                <label htmlFor="destination-wallet" className="block text-xs font-medium text-slate-300 mb-1">
                     {isCreditCardPayment ? 'Credit Card / Credit Line' : 'Destination Wallet Account'}
                   </label>
                   <select
+                    id="destination-wallet"
                     value={destWalletId}
                     onChange={(e) => setDestWalletId(e.target.value)}
                     className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
@@ -1060,8 +1086,9 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
               {/* Associated Loan Item for Loan Payment */}
               {txType === 'loan' && !isCreditCardPayment && (
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Associated Loan Item</label>
+                  <label htmlFor="associated-loan" className="block text-xs font-medium text-slate-300 mb-1">Associated Loan Item</label>
                   <select
+                    id="associated-loan"
                     value={selectedLoanId}
                     onChange={(e) => {
                       const lId = e.target.value;
@@ -1088,8 +1115,9 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
               {/* Note / Description */}
               {selectedRecurringId !== 'others' && !showCustomNote && (
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1 font-sans">Description / Note</label>
+                  <label htmlFor="transaction-note" className="block text-xs font-medium text-slate-300 mb-1 font-sans">Description / Note</label>
                   <input
+                    id="transaction-note"
                     type="text"
                     placeholder="e.g. Weekly Groceries, InstaPay Transfer, Load"
                     value={note}
@@ -1101,8 +1129,9 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
 
               {/* Transaction Date */}
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Transaction Date</label>
+                <label htmlFor="transaction-date" className="block text-xs font-medium text-slate-300 mb-1">Transaction Date</label>
                 <input
+                  id="transaction-date"
                   type="date"
                   value={txDate}
                   onChange={(e) => setTxDate(e.target.value)}
@@ -1112,7 +1141,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
 
               {/* Optional Receipt Attachment Upload */}
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Receipt Attachment (Optional)</label>
+                <p className="mb-1 block text-xs font-medium text-slate-300">Receipt Attachment (Optional)</p>
                 <div className="flex items-center space-x-2">
                   <label className="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-2 rounded-lg text-xs cursor-pointer transition-colors">
                     <Upload className="w-4 h-4 text-sky-400" />
@@ -1149,8 +1178,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
               </div>
             </form>
           </div>
-        </div>
-      )}
+        )}
+      </Dialog>
     </div>
   );
 };
