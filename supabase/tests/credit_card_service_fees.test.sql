@@ -62,19 +62,22 @@ insert into public.household_roles (
 ) values
   ('fee-test-admin-role', 'fee-test-household', 'Admin', 'admin', true, true),
   ('fee-test-parent-role', 'fee-test-household', 'Parent', 'parent_member', false, true),
+  ('fee-test-own-only-role', 'fee-test-household', 'Own-only restorer', 'member', false, false),
   ('fee-test-member-role', 'fee-test-household', 'Member', 'member', false, true);
 insert into public.role_permissions (
   id, household_id, role_id, permission_key, level
 ) values
   ('fee-test-admin-restore', 'fee-test-household', 'fee-test-admin-role', 'restore_backup', 'allowed'),
   ('fee-test-parent-restore', 'fee-test-household', 'fee-test-parent-role', 'restore_backup', 'allowed'),
+  ('fee-test-own-only-restore', 'fee-test-household', 'fee-test-own-only-role', 'restore_backup', 'own_only'),
   ('fee-test-member-restore', 'fee-test-household', 'fee-test-member-role', 'restore_backup', 'restricted');
 insert into household_members (id, household_id, user_id, role, role_id, display_name)
 values
   ('fee-test-member', 'fee-test-household', '00000000-0000-0000-0000-000000000101', 'admin', 'fee-test-admin-role', 'Fee Tester'),
   ('fee-test-parent', 'fee-test-household', '00000000-0000-0000-0000-000000000102', 'parent_member', 'fee-test-parent-role', 'Parent Tester'),
   ('fee-test-denied', 'fee-test-household', '00000000-0000-0000-0000-000000000103', 'member', 'fee-test-member-role', 'Denied Tester'),
-  ('fee-test-legacy-parent', 'fee-test-household', '00000000-0000-0000-0000-000000000105', 'parent_member', null, 'Legacy Parent');
+  ('fee-test-legacy-parent', 'fee-test-household', '00000000-0000-0000-0000-000000000105', 'parent_member', null, 'Legacy Parent'),
+  ('fee-test-own-only', 'fee-test-household', '00000000-0000-0000-0000-000000000106', 'member', 'fee-test-own-only-role', 'Own-only Tester');
 
 insert into wallets (
   id, household_id, owner_id, name, wallet_type, is_shared,
@@ -380,6 +383,25 @@ select lives_ok(
 );
 reset role;
 select is((select current_balance from wallets where id = 'fee-test-bank'), 42450::numeric, 'legacy parent restore preserves the supplied wallet value');
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000106', true);
+select lives_ok(
+  $$select public.restore_wallets_and_transactions(
+    jsonb_build_array(
+      jsonb_build_object(
+        'id', 'fee-test-bank', 'household_id', 'fee-test-household', 'owner_id', 'fee-test-member',
+        'name', 'Bank', 'wallet_type', 'bank', 'is_shared', true,
+        'current_balance', 42450.00, 'credit_limit', null, 'service_fee_balance', 0,
+        'created_at', '2020-01-01T00:00:00Z'
+      )
+    ),
+    '[]'::jsonb
+  )$$,
+  'allows an authenticated custom role with own-only restore permission to restore an ownerless snapshot'
+);
+reset role;
+select is((select current_balance from wallets where id = 'fee-test-bank'), 42450::numeric, 'own-only restore preserves the supplied wallet value');
 
 -- Restore validation must finish before any snapshot row is written.
 set local role authenticated;

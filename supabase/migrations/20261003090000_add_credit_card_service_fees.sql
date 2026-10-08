@@ -400,7 +400,7 @@ begin
             where permission.household_id = restore_household_id
               and permission.role_id = role.id
               and permission.permission_key = 'restore_backup'
-              and permission.level = 'allowed'
+              and permission.level in ('allowed', 'own_only')
           )
         )
     );
@@ -471,7 +471,7 @@ begin
   insert into private.financial_restore_context (backend_pid, transaction_id)
   values (pg_catalog.pg_backend_pid(), pg_catalog.txid_current());
 
-  insert into public.wallets (
+  insert into public.wallets as existing_wallet (
     id, household_id, owner_id, name, wallet_type, is_shared,
     current_balance, credit_limit, service_fee_balance, created_at
   )
@@ -486,7 +486,6 @@ begin
     credit_limit numeric(14, 2), service_fee_balance numeric(14, 2), created_at timestamptz
   )
   on conflict (id) do update set
-    household_id = excluded.household_id,
     owner_id = excluded.owner_id,
     name = excluded.name,
     wallet_type = excluded.wallet_type,
@@ -494,10 +493,13 @@ begin
     current_balance = excluded.current_balance,
     credit_limit = excluded.credit_limit,
     service_fee_balance = excluded.service_fee_balance,
-    created_at = excluded.created_at;
+    created_at = excluded.created_at
+  where existing_wallet.household_id = excluded.household_id;
   get diagnostics affected_rows = row_count;
   if affected_rows <> snapshot_wallet_count then
-    raise exception 'Backup wallet restore was incomplete.';
+    raise exception using
+      errcode = '22023',
+      message = 'Backup financial rows contain a cross-household reference.';
   end if;
 
   insert into public.transactions (
