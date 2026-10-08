@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Home, Plus, LogOut, AlertCircle, X, User, ChevronDown, MoreHorizontal } from 'lucide-react';
+import { Home, Plus, LogOut, AlertCircle, X, User, ChevronDown, MoreHorizontal, Settings } from 'lucide-react';
 import { useHousehold } from '../context/HouseholdContext';
 import { supabase } from '../lib/supabase';
 import { clearAuthStorage } from '../lib/storageKeys';
@@ -130,7 +130,15 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
           <div className="space-y-1">{primaryNavigationItems.map(item => navButton(item))}</div>
           <p className="mb-2 mt-7 px-3 text-[10px] font-bold uppercase tracking-[.14em] text-brand-muted">More</p>
           <div className="space-y-1">{moreNavigationItems.map(item => navButton(item))}</div>
-          <div className="mt-auto rounded-2xl bg-white p-4 ring-1 ring-brand-line">
+          <button
+            type="button"
+            onClick={() => setShowProfileModal(true)}
+            className="mt-auto flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-white hover:text-brand-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange"
+          >
+            <Settings className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
+            <span>Setting</span>
+          </button>
+          <div className="mt-4 rounded-2xl bg-white p-4 ring-1 ring-brand-line">
             <p className="text-[11px] font-semibold leading-snug text-brand-muted">For visible wallets. Excludes outstanding card service fees and separate loan principal.</p>
             <MoneyAmount amount={totalNetWorth} className="mt-2 block text-sm font-bold text-brand-ink" />
           </div>
