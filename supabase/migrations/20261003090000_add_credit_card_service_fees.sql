@@ -50,20 +50,49 @@ $$;
 revoke all on function public.is_financial_restore_active() from public, anon;
 grant execute on function public.is_financial_restore_active() to authenticated, service_role;
 
+-- Existing deployments may contain historical negative fees. Leave those rows
+-- untouched so their original balance effects can still reverse exactly. The
+-- authorized restore marker permits an exact backup round-trip; all ordinary
+-- new and changed rows must remain nonnegative.
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_catalog.pg_constraint
+    where conname = 'transactions_fee_nonnegative'
+      and conrelid = 'public.transactions'::regclass
+  ) then
+    alter table public.transactions
+      add constraint transactions_fee_nonnegative
+      check (
+        fee is null
+        or fee >= 0
+        or public.is_financial_restore_active()
+      ) not valid;
+  end if;
+end $$;
+
 create or replace function public.update_wallet_balances_on_transaction()
 returns trigger
 language plpgsql
-security invoker
-set search_path = public
+security definer
+set search_path = pg_catalog
 as $$
 declare
   source_id public.wallets.id%type;
   destination_id public.wallets.id%type;
+  transaction_household_id public.transactions.household_id%type;
   source_type public.wallets.wallet_type%type;
   destination_type public.wallets.wallet_type%type;
   destination_used numeric(14, 2) := 0;
   destination_fees numeric(14, 2) := 0;
   stored_service_fee_amount public.transactions.service_fee_amount%type;
+  authenticated_user_id uuid;
+  authenticated_member_id public.household_members.id%type;
+  authenticated_member_role public.household_members.role%type;
+  caller_role text := pg_catalog.current_setting('role', true);
+  expected_wallet_count integer;
+  affected_rows integer;
 begin
   if tg_op = 'INSERT' then
     -- Only the permission-checked restore RPC can create this private marker.
@@ -71,6 +100,12 @@ begin
     if public.is_financial_restore_active() then
       new.service_fee_amount := coalesce(new.service_fee_amount, 0);
       return new;
+    end if;
+
+    if new.fee is not null and new.fee < 0 then
+      raise exception using
+        errcode = '23514',
+        message = 'Transaction fee cannot be negative.';
     end if;
 
     -- Backup restores use upserts. An existing ledger row has already moved balances.
@@ -101,21 +136,86 @@ begin
 
     source_id := new.wallet_id;
     destination_id := new.destination_wallet_id;
+    transaction_household_id := new.household_id;
   else
     source_id := old.wallet_id;
     destination_id := old.destination_wallet_id;
+    transaction_household_id := old.household_id;
   end if;
 
-  -- Opposite-direction transactions must acquire the same row locks in the same order.
+  -- Owner rights are used only for trigger-owned balance writes. An authenticated
+  -- caller must independently belong to the transaction household before the
+  -- function can bypass wallet UPDATE policies.
+  authenticated_user_id := auth.uid();
+  if caller_role = 'authenticated' or authenticated_user_id is not null then
+    if authenticated_user_id is not null then
+      select member.id, member.role
+      into authenticated_member_id, authenticated_member_role
+      from public.household_members member
+      where member.household_id = transaction_household_id
+        and member.user_id = authenticated_user_id::text
+      order by member.id
+      limit 1;
+    end if;
+    if authenticated_user_id is null or authenticated_member_id is null then
+      raise exception using
+        errcode = '42501',
+        message = 'Authenticated member cannot change balances for this household.';
+    end if;
+  elsif session_user <> 'postgres'
+    and caller_role not in ('postgres', 'service_role', 'supabase_admin') then
+    raise exception using
+      errcode = '42501',
+      message = 'Authenticated member cannot change balances for this household.';
+  end if;
+
+  -- Transaction INSERT policy is household-wide, while private wallets are not.
+  -- Reproduce the production wallet visibility boundary before using owner rights
+  -- for trigger-owned balance changes. Deletes remain reversible for the original
+  -- payer or an administrator even if a wallet was made private after creation.
+  if tg_op = 'INSERT' and authenticated_user_id is not null and exists (
+    select 1
+    from public.wallets wallet
+    where wallet.id in (source_id, destination_id)
+      and wallet.household_id = transaction_household_id
+      and not (
+        coalesce(wallet.is_shared, false)
+        or coalesce(wallet.owner_id = authenticated_member_id, false)
+        or coalesce(authenticated_member_role in ('admin', 'parent_member'), false)
+      )
+  ) then
+    raise exception using
+      errcode = '42501',
+      message = 'Transaction wallets are not available to the authenticated member.';
+  end if;
+
+  expected_wallet_count := case
+    when destination_id is null or destination_id = source_id then 1
+    else 2
+  end;
+
+  -- Opposite-direction transactions must acquire the same row locks in the same
+  -- order. Filtering by household proves every referenced wallet belongs to the
+  -- transaction tenant before any balance write.
   perform id from public.wallets
   where id in (source_id, destination_id)
+    and household_id = transaction_household_id
   order by id for update;
+  get diagnostics affected_rows = row_count;
+  if affected_rows <> expected_wallet_count then
+    raise exception using
+      errcode = '22023',
+      message = 'Transaction wallets must belong to the transaction household.';
+  end if;
 
-  select wallet_type into source_type from public.wallets where id = source_id;
+  select wallet_type into source_type
+  from public.wallets
+  where id = source_id and household_id = transaction_household_id;
   if destination_id is not null then
     select wallet_type, current_balance, service_fee_balance
     into destination_type, destination_used, destination_fees
-    from public.wallets where id = destination_id;
+    from public.wallets
+    where id = destination_id and household_id = transaction_household_id;
   end if;
 
   if tg_op = 'INSERT' then
@@ -131,23 +231,39 @@ begin
       new.service_fee_amount := least(new.amount, destination_fees);
       update public.wallets
       set current_balance = current_balance - new.amount - coalesce(new.fee, 0)
-      where id = source_id;
+      where id = source_id and household_id = transaction_household_id;
+      get diagnostics affected_rows = row_count;
+      if affected_rows <> 1 then
+        raise exception 'Financial wallet balance update was incomplete.';
+      end if;
       update public.wallets
       set service_fee_balance = service_fee_balance - new.service_fee_amount,
           current_balance = current_balance - (new.amount - new.service_fee_amount)
-      where id = destination_id;
+      where id = destination_id and household_id = transaction_household_id;
+      get diagnostics affected_rows = row_count;
+      if affected_rows <> 1 then
+        raise exception 'Financial wallet balance update was incomplete.';
+      end if;
     elsif new.type in ('expense', 'loan') then
       update public.wallets
       set current_balance = case
         when source_type = 'credit_card' then current_balance + new.amount + coalesce(new.fee, 0)
         else current_balance - new.amount - coalesce(new.fee, 0)
-      end where id = source_id;
+      end where id = source_id and household_id = transaction_household_id;
+      get diagnostics affected_rows = row_count;
+      if affected_rows <> 1 then
+        raise exception 'Financial wallet balance update was incomplete.';
+      end if;
     elsif new.type = 'income' then
       update public.wallets
       set current_balance = case
         when source_type = 'credit_card' then greatest(0, current_balance - greatest(0, new.amount - coalesce(new.fee, 0)))
         else current_balance + new.amount - coalesce(new.fee, 0)
-      end where id = source_id;
+      end where id = source_id and household_id = transaction_household_id;
+      get diagnostics affected_rows = row_count;
+      if affected_rows <> 1 then
+        raise exception 'Financial wallet balance update was incomplete.';
+      end if;
     elsif new.type = 'transfer' then
       -- Legacy transfers pay principal only; service fees require a loan payment.
       if destination_type = 'credit_card' and new.amount > destination_used then
@@ -157,13 +273,21 @@ begin
       set current_balance = case
         when source_type = 'credit_card' then current_balance + new.amount + coalesce(new.fee, 0)
         else current_balance - new.amount - coalesce(new.fee, 0)
-      end where id = source_id;
+      end where id = source_id and household_id = transaction_household_id;
+      get diagnostics affected_rows = row_count;
+      if affected_rows <> 1 then
+        raise exception 'Financial wallet balance update was incomplete.';
+      end if;
       if destination_id is not null then
         update public.wallets
         set current_balance = case
           when destination_type = 'credit_card' then current_balance - new.amount
           else current_balance + new.amount
-        end where id = destination_id;
+        end where id = destination_id and household_id = transaction_household_id;
+        get diagnostics affected_rows = row_count;
+        if affected_rows <> 1 then
+          raise exception 'Financial wallet balance update was incomplete.';
+        end if;
       end if;
     end if;
     return new;
@@ -172,40 +296,66 @@ begin
   if old.type = 'loan' and destination_type = 'credit_card' then
     update public.wallets
     set current_balance = current_balance + old.amount + coalesce(old.fee, 0)
-    where id = source_id;
+    where id = source_id and household_id = transaction_household_id;
+    get diagnostics affected_rows = row_count;
+    if affected_rows <> 1 then
+      raise exception 'Financial wallet balance update was incomplete.';
+    end if;
     update public.wallets
     set service_fee_balance = service_fee_balance + old.service_fee_amount,
         current_balance = current_balance + (old.amount - old.service_fee_amount)
-    where id = destination_id;
+    where id = destination_id and household_id = transaction_household_id;
+    get diagnostics affected_rows = row_count;
+    if affected_rows <> 1 then
+      raise exception 'Financial wallet balance update was incomplete.';
+    end if;
   elsif old.type in ('expense', 'loan') then
     update public.wallets
     set current_balance = case
       when source_type = 'credit_card' then greatest(0, current_balance - old.amount - coalesce(old.fee, 0))
       else current_balance + old.amount + coalesce(old.fee, 0)
-    end where id = source_id;
+    end where id = source_id and household_id = transaction_household_id;
+    get diagnostics affected_rows = row_count;
+    if affected_rows <> 1 then
+      raise exception 'Financial wallet balance update was incomplete.';
+    end if;
   elsif old.type = 'income' then
     update public.wallets
     set current_balance = case
       when source_type = 'credit_card' then current_balance + greatest(0, old.amount - coalesce(old.fee, 0))
       else current_balance - old.amount + coalesce(old.fee, 0)
-    end where id = source_id;
+    end where id = source_id and household_id = transaction_household_id;
+    get diagnostics affected_rows = row_count;
+    if affected_rows <> 1 then
+      raise exception 'Financial wallet balance update was incomplete.';
+    end if;
   elsif old.type = 'transfer' then
     update public.wallets
     set current_balance = case
       when source_type = 'credit_card' then greatest(0, current_balance - old.amount - coalesce(old.fee, 0))
       else current_balance + old.amount + coalesce(old.fee, 0)
-    end where id = source_id;
+    end where id = source_id and household_id = transaction_household_id;
+    get diagnostics affected_rows = row_count;
+    if affected_rows <> 1 then
+      raise exception 'Financial wallet balance update was incomplete.';
+    end if;
     if destination_id is not null then
       update public.wallets
       set current_balance = case
         when destination_type = 'credit_card' then current_balance + old.amount
         else current_balance - old.amount
-      end where id = destination_id;
+      end where id = destination_id and household_id = transaction_household_id;
+      get diagnostics affected_rows = row_count;
+      if affected_rows <> 1 then
+        raise exception 'Financial wallet balance update was incomplete.';
+      end if;
     end if;
   end if;
   return old;
 end;
 $$;
+
+revoke all on function public.update_wallet_balances_on_transaction() from public, anon, authenticated;
 
 drop trigger if exists trg_update_wallet_balance on public.transactions;
 create trigger trg_update_wallet_balance

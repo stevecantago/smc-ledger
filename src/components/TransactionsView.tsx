@@ -17,7 +17,9 @@ import {
   getCreditCardTotalDue,
   getCreditCardUsedBalance,
   getRequiredCreditCardFunding,
+  getTransactionFeeValidationError,
   isPhpAmountGreaterThan,
+  normalizeTransactionFee,
 } from '../lib/creditCardTransactions';
 
 export function getCreditCardPaymentAmountError(
@@ -28,6 +30,10 @@ export function getCreditCardPaymentAmountError(
   return isCardLoanPayment && isPhpAmountGreaterThan(paymentAmount, cardTotalDue)
     ? 'Credit card payment cannot exceed total due.'
     : null;
+}
+
+export function getTransactionFeeError(fee: number): string | null {
+  return getTransactionFeeValidationError(fee);
 }
 
 export function getCreditCardDestinationHelpText(
@@ -208,6 +214,14 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
       return;
     }
 
+    const rawFee = fee.trim() ? Number(fee) : 0;
+    const feeError = getTransactionFeeError(rawFee);
+    if (feeError) {
+      setErrorMsg(feeError);
+      return;
+    }
+    const parsedFee = normalizeTransactionFee(rawFee);
+
     if (isFundingAccountLocked && !requiredFundingWalletId) {
       setErrorMsg('The required funding account "Maya Wallet - Steve" was not found for this card.');
       return;
@@ -255,7 +269,6 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
       return;
     }
 
-    const parsedFee = parseFloat(fee) || 0;
     const submissionAction = getTransactionSubmissionAction({ type: txType, selectedLoanId });
 
     if (submissionAction === 'loan_payment' && selectedLoanId) {

@@ -166,6 +166,46 @@ select throws_ok(
   '23514', null, 'rejects a negative outstanding fee balance'
 );
 
+select ok(
+  exists (
+    select 1
+    from pg_catalog.pg_constraint
+    where conrelid = 'public.transactions'::regclass
+      and conname = 'transactions_fee_nonnegative'
+      and contype = 'c'
+  ),
+  'transactions enforce nonnegative processing fees'
+);
+select is(
+  (
+    select convalidated
+    from pg_catalog.pg_constraint
+    where conrelid = 'public.transactions'::regclass
+      and conname = 'transactions_fee_nonnegative'
+  ),
+  false,
+  'the forward constraint preserves unaudited historical rows while blocking new negative fees'
+);
+
+savepoint negative_transaction_fee;
+select throws_ok(
+  $$insert into public.transactions (
+      id, household_id, wallet_id, payer_id, type, amount, fee, transaction_date
+    ) values (
+      'fee-test-negative-fee', 'fee-test-household', 'fee-test-bank',
+      'fee-test-member', 'expense', 100, -10, current_date
+    )$$,
+  '23514',
+  'Transaction fee cannot be negative.',
+  'rejects a negative transaction fee before it can change a wallet balance'
+);
+rollback to savepoint negative_transaction_fee;
+select is(
+  (select current_balance from public.wallets where id = 'fee-test-bank'),
+  50000::numeric,
+  'negative transaction fee rejection leaves the funding balance unchanged'
+);
+
 insert into wallets (id, household_id, owner_id, name, wallet_type, current_balance)
 values ('fee-test-cash', 'fee-test-household', 'fee-test-member', 'Cash', 'cash', 5000);
 select is((select service_fee_balance from wallets where id = 'fee-test-cash'), 0::numeric, 'legacy wallet inserts default to zero service fees');
@@ -697,6 +737,185 @@ select is((select current_balance from wallets where id = 'fee-test-bank'), 4245
 select is((select current_balance from wallets where id = 'fee-test-card'), 500::numeric, 'alternate-order restore preserves saved principal');
 select is((select service_fee_balance from wallets where id = 'fee-test-card'), 0::numeric, 'alternate-order restore preserves saved fees');
 select is((select service_fee_amount from transactions where id = 'fee-test-old-payment'), 1000::numeric, 'alternate-order restore preserves the exact payment allocation');
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true);
+select lives_ok(
+  $$select public.restore_wallets_and_transactions(
+    jsonb_build_array(
+      jsonb_build_object(
+        'id', 'fee-test-bank', 'household_id', 'fee-test-household', 'owner_id', 'fee-test-member',
+        'name', 'Bank', 'wallet_type', 'bank', 'is_shared', true,
+        'current_balance', 42450.00, 'credit_limit', null, 'service_fee_balance', 0,
+        'created_at', '2020-01-01T00:00:00Z'
+      ),
+      jsonb_build_object(
+        'id', 'fee-test-card', 'household_id', 'fee-test-household', 'owner_id', 'fee-test-member',
+        'name', 'Card', 'wallet_type', 'credit_card', 'is_shared', false,
+        'current_balance', 500.00, 'credit_limit', 10000.00, 'service_fee_balance', 0,
+        'created_at', '2020-01-01T00:00:00Z'
+      )
+    ),
+    jsonb_build_array(
+      jsonb_build_object(
+        'id', 'fee-test-legacy-negative', 'household_id', 'fee-test-household',
+        'wallet_id', 'fee-test-bank', 'destination_wallet_id', null,
+        'payer_id', 'fee-test-member', 'type', 'expense', 'amount', 100.00,
+        'fee', -50.00, 'service_fee_amount', 0, 'transaction_date', '2020-01-03',
+        'created_at', '2020-01-03T00:00:00Z'
+      )
+    )
+  )$$,
+  'authorized backup restore preserves a historical negative fee exactly'
+);
+reset role;
+select is(
+  (select fee from transactions where id = 'fee-test-legacy-negative'),
+  (-50)::numeric,
+  'historical negative fee remains exact after backup restore'
+);
+
+-- Production-style wallet policies allow a member to use shared accounts while
+-- reserving direct wallet edits for owners and administrators. Trigger-owned
+-- balance writes must still be all-or-nothing under those policies.
+reset role;
+insert into public.wallets (
+  id, household_id, owner_id, name, wallet_type, is_shared,
+  current_balance, credit_limit, service_fee_balance
+) values
+  ('fee-test-shared-funding', 'fee-test-household', 'fee-test-member', 'Shared funding', 'bank', true, 1000, null, 0),
+  ('fee-test-shared-card', 'fee-test-household', 'fee-test-member', 'Shared card', 'credit_card', true, 500, 1000, 100),
+  ('fee-test-private-wallet', 'fee-test-household', 'fee-test-member', 'Private wallet', 'bank', false, 400, null, 0);
+
+drop policy "Fee tests allow member wallet access" on public.wallets;
+drop policy "Fee tests allow recent transaction changes" on public.transactions;
+
+create policy "Task 10 production wallet view" on public.wallets
+  for select to authenticated
+  using (
+    exists (
+      select 1 from public.household_members member
+      where member.household_id = wallets.household_id
+        and member.user_id = auth.uid()::text
+    )
+    and (
+      wallets.is_shared
+      or wallets.owner_id in (
+        select member.id from public.household_members member
+        where member.user_id = auth.uid()::text
+      )
+    )
+  );
+create policy "Task 10 production wallet update" on public.wallets
+  for update to authenticated
+  using (
+    wallets.owner_id in (
+      select member.id from public.household_members member
+      where member.user_id = auth.uid()::text
+    )
+  )
+  with check (
+    wallets.owner_id in (
+      select member.id from public.household_members member
+      where member.user_id = auth.uid()::text
+    )
+  );
+create policy "Task 10 production transaction insert" on public.transactions
+  for insert to authenticated
+  with check (exists (
+    select 1 from public.household_members member
+    where member.household_id = transactions.household_id
+      and member.user_id = auth.uid()::text
+  ));
+create policy "Task 10 production transaction view" on public.transactions
+  for select to authenticated
+  using (exists (
+    select 1 from public.household_members member
+    where member.household_id = transactions.household_id
+      and member.user_id = auth.uid()::text
+  ));
+create policy "Task 10 production transaction delete" on public.transactions
+  for delete to authenticated
+  using (
+    transactions.payer_id in (
+      select member.id from public.household_members member
+      where member.user_id = auth.uid()::text
+    )
+    and transactions.created_at >= now() - interval '24 hours'
+  );
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000103', true);
+select lives_ok(
+  $$insert into public.transactions (
+      id, household_id, wallet_id, destination_wallet_id, payer_id,
+      type, amount, fee, service_fee_amount, transaction_date
+    ) values (
+      'fee-test-shared-payment', 'fee-test-household', 'fee-test-shared-funding',
+      'fee-test-shared-card', 'fee-test-denied', 'loan', 300, 20, 0, current_date
+    )$$,
+  'a normal household member can pay a shared card from a shared non-owned wallet'
+);
+reset role;
+select is((select current_balance from public.wallets where id = 'fee-test-shared-funding'), 680::numeric, 'shared funding debit commits with the transaction');
+select is((select current_balance from public.wallets where id = 'fee-test-shared-card'), 300::numeric, 'shared card principal reduction commits with the transaction');
+select is((select service_fee_balance from public.wallets where id = 'fee-test-shared-card'), 0::numeric, 'shared card fee reduction commits with the transaction');
+select is((select service_fee_amount from public.transactions where id = 'fee-test-shared-payment'), 100::numeric, 'shared card payment stores the exact fee allocation');
+
+update public.wallets
+set is_shared = false
+where id in ('fee-test-shared-funding', 'fee-test-shared-card');
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000103', true);
+select lives_ok(
+  $$delete from public.transactions where id = 'fee-test-shared-payment'$$,
+  'the original payer can reverse the payment after its wallets become private'
+);
+reset role;
+select is((select current_balance from public.wallets where id = 'fee-test-shared-funding'), 1000::numeric, 'shared payment deletion restores funding exactly');
+select is((select current_balance from public.wallets where id = 'fee-test-shared-card'), 500::numeric, 'shared payment deletion restores principal exactly');
+select is((select service_fee_balance from public.wallets where id = 'fee-test-shared-card'), 100::numeric, 'shared payment deletion restores service fees exactly');
+update public.wallets
+set is_shared = true
+where id in ('fee-test-shared-funding', 'fee-test-shared-card');
+
+savepoint private_wallet_transaction;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000103', true);
+select throws_ok(
+  $$insert into public.transactions (
+      id, household_id, wallet_id, payer_id, type, amount, fee, transaction_date
+    ) values (
+      'fee-test-private-wallet-charge', 'fee-test-household', 'fee-test-private-wallet',
+      'fee-test-denied', 'expense', 10, 0, current_date
+    )$$,
+  '42501',
+  'Transaction wallets are not available to the authenticated member.',
+  'a member cannot charge another member private wallet through the privileged trigger'
+);
+reset role;
+select is((select count(*) from public.transactions where id = 'fee-test-private-wallet-charge'), 0::bigint, 'rejected private-wallet transaction leaves no ledger row');
+select is((select current_balance from public.wallets where id = 'fee-test-private-wallet'), 400::numeric, 'rejected private-wallet transaction leaves its balance unchanged');
+rollback to savepoint private_wallet_transaction;
+
+savepoint cross_household_transaction_wallet;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000103', true);
+select throws_ok(
+  $$insert into public.transactions (
+      id, household_id, wallet_id, payer_id, type, amount, fee, transaction_date
+    ) values (
+      'fee-test-cross-household-wallet', 'fee-test-household', 'fee-test-other-wallet',
+      'fee-test-denied', 'expense', 10, 0, current_date
+    )$$,
+  '22023',
+  'Transaction wallets must belong to the transaction household.',
+  'a cross-household wallet reference aborts the whole transaction'
+);
+reset role;
+rollback to savepoint cross_household_transaction_wallet;
+select is((select count(*) from public.transactions where id = 'fee-test-cross-household-wallet'), 0::bigint, 'rejected cross-household transaction leaves no ledger row');
+select is((select current_balance from public.wallets where id = 'fee-test-other-wallet'), 100::numeric, 'rejected cross-household transaction leaves the foreign wallet unchanged');
 
 select * from finish();
 rollback;

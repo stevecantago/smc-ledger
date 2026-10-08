@@ -6,6 +6,9 @@ const harness = vi.hoisted(() => ({
   states: [] as unknown[],
   cursor: 0,
   writes: [] as { table: string; operation: string; payload?: unknown; id?: string }[],
+  remoteEvents: [] as string[],
+  remoteGates: {} as Record<string, Promise<{ error: unknown }>>,
+  remoteErrors: {} as Record<string, unknown>,
 }));
 
 // Run provider actions with deterministic state, without mounting hydration effects.
@@ -37,12 +40,25 @@ vi.mock('../lib/supabase', async importOriginal => {
     supabase: {
       rpc: (name: string, payload: unknown) => {
         harness.writes.push({ table: name, operation: 'rpc', payload });
-        return Promise.resolve({ error: null });
+        const key = `${name}:rpc`;
+        harness.remoteEvents.push(key);
+        return harness.remoteGates[key]
+          || Promise.resolve({ error: harness.remoteErrors[key] || null });
       },
       from: (table: string) => ({
         insert: (payload: unknown) => {
           harness.writes.push({ table, operation: 'insert', payload });
-          return Promise.resolve({ error: null });
+          const key = `${table}:insert`;
+          harness.remoteEvents.push(key);
+          return harness.remoteGates[key]
+            || Promise.resolve({ error: harness.remoteErrors[key] || null });
+        },
+        upsert: (payload: unknown) => {
+          harness.writes.push({ table, operation: 'upsert', payload });
+          const key = `${table}:upsert`;
+          harness.remoteEvents.push(key);
+          return harness.remoteGates[key]
+            || Promise.resolve({ error: harness.remoteErrors[key] || null });
         },
         update: (payload: unknown) => ({ eq: (_field: string, id: string) => {
           harness.writes.push({ table, operation: 'update', payload, id });
@@ -73,11 +89,15 @@ describe('household service-fee persistence', () => {
   beforeEach(() => {
     harness.states = [];
     harness.writes = [];
+    harness.remoteEvents = [];
+    harness.remoteGates = {};
+    harness.remoteErrors = {};
   });
 
-  it('stores the payment allocation and sends no remote wallet balance updates', () => {
-    expect(renderProvider().addTransaction(payment).success).toBe(true);
+  it('stores one normalized fee value for local accounting and remote persistence', () => {
+    expect(renderProvider().addTransaction({ ...payment, fee: 50.004 }).success).toBe(true);
     const state = renderProvider();
+    expect(state.transactions[0].fee).toBe(50);
     expect(state.transactions[0].service_fee_amount).toBe(1000);
     expect(state.wallets.find(wallet => wallet.id === payment.wallet_id)?.current_balance).toBe(42450);
     expect(state.wallets.find(wallet => wallet.id === payment.destination_wallet_id)).toMatchObject({
@@ -111,6 +131,35 @@ describe('household service-fee persistence', () => {
     expect(renderProvider().transactions[0].service_fee_amount).toBe(0);
   });
 
+  it('rejects a negative transaction fee before changing local or remote financial state', () => {
+    const before = renderProvider();
+    const beforeWallets = before.wallets;
+    const beforeTransactions = before.transactions;
+    harness.writes = [];
+
+    expect(before.addTransaction({ ...payment, fee: -50 })).toEqual({
+      success: false,
+      error: 'Transaction fee cannot be negative.',
+    });
+    expect(renderProvider().wallets).toEqual(beforeWallets);
+    expect(renderProvider().transactions).toEqual(beforeTransactions);
+    expect(harness.writes).toEqual([]);
+  });
+
+  it('rejects a negative transaction fee update before changing local or remote state', () => {
+    renderProvider().addTransaction(payment);
+    const before = renderProvider();
+    const beforeTransactions = before.transactions;
+    harness.writes = [];
+
+    expect(before.updateTransaction(beforeTransactions[0].id, { fee: -0.01 })).toEqual({
+      success: false,
+      error: 'Transaction fee cannot be negative.',
+    });
+    expect(renderProvider().transactions).toEqual(beforeTransactions);
+    expect(harness.writes).toEqual([]);
+  });
+
   it('creates a card with an explicit zero outstanding fee balance', () => {
     renderProvider().addWallet({ name: 'New Card', wallet_type: 'credit_card', is_shared: false, initial_balance: 100 });
     expect(renderProvider().wallets.at(-1)?.service_fee_balance).toBe(0);
@@ -135,7 +184,7 @@ describe('household service-fee persistence', () => {
     expect(harness.writes.find(write => write.table === 'wallets')?.payload).toEqual({ service_fee_balance: 0 });
   });
 
-  it('restores wallets and transactions through one remote atomic operation with saved allocations', () => {
+  it('restores wallets and transactions through one remote atomic operation with saved allocations', async () => {
     const backupWallets = [
       { ...renderProvider().wallets.find(wallet => wallet.id === payment.wallet_id)!, current_balance: 42450 },
       {
@@ -156,7 +205,7 @@ describe('household service-fee persistence', () => {
       service_fee_amount: 1000,
     }];
 
-    const result = renderProvider().restoreFullHouseholdBackup(JSON.stringify({
+    const result = await renderProvider().restoreFullHouseholdBackup(JSON.stringify({
       wallets: backupWallets,
       transactions: backupTransactions,
     }));
@@ -181,7 +230,7 @@ describe('household service-fee persistence', () => {
   it.each([
     ['an empty wallet snapshot', false],
     ['a partial wallet snapshot', true],
-  ])('rejects %s before changing local state or starting remote writes', (_label, includeSourceWallet) => {
+  ])('rejects %s before changing local state or starting remote writes', async (_label, includeSourceWallet) => {
     const before = renderProvider();
     const beforeWallets = before.wallets;
     const beforeTransactions = before.transactions;
@@ -193,7 +242,7 @@ describe('household service-fee persistence', () => {
       : [];
     harness.writes = [];
 
-    const result = before.restoreFullHouseholdBackup(JSON.stringify({
+    const result = await before.restoreFullHouseholdBackup(JSON.stringify({
       wallets: backupWallets,
       transactions: [{
         id: 'historical-payment',
@@ -215,5 +264,95 @@ describe('household service-fee persistence', () => {
     expect(renderProvider().wallets).toEqual(beforeWallets);
     expect(renderProvider().transactions).toEqual(beforeTransactions);
     expect(harness.writes).toEqual([]);
+  });
+
+  it('restores roles before members, then waits for members and categories before the financial RPC', async () => {
+    const before = renderProvider();
+    const backupWallets = before.wallets.map(wallet => wallet.id === payment.wallet_id
+      ? { ...wallet, current_balance: 42450 }
+      : wallet.id === payment.destination_wallet_id
+        ? { ...wallet, current_balance: 500, service_fee_balance: 0 }
+        : wallet);
+    const backupTransactions = [{
+      id: 'ordered-payment',
+      household_id: 'hh-101',
+      payer_id: 'member-steve-admin',
+      category_id: null,
+      receipt_url: null,
+      note: 'Ordered payment',
+      created_at: '2026-09-01T00:00:00.000Z',
+      ...payment,
+      service_fee_amount: 1000,
+    }];
+    let releaseRoles!: (value: { error: unknown }) => void;
+    let releaseMembers!: (value: { error: unknown }) => void;
+    let releaseCategories!: (value: { error: unknown }) => void;
+    let releaseFinancialRestore!: (value: { error: unknown }) => void;
+    harness.remoteGates['household_roles:upsert'] = new Promise(resolve => { releaseRoles = resolve; });
+    harness.remoteGates['household_members:upsert'] = new Promise(resolve => { releaseMembers = resolve; });
+    harness.remoteGates['categories:upsert'] = new Promise(resolve => { releaseCategories = resolve; });
+    harness.remoteGates['restore_wallets_and_transactions:rpc'] = new Promise(resolve => {
+      releaseFinancialRestore = resolve;
+    });
+
+    const restorePromise = before.restoreFullHouseholdBackup(JSON.stringify({
+      customRoles: before.customRoles,
+      members: before.members,
+      categories: before.categories,
+      wallets: backupWallets,
+      transactions: backupTransactions,
+    }));
+    await Promise.resolve();
+
+    expect(harness.remoteEvents).toEqual(['household_roles:upsert']);
+    expect(renderProvider().wallets).toEqual(before.wallets);
+    releaseRoles({ error: null });
+    await vi.waitFor(() => {
+      expect(harness.remoteEvents).toEqual([
+        'household_roles:upsert',
+        'household_members:upsert',
+      ]);
+    });
+    releaseMembers({ error: null });
+    await vi.waitFor(() => {
+      expect(harness.remoteEvents).toEqual([
+        'household_roles:upsert',
+        'household_members:upsert',
+        'categories:upsert',
+      ]);
+    });
+    expect(harness.remoteEvents).not.toContain('restore_wallets_and_transactions:rpc');
+
+    releaseCategories({ error: null });
+    await vi.waitFor(() => {
+      expect(harness.remoteEvents).toContain('restore_wallets_and_transactions:rpc');
+    });
+    expect(renderProvider().wallets).toEqual(before.wallets);
+    releaseFinancialRestore({ error: null });
+    const result = await restorePromise;
+    expect(result.success).toBe(true);
+    expect(harness.remoteEvents.indexOf('restore_wallets_and_transactions:rpc')).toBeGreaterThan(
+      harness.remoteEvents.indexOf('categories:upsert'),
+    );
+    expect(renderProvider().wallets.find(wallet => wallet.id === payment.wallet_id)?.current_balance).toBe(42450);
+  });
+
+  it('returns a remote restore failure without replacing local financial state', async () => {
+    const before = renderProvider();
+    const beforeWallets = before.wallets;
+    const beforeTransactions = before.transactions;
+    harness.remoteErrors['restore_wallets_and_transactions:rpc'] = { message: 'financial restore denied' };
+
+    const result = await before.restoreFullHouseholdBackup(JSON.stringify({
+      wallets: before.wallets.map(wallet => ({ ...wallet, current_balance: 1 })),
+      transactions: [],
+    }));
+
+    expect(result).toEqual({
+      success: false,
+      error: 'Restore wallets and transactions failed: financial restore denied',
+    });
+    expect(renderProvider().wallets).toEqual(beforeWallets);
+    expect(renderProvider().transactions).toEqual(beforeTransactions);
   });
 });

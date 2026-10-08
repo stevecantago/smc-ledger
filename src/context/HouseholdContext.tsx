@@ -20,7 +20,7 @@ import {
   supabase
 } from '../lib/supabase';
 import { linkMemberToAuthenticatedUser, resolveAuthenticatedMember } from '../lib/authProfile';
-import { getSyncFailureWarning, getSyncStatus, MutationResult } from '../lib/persistence';
+import { getErrorMessage, getSyncFailureWarning, getSyncStatus, MutationResult } from '../lib/persistence';
 import { AUTH_STORAGE_KEYS, STORAGE_KEYS, clearAuthStorage, clearHouseholdStorage } from '../lib/storageKeys';
 import {
   canDeleteRole,
@@ -30,7 +30,14 @@ import {
   hasPermission as hasRolePermission,
   isHeadParent as getIsHeadParent,
 } from '../lib/permissions';
-import { applyTransactionBalanceChange, getCreditCardPaymentAllocation, normalizeCreditCardWalletBalance, reverseTransactionBalanceChange } from '../lib/creditCardTransactions';
+import {
+  applyTransactionBalanceChange,
+  getCreditCardPaymentAllocation,
+  getTransactionFeeValidationError,
+  normalizeCreditCardWalletBalance,
+  normalizeTransactionFee,
+  reverseTransactionBalanceChange,
+} from '../lib/creditCardTransactions';
 import { getWalletDeleteBlocker } from '../lib/walletDeletion';
 import { syncLoanAndOptionalSchedule } from '../lib/loanScheduleSync';
 import {
@@ -66,7 +73,7 @@ interface HouseholdContextType {
   // Activity Logging & Backup/Restoration
   logActivity: (action: ActivityLogAction, description: string, details?: any) => MutationResult;
   exportFullHouseholdBackup: () => void;
-  restoreFullHouseholdBackup: (jsonContent: string) => { success: boolean; error?: string };
+  restoreFullHouseholdBackup: (jsonContent: string) => Promise<MutationResult>;
 
   // Wallets CRUD
   addWallet: (wallet: { name: string; wallet_type: Wallet['wallet_type']; is_shared: boolean; owner_id?: string | null; initial_balance: number; credit_limit?: number | null }) => MutationResult;
@@ -218,6 +225,23 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       });
 
     return { success: true, syncStatus: getSyncStatus(true) };
+  };
+
+  const awaitSupabaseRestoreWrite = async <T,>(
+    operation: string,
+    request: PromiseLike<{ error?: unknown } | T>,
+  ): Promise<void> => {
+    try {
+      const result = await request;
+      const maybeError = result && typeof result === 'object' && 'error' in result
+        ? (result as { error?: unknown }).error
+        : null;
+      if (maybeError) throw maybeError;
+    } catch (error) {
+      const message = `${operation} failed: ${getErrorMessage(error)}`;
+      setSyncWarning(message);
+      throw new Error(message);
+    }
   };
 
   // 1. Initial Local Storage & Remote Supabase Hydration
@@ -507,7 +531,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   // Full Data Restoration Helper
-  const restoreFullHouseholdBackup = (jsonContent: string): { success: boolean; error?: string } => {
+  const restoreFullHouseholdBackup = async (jsonContent: string): Promise<MutationResult> => {
     if (!hasPermission('restore_backup')) {
       return { success: false, error: 'Your role cannot restore household backups.' };
     }
@@ -542,67 +566,83 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         };
       }
 
-      if (parsed.members && Array.isArray(parsed.members)) {
-        setMembers(parsed.members);
-        if (supabase) {
-          const db = supabase;
-          trackSupabaseWrite(
+      const normalizedBackupWallets = backupWallets.map(normalizeCreditCardWalletBalance);
+      const restoredMembers = Array.isArray(parsed.members) ? parsed.members : null;
+      const restoredCategories = Array.isArray(parsed.categories) ? parsed.categories : null;
+      const restoredSavingsGoals = Array.isArray(parsed.savingsGoals) ? parsed.savingsGoals : null;
+      const restoredLoans = Array.isArray(parsed.loans) ? parsed.loans : null;
+      const restoredRecurringTransfers = Array.isArray(parsed.recurringTransfers) ? parsed.recurringTransfers : null;
+      const restoredCustomRoles = Array.isArray(parsed.customRoles) ? parsed.customRoles : null;
+      const restoredRolePermissions = Array.isArray(parsed.rolePermissions) ? parsed.rolePermissions : null;
+      const restoredActivityLogs = Array.isArray(parsed.activityLogs) ? parsed.activityLogs : null;
+      const restoreLog: ActivityLogEntry = {
+        id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        household_id: household.id,
+        member_id: currentMember.id,
+        member_name: currentMember.display_name,
+        action: 'backup_restore',
+        description: 'Restored full household dataset from uploaded backup file.',
+        details: null,
+        created_at: new Date().toISOString(),
+      };
+
+      if (supabase) {
+        const db = supabase;
+        if (restoredCustomRoles) {
+          await awaitSupabaseRestoreWrite('Restore household roles', db.from('household_roles').upsert(restoredCustomRoles));
+        }
+        if (restoredMembers) {
+          await awaitSupabaseRestoreWrite(
             'Restore household members',
             retryMemberWriteWithSchemaFallbacks(
-              () => db.from('household_members').upsert(parsed.members),
-              () => db.from('household_members').upsert(parsed.members.map(omitMemberRoleId)),
-              () => db.from('household_members').upsert(parsed.members.map(omitMemberProfileFields)),
-              () => db.from('household_members').upsert(parsed.members.map(omitUnsupportedMemberColumns))
-            )
+              () => db.from('household_members').upsert(restoredMembers),
+              () => db.from('household_members').upsert(restoredMembers.map(omitMemberRoleId)),
+              () => db.from('household_members').upsert(restoredMembers.map(omitMemberProfileFields)),
+              () => db.from('household_members').upsert(restoredMembers.map(omitUnsupportedMemberColumns)),
+            ),
           );
         }
-      }
-      const normalizedBackupWallets = backupWallets.map(normalizeCreditCardWalletBalance);
-
-      if (normalizedBackupWallets) {
-        const normalizedWallets = normalizedBackupWallets;
-        setWallets(normalizedWallets);
-      }
-      if (parsed.categories && Array.isArray(parsed.categories)) {
-        setCategories(parsed.categories);
-        if (supabase) trackSupabaseWrite('Restore categories', supabase.from('categories').upsert(parsed.categories));
-      }
-      setTransactions(backupTransactions);
-      if (supabase) {
-        trackSupabaseWrite(
+        if (restoredCategories) {
+          await awaitSupabaseRestoreWrite(
+            'Restore categories',
+            db.from('categories').upsert(restoredCategories),
+          );
+        }
+        await awaitSupabaseRestoreWrite(
           'Restore wallets and transactions',
-          supabase.rpc('restore_wallets_and_transactions', {
+          db.rpc('restore_wallets_and_transactions', {
             p_wallets: normalizedBackupWallets,
             p_transactions: backupTransactions,
           }),
         );
-      }
-      if (parsed.savingsGoals && Array.isArray(parsed.savingsGoals)) {
-        setSavingsGoals(parsed.savingsGoals);
-        if (supabase) trackSupabaseWrite('Restore savings goals', supabase.from('savings_goals').upsert(parsed.savingsGoals));
-      }
-      if (parsed.loans && Array.isArray(parsed.loans)) {
-        setLoans(parsed.loans);
-        if (supabase) trackSupabaseWrite('Restore loans', supabase.from('loans').upsert(parsed.loans));
-      }
-      if (parsed.recurringTransfers && Array.isArray(parsed.recurringTransfers)) {
-        setRecurringTransfers(parsed.recurringTransfers);
-        if (supabase) trackSupabaseWrite('Restore recurring transfers', supabase.from('recurring_transfers').upsert(parsed.recurringTransfers));
-      }
-      if (parsed.customRoles && Array.isArray(parsed.customRoles)) {
-        setCustomRoles(parsed.customRoles);
-        if (supabase) trackSupabaseWrite('Restore household roles', supabase.from('household_roles').upsert(parsed.customRoles));
-      }
-      if (parsed.rolePermissions && Array.isArray(parsed.rolePermissions)) {
-        setRolePermissions(parsed.rolePermissions);
-        if (supabase) trackSupabaseWrite('Restore role permissions', supabase.from('role_permissions').upsert(parsed.rolePermissions));
-      }
-      if (parsed.activityLogs && Array.isArray(parsed.activityLogs)) {
-        setActivityLogs(parsed.activityLogs);
-        if (supabase) trackSupabaseWrite('Restore activity logs', supabase.from('activity_logs').upsert(parsed.activityLogs));
+        if (restoredSavingsGoals) {
+          await awaitSupabaseRestoreWrite('Restore savings goals', db.from('savings_goals').upsert(restoredSavingsGoals));
+        }
+        if (restoredLoans) {
+          await awaitSupabaseRestoreWrite('Restore loans', db.from('loans').upsert(restoredLoans));
+        }
+        if (restoredRecurringTransfers) {
+          await awaitSupabaseRestoreWrite('Restore recurring transfers', db.from('recurring_transfers').upsert(restoredRecurringTransfers));
+        }
+        if (restoredRolePermissions) {
+          await awaitSupabaseRestoreWrite('Restore role permissions', db.from('role_permissions').upsert(restoredRolePermissions));
+        }
+        if (restoredActivityLogs) {
+          await awaitSupabaseRestoreWrite('Restore activity logs', db.from('activity_logs').upsert(restoredActivityLogs));
+        }
+        await awaitSupabaseRestoreWrite('Record backup restore', db.from('activity_logs').insert([restoreLog]));
       }
 
-      logActivity('backup_restore', `Restored full household dataset from uploaded backup file.`);
+      if (restoredMembers) setMembers(restoredMembers);
+      setWallets(normalizedBackupWallets);
+      if (restoredCategories) setCategories(restoredCategories);
+      setTransactions(backupTransactions);
+      if (restoredSavingsGoals) setSavingsGoals(restoredSavingsGoals);
+      if (restoredLoans) setLoans(restoredLoans);
+      if (restoredRecurringTransfers) setRecurringTransfers(restoredRecurringTransfers);
+      if (restoredCustomRoles) setCustomRoles(restoredCustomRoles);
+      if (restoredRolePermissions) setRolePermissions(restoredRolePermissions);
+      setActivityLogs(restoredActivityLogs ? [restoreLog, ...restoredActivityLogs] : prev => [restoreLog, ...prev]);
       return { success: true };
     } catch (err: any) {
       return { success: false, error: err.message || 'Failed to parse JSON backup file.' };
@@ -822,8 +862,11 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const sourceWallet = wallets.find(w => w.id === data.wallet_id);
     if (!sourceWallet) return { success: false, error: 'Source wallet not found' };
 
-    const feeAmount = data.fee || 0;
-    const balanceResult = applyTransactionBalanceChange(wallets, data);
+    const feeError = getTransactionFeeValidationError(data.fee);
+    if (feeError) return { success: false, error: feeError };
+    const feeAmount = normalizeTransactionFee(data.fee);
+    const normalizedData = { ...data, fee: feeAmount };
+    const balanceResult = applyTransactionBalanceChange(wallets, normalizedData);
     if (!balanceResult.success) return { success: false, error: balanceResult.error };
 
     const destinationWallet = data.destination_wallet_id
@@ -870,11 +913,19 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       };
     }
 
-    setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
+    const normalizedUpdates = { ...updates };
+    if (Object.prototype.hasOwnProperty.call(updates, 'fee')) {
+      const feeError = getTransactionFeeValidationError(updates.fee);
+      if (feeError) return { success: false, error: feeError };
+      const normalizedFee = normalizeTransactionFee(updates.fee);
+      normalizedUpdates.fee = normalizedFee > 0 ? normalizedFee : null;
+    }
+
+    setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...normalizedUpdates } : t));
     logActivity('update_tx', `Updated transaction "${target.note || id}"`);
 
     return supabase
-      ? trackSupabaseWrite('Update transaction', supabase.from('transactions').update(updates).eq('id', id))
+      ? trackSupabaseWrite('Update transaction', supabase.from('transactions').update(normalizedUpdates).eq('id', id))
       : localSaveResult();
   };
 

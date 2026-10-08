@@ -6,6 +6,7 @@ import {
   TransactionsView,
   getCreditCardDestinationHelpText,
   getCreditCardPaymentAmountError,
+  getTransactionFeeError,
 } from './TransactionsView';
 
 const household = vi.hoisted(() => ({
@@ -135,6 +136,12 @@ describe('credit-card payment entry', () => {
 
   it('accepts a decimal payment exactly equal to the card total due', () => {
     expect(getCreditCardPaymentAmountError(true, 3510.40, 3500.20 + 10.20)).toBeNull();
+  });
+
+  it('rejects a negative transaction fee in the transaction form', () => {
+    expect(getTransactionFeeError(-0.01)).toBe('Transaction fee cannot be negative.');
+    expect(getTransactionFeeError(0)).toBeNull();
+    expect(getTransactionFeeError(50)).toBeNull();
   });
 
   it('uses fee-first copy only for actual credit-card payments', () => {

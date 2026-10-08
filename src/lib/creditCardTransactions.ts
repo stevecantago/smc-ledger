@@ -41,6 +41,16 @@ function normalizePhpAmount(value: number): number {
   return fromPhpCentavos(toPhpCentavos(value));
 }
 
+export function getTransactionFeeValidationError(fee: number | null | undefined): string | null {
+  const feeAmount = fee ?? 0;
+  if (!Number.isFinite(feeAmount)) return 'Please enter a valid transaction fee.';
+  return feeAmount < 0 ? 'Transaction fee cannot be negative.' : null;
+}
+
+export function normalizeTransactionFee(fee: number | null | undefined): number {
+  return normalizePhpAmount(fee ?? 0);
+}
+
 type BalanceResult =
   | { success: true; wallets: Wallet[]; changedWalletIds: string[] }
   | { success: false; error: string; wallets: Wallet[]; changedWalletIds: string[] };
@@ -158,12 +168,15 @@ function fail(error: string, wallets: Wallet[]): BalanceResult {
 }
 
 export function applyTransactionBalanceChange(wallets: Wallet[], input: TransactionBalanceInput): BalanceResult {
+  const feeError = getTransactionFeeValidationError(input.fee);
+  if (feeError) return fail(feeError, wallets);
+
   const normalizedWallets = wallets.map(normalizeCreditCardWalletBalance);
   const sourceWallet = findWallet(normalizedWallets, input.wallet_id);
   if (!sourceWallet) return fail('Source wallet not found', wallets);
 
   const amountCentavos = toPhpCentavos(input.amount);
-  const feeCentavos = toPhpCentavos(input.fee || 0);
+  const feeCentavos = toPhpCentavos(normalizeTransactionFee(input.fee));
   const totalCentavos = amountCentavos + feeCentavos;
   let nextWallets = cloneWallets(normalizedWallets);
 
@@ -245,12 +258,16 @@ export function applyTransactionBalanceChange(wallets: Wallet[], input: Transact
 }
 
 export function reverseTransactionBalanceChange(wallets: Wallet[], input: TransactionBalanceInput): BalanceResult {
+  if (!Number.isFinite(input.fee ?? 0)) {
+    return fail('Please enter a valid transaction fee.', wallets);
+  }
+
   const normalizedWallets = wallets.map(normalizeCreditCardWalletBalance);
   const sourceWallet = findWallet(normalizedWallets, input.wallet_id);
   if (!sourceWallet) return fail('Source wallet not found', wallets);
 
   const amountCentavos = toPhpCentavos(input.amount);
-  const feeCentavos = toPhpCentavos(input.fee || 0);
+  const feeCentavos = toPhpCentavos(normalizeTransactionFee(input.fee));
   const totalCentavos = amountCentavos + feeCentavos;
   let nextWallets = cloneWallets(normalizedWallets);
 
