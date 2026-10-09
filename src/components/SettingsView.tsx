@@ -226,7 +226,7 @@ export const SettingsView: React.FC = () => {
                   <tr key={category.id} className="bg-white hover:bg-brand-canvas">
                     <th scope="row" className="px-4 py-2.5 font-medium text-brand-ink">
                       <span className="flex min-w-0 items-center gap-3">
-                        <CategoryIconTile slug={category.icon_slug} categoryType={categoryType} categoryName={category.name} color={color} fallbackClassName={isIncome ? 'bg-brand-mint' : 'bg-brand-sky'} />
+                        <CategoryIconTile slug={category.icon_slug} categoryType={categoryType} categoryName={category.name} color={color} fallbackClassName={isIncome ? 'bg-brand-mint' : 'bg-brand-sky'} fallbackColorHex={isIncome ? '#E3F0CE' : '#D9F0F7'} />
                         <span className="truncate">{category.name}</span>
                       </span>
                     </th>

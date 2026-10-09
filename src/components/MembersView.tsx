@@ -1,15 +1,46 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useHousehold } from '../context/HouseholdContext';
 import {
-  Users, ShieldCheck, UserCheck, Plus, AlertTriangle, Edit2, Trash2, HeartHandshake, KeyRound, Mail, Lock, CheckCircle2
+  Users, ShieldCheck, UserCheck, Plus, AlertTriangle, Edit2, Trash2, HeartHandshake, KeyRound, Mail, Lock, CheckCircle2, ImagePlus
 } from 'lucide-react';
 import { HouseholdRole, HouseholdMember, FamilyRelationship, FAMILY_RELATIONSHIPS } from '../types/database';
 import { supabase } from '../lib/supabase';
 import { getPasswordResetRedirectUrl } from '../lib/authRedirects';
 import { RolePermissionsMatrix } from './RolePermissionsMatrix';
 import { getEffectiveRoleId, getHouseholdRoleName } from '../lib/permissions';
+import { Dialog } from './ui/Dialog';
+import { FAMILY_AVATARS, getDefaultFamilyAvatar, isAvatarPhotoWithinLimit, MemberAvatar, readMemberAvatars, writeMemberAvatars } from '../lib/memberAvatars';
+
+async function createAvatarPhoto(file: File): Promise<string> {
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) throw new Error('Choose a JPG, PNG, or WebP photo.');
+  if (file.size > 8 * 1024 * 1024) throw new Error('Choose a photo smaller than 8 MB.');
+
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const loadedImage = new Image();
+      loadedImage.onload = () => resolve(loadedImage);
+      loadedImage.onerror = () => reject(new Error('This photo could not be opened.'));
+      loadedImage.src = objectUrl;
+    });
+    if (!image.naturalWidth || !image.naturalHeight) throw new Error('This photo has no readable image data.');
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Photo editing is unavailable in this browser.');
+
+    const side = Math.min(image.naturalWidth, image.naturalHeight);
+    canvas.width = 256;
+    canvas.height = 256;
+    context.drawImage(image, (image.naturalWidth - side) / 2, (image.naturalHeight - side) / 2, side, side, 0, 0, 256, 256);
+    const photo = canvas.toDataURL('image/jpeg', 0.82);
+    if (!isAvatarPhotoWithinLimit(photo)) throw new Error('This photo is too large to save on this device.');
+    return photo;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
 
 export const MembersView: React.FC = () => {
   const { 
@@ -19,6 +50,9 @@ export const MembersView: React.FC = () => {
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingMember, setEditingMember] = useState<HouseholdMember | null>(null);
+  const [avatarMember, setAvatarMember] = useState<HouseholdMember | null>(null);
+  const [memberAvatars, setMemberAvatars] = useState<Record<string, MemberAvatar>>({});
+  const [avatarError, setAvatarError] = useState('');
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [inviteLoading, setInviteLoading] = useState(false);
 
@@ -43,9 +77,37 @@ export const MembersView: React.FC = () => {
 
   // Admin Reset Email Status
   const [resetEmailMsg, setResetEmailMsg] = useState<{ memberId: string; text: string } | null>(null);
+
+  useEffect(() => {
+    setMemberAvatars(readMemberAvatars());
+  }, []);
+
   const canManageMembers = hasPermission('manage_members');
   const canSendPasswordResets = hasPermission('send_password_resets');
   const selectedInviteRole = customRoles.find(role => role.id === newRoleId) || customRoles[0];
+
+  const saveMemberAvatar = (memberId: string, avatar: MemberAvatar) => {
+    const next = { ...memberAvatars, [memberId]: avatar };
+    if (!writeMemberAvatars(next)) {
+      setAvatarError('This avatar could not be saved on this device. Try a smaller photo or a preset avatar.');
+      return;
+    }
+    setMemberAvatars(next);
+    setAvatarMember(null);
+    setAvatarError('');
+  };
+
+  const handleAvatarPhotoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = '';
+    if (!file || !avatarMember) return;
+    setAvatarError('');
+    try {
+      saveMemberAvatar(avatarMember.id, { type: 'photo', value: await createAvatarPhoto(file) });
+    } catch (error) {
+      setAvatarError(error instanceof Error ? error.message : 'This photo could not be saved.');
+    }
+  };
 
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -286,6 +348,11 @@ export const MembersView: React.FC = () => {
           const memberTxCount = transactions.filter(t => t.payer_id === m.id).length;
           const isSelf = currentMember.id === m.id;
           const hasEmail = Boolean(m.email);
+          const avatar = memberAvatars[m.id] || getDefaultFamilyAvatar(m.family_relationship);
+          const avatarContent = avatar.type === 'photo'
+            ? <img src={avatar.value} alt="" className="h-full w-full rounded-xl object-cover" />
+            : FAMILY_AVATARS.find(option => option.value === avatar.value)?.emoji || m.display_name.charAt(0);
+          const canChangeAvatar = canManageMembers || isSelf;
 
           return (
             <div 
@@ -297,9 +364,21 @@ export const MembersView: React.FC = () => {
               <div className="space-y-4">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center space-x-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-brand-line bg-brand-sky text-base font-bold text-[#16445A]">
-                      {m.display_name.charAt(0)}
-                    </div>
+                    {canChangeAvatar ? (
+                      <button
+                        type="button"
+                        onClick={() => { setAvatarError(''); setAvatarMember(m); }}
+                        aria-label={`Choose avatar or photo for ${m.display_name}`}
+                        title="Choose avatar or photo"
+                        className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-brand-line bg-brand-sky text-2xl transition hover:border-brand-orange focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange"
+                      >
+                        {avatarContent}
+                      </button>
+                    ) : (
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-brand-line bg-brand-sky text-2xl" aria-hidden="true">
+                        {avatarContent}
+                      </div>
+                    )}
                     <div>
                       <h3 className="flex items-center gap-1.5 text-sm font-bold text-brand-ink">
                         <span>{m.display_name}</span>
@@ -400,6 +479,54 @@ export const MembersView: React.FC = () => {
       </div>
 
       <RolePermissionsMatrix />
+
+      <Dialog
+        open={Boolean(avatarMember)}
+        onClose={() => { setAvatarMember(null); setAvatarError(''); }}
+        titleId="family-avatar-title"
+        className="max-w-lg"
+      >
+        <div className="space-y-5 p-5 sm:p-6">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 id="family-avatar-title" className="text-lg font-bold text-brand-ink">Choose a family avatar</h3>
+              <p className="mt-1 text-sm text-brand-muted">{avatarMember?.display_name} can have a family avatar or a profile photo.</p>
+            </div>
+            <button type="button" onClick={() => { setAvatarMember(null); setAvatarError(''); }} className="min-h-10 min-w-10 rounded-lg text-brand-muted hover:bg-brand-canvas hover:text-brand-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange" aria-label="Close avatar picker">×</button>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-5" aria-label="Family avatar choices">
+            {FAMILY_AVATARS.map(option => {
+              const selected = avatarMember && (memberAvatars[avatarMember.id] || getDefaultFamilyAvatar(avatarMember.family_relationship));
+              const isSelected = selected?.type === 'preset' && selected.value === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => avatarMember && saveMemberAvatar(avatarMember.id, { type: 'preset', value: option.value })}
+                  aria-label={`Use ${option.label} avatar`}
+                  aria-pressed={isSelected}
+                  className={`flex min-h-[88px] flex-col items-center justify-center gap-1 rounded-xl border bg-white p-2 text-xs font-medium text-brand-ink transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange ${isSelected ? 'border-brand-orange bg-[#FFF4EC] ring-1 ring-brand-orange' : 'border-brand-line hover:border-brand-orange'}`}
+                >
+                  <span className="text-3xl leading-none" aria-hidden="true">{option.emoji}</span>
+                  <span>{option.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="border-t border-brand-line pt-4">
+            <label htmlFor="family-avatar-photo" className="flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-brand-line bg-white px-4 py-2 text-sm font-semibold text-brand-ink transition hover:bg-brand-canvas focus-within:ring-2 focus-within:ring-brand-orange">
+              <ImagePlus className="h-4 w-4 text-brand-orange" aria-hidden="true" />
+              Upload a profile photo
+              <input id="family-avatar-photo" type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={handleAvatarPhotoChange} />
+            </label>
+            <p className="mt-2 text-xs text-brand-muted">Photo is cropped to a square and saved on this device.</p>
+          </div>
+
+          {avatarError && <p role="alert" className="rounded-lg border border-rose-300 bg-rose-50 p-3 text-sm text-rose-900">{avatarError}</p>}
+        </div>
+      </Dialog>
 
       {/* Change Password Modal */}
       {showChangePasswordModal && (

@@ -89,6 +89,7 @@ interface CategoryIconTileProps {
   categoryName?: string;
   color?: CategoryColor;
   fallbackClassName?: string;
+  fallbackColorHex?: string;
   baseHex?: string;
 }
 
@@ -100,6 +101,7 @@ export const CategoryIconTile: React.FC<CategoryIconTileProps> = ({
   categoryName,
   color,
   fallbackClassName = 'bg-brand-sky',
+  fallbackColorHex = '#D9F0F7',
   baseHex = '#FFFFFF',
 }) => {
   const [storedColor, setStoredColor] = useState<CategoryColor | undefined>();
@@ -108,14 +110,16 @@ export const CategoryIconTile: React.FC<CategoryIconTileProps> = ({
   }, [categoryType, categoryName]);
 
   const selectedColor = color || storedColor;
-  const presentation = selectedColor ? getCategoryColorPresentation(selectedColor, baseHex) : undefined;
+  const presentation = selectedColor
+    ? getCategoryColorPresentation(selectedColor, baseHex)
+    : getCategoryColorPresentation({ hex: fallbackColorHex, opacity: 100 });
 
   return (
-    <span className={`${className} ${presentation ? '' : fallbackClassName}`} style={presentation ? { backgroundColor: presentation.background } : undefined}>
+    <span className={`${className} ${selectedColor ? '' : fallbackClassName}`} style={selectedColor ? { backgroundColor: presentation.background } : undefined}>
       <CategoryIcon
         slug={slug}
         className={iconClassName}
-        color={presentation?.foreground}
+        color={presentation.foreground}
         opacity={100}
       />
     </span>

@@ -274,7 +274,7 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard })
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-start space-x-3">
                   <div className="rounded-lg border border-slate-700 bg-slate-900 p-2.5 text-indigo-300">
-                    {rule.rule_type === 'loan_payment' ? <Landmark className="h-5 w-5 text-amber-400" /> : category ? <CategoryIconTile slug={category.icon_slug} className="-m-2.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg" iconClassName="h-5 w-5" categoryType={category.category_type} categoryName={category.name} fallbackClassName="bg-slate-900" baseHex="#0F172A" /> : <ArrowRightLeft className="h-5 w-5" />}
+                    {rule.rule_type === 'loan_payment' ? <Landmark className="h-5 w-5 text-amber-400" /> : category ? <CategoryIconTile slug={category.icon_slug} className="-m-2.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg" iconClassName="h-5 w-5" categoryType={category.category_type} categoryName={category.name} fallbackClassName="bg-slate-900" fallbackColorHex="#0F172A" baseHex="#0F172A" /> : <ArrowRightLeft className="h-5 w-5" />}
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-white">{rule.note}</h3>

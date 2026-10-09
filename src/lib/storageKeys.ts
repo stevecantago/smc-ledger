@@ -10,6 +10,7 @@ export const STORAGE_KEYS = {
   roles: 'smc_roles',
   rolePermissions: 'smc_role_permissions',
   activityLogs: 'smc_activity_logs',
+  memberAvatars: 'smc_member_avatars',
 } as const;
 
 export const AUTH_STORAGE_KEYS = [STORAGE_KEYS.authenticatedEmail] as const;
@@ -25,6 +26,7 @@ export const HOUSEHOLD_STORAGE_KEYS = [
   STORAGE_KEYS.roles,
   STORAGE_KEYS.rolePermissions,
   STORAGE_KEYS.activityLogs,
+  STORAGE_KEYS.memberAvatars,
 ] as const;
 
 type RemovableStorage = Pick<Storage, 'removeItem'>;

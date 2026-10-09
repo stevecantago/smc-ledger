@@ -684,7 +684,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab, onOp
                                     </span>
                                   ) : cat ? (
                                     <span className="inline-flex items-center text-[10px] font-semibold text-sky-300 bg-sky-500/15 px-2 py-0.2 rounded border border-sky-500/30">
-                                      <CategoryIconTile slug={cat.icon_slug} className="mr-1 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md" iconClassName="h-3 w-3" categoryType={cat.category_type} categoryName={cat.name} fallbackClassName="bg-brand-sky" baseHex="#16263D" />
+                                      <CategoryIconTile slug={cat.icon_slug} className="mr-1 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md" iconClassName="h-3 w-3" categoryType={cat.category_type} categoryName={cat.name} fallbackClassName="bg-brand-sky" fallbackColorHex="#D9F0F7" baseHex="#16263D" />
                                       {cat.name}
                                     </span>
                                   ) : null}
