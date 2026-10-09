@@ -9,6 +9,7 @@ import { IconPickerGrid, CategoryIconTile } from './CategoryIcon';
 import { Button } from './ui/Button';
 import { CategoryColorPicker } from './ui/CategoryColorPicker';
 import { Dialog } from './ui/Dialog';
+import { MembersView } from './MembersView';
 
 const DEFAULT_TYPE_COLORS: Record<CategoryType, CategoryColor> = {
   income: { hex: '#168B63', opacity: 100 },
@@ -297,6 +298,8 @@ export const SettingsView: React.FC = () => {
           {renderCategoryList('expense')}
         </div>
       </section>
+
+      <MembersView />
 
       <Dialog open={Boolean(addingType)} onClose={closeAdd} titleId="add-category-title" className="max-w-xl">
         {addingType && (

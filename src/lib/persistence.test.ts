@@ -58,4 +58,15 @@ describe('Supabase sync status', () => {
       'Create wallet saved locally, but Supabase sync failed: row-level security blocked insert'
     );
   });
+
+  it('explains how to resolve a missing role permission table from the Supabase schema cache', () => {
+    const warning = getSyncFailureWarning(
+      'Create role permissions',
+      new Error("Could not find the table 'public.role_permissions' in the schema cache")
+    );
+
+    expect(warning).toContain('Apply migrations 013_custom_role_permissions.sql and 017_repair_household_member_role_id.sql');
+    expect(warning).toContain("NOTIFY pgrst, 'reload schema';");
+    expect(warning).toContain('public.role_permissions');
+  });
 });

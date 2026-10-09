@@ -5,11 +5,11 @@ import { useHousehold } from '../context/HouseholdContext';
 import {
   Users, ShieldCheck, UserCheck, Plus, AlertTriangle, Edit2, Trash2, HeartHandshake, KeyRound, Mail, Lock, CheckCircle2
 } from 'lucide-react';
-import { HouseholdRole, HouseholdMember } from '../types/database';
+import { HouseholdRole, HouseholdMember, FamilyRelationship, FAMILY_RELATIONSHIPS } from '../types/database';
 import { supabase } from '../lib/supabase';
 import { getPasswordResetRedirectUrl } from '../lib/authRedirects';
 import { RolePermissionsMatrix } from './RolePermissionsMatrix';
-import { getEffectiveRoleId } from '../lib/permissions';
+import { getEffectiveRoleId, getHouseholdRoleName } from '../lib/permissions';
 
 export const MembersView: React.FC = () => {
   const { 
@@ -26,12 +26,14 @@ export const MembersView: React.FC = () => {
   const [newDisplayName, setNewDisplayName] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newRoleId, setNewRoleId] = useState('role-teen-dependent');
+  const [newFamilyRelationship, setNewFamilyRelationship] = useState<FamilyRelationship>('Other');
   const [errorMsg, setErrorMsg] = useState('');
 
   // Edit Member State
   const [editDisplayName, setEditDisplayName] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editRoleId, setEditRoleId] = useState('role-teen-dependent');
+  const [editFamilyRelationship, setEditFamilyRelationship] = useState<FamilyRelationship>('Other');
 
   // Change Password State
   const [newPassword, setNewPassword] = useState('');
@@ -85,6 +87,7 @@ export const MembersView: React.FC = () => {
           email: newEmail.trim(),
           role: selectedInviteRole?.base_role || 'member',
           roleId: selectedInviteRole?.id || null,
+          familyRelationship: newFamilyRelationship,
         }),
       });
 
@@ -99,11 +102,20 @@ export const MembersView: React.FC = () => {
         invitedMember.role,
         invitedMember.email,
         invitedMember.user_id,
-        { memberId: invitedMember.id, roleId: invitedMember.role_id || selectedInviteRole?.id || null, syncToSupabase: false }
+        {
+          memberId: invitedMember.id,
+          roleId: invitedMember.role_id || selectedInviteRole?.id || null,
+          familyRelationship: newFamilyRelationship,
+          syncToSupabase: false,
+        }
       );
       if (!result.success) {
         throw new Error(result.error || 'Invitation was sent, but the local roster was not updated.');
       }
+
+      // The invitation endpoint supports older household_members schemas. Persist the new
+      // optional relationship separately so the invite still succeeds before its migration.
+      updateMember(invitedMember.id, { family_relationship: newFamilyRelationship });
 
       setResetEmailMsg({
         memberId: invitedMember.id,
@@ -130,6 +142,7 @@ export const MembersView: React.FC = () => {
       email: editEmail.trim() || undefined,
       role: customRoles.find(role => role.id === editRoleId)?.base_role || 'member',
       role_id: editRoleId,
+      family_relationship: editFamilyRelationship,
     });
 
     if (!res.success) {
@@ -211,44 +224,31 @@ export const MembersView: React.FC = () => {
     }
   };
 
-  const getRoleBadge = (role: HouseholdRole) => {
-    switch (role) {
-      case 'admin':
-        return (
-          <span className="flex items-center text-xs font-semibold text-amber-400 bg-amber-400/10 px-2.5 py-0.5 rounded border border-amber-400/20">
-            <ShieldCheck className="w-3.5 h-3.5 mr-1" /> Admin (Head Parent)
-          </span>
-        );
-      case 'parent_member':
-        return (
-          <span className="flex items-center text-xs font-semibold text-purple-400 bg-purple-400/10 px-2.5 py-0.5 rounded border border-purple-400/20">
-            <HeartHandshake className="w-3.5 h-3.5 mr-1" /> Member (Parent/Guardian)
-          </span>
-        );
-      case 'member':
-        return (
-          <span className="flex items-center text-xs font-semibold text-sky-400 bg-sky-400/10 px-2.5 py-0.5 rounded border border-sky-400/20">
-            <UserCheck className="w-3.5 h-3.5 mr-1" /> Member (Teen/Dependent)
-          </span>
-        );
-    }
+  const getRoleBadge = (member: HouseholdMember) => {
+    const role = customRoles.find(item => item.id === getEffectiveRoleId(member));
+    const RoleIcon = member.role === 'admin' ? ShieldCheck : member.role === 'parent_member' ? HeartHandshake : UserCheck;
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-brand-sky px-2.5 py-1 text-xs font-semibold text-[#16445A]">
+        <RoleIcon className="h-3.5 w-3.5" aria-hidden="true" /> {role ? getHouseholdRoleName(role) : 'Member'}
+      </span>
+    );
   };
 
   return (
-    <div className="space-y-6 pb-28 md:pb-6">
+    <section aria-labelledby="family-members-heading" className="space-y-5">
       {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-800/80 border border-slate-700/70 p-5 rounded-xl">
+      <div className="flex flex-col items-start justify-between gap-4 rounded-2xl border border-brand-line bg-brand-paper p-5 shadow-[var(--fam-shadow)] sm:flex-row sm:items-center">
         <div>
-          <h2 className="text-lg font-bold text-white flex items-center space-x-2">
-            <Users className="w-5 h-5 text-sky-400" />
-            <span>Family Roster & Password Management</span>
+          <h2 id="family-members-heading" className="flex items-center gap-2 text-lg font-bold text-brand-ink">
+            <Users className="h-5 w-5 text-brand-orange" aria-hidden="true" />
+            <span>Family Members Management</span>
           </h2>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="mt-1 text-sm text-brand-muted">
             Manage family profiles, invitations, and account recovery.
           </p>
         </div>
 
-        <div className="flex items-center space-x-3">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => {
               setPasswordMsg(null);
@@ -256,10 +256,10 @@ export const MembersView: React.FC = () => {
               setConfirmPassword('');
               setShowChangePasswordModal(true);
             }}
-            className="flex items-center space-x-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3.5 py-2 rounded-lg font-medium text-xs transition-all shadow"
+            className="flex min-h-11 items-center gap-2 rounded-xl border border-brand-line bg-white px-3.5 py-2 text-sm font-semibold text-brand-ink transition-colors hover:bg-brand-canvas focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange"
             title="Change your own logged-in password"
           >
-            <KeyRound className="w-4 h-4 text-amber-400" />
+            <KeyRound className="h-4 w-4 text-brand-orange" aria-hidden="true" />
             <span>Change My Password</span>
           </button>
 
@@ -268,18 +268,19 @@ export const MembersView: React.FC = () => {
               onClick={() => {
                 setErrorMsg('');
                 setShowAddModal(true);
+                setNewFamilyRelationship('Other');
               }}
-              className="flex items-center space-x-2 bg-sky-600 hover:bg-sky-500 text-white px-4 py-2 rounded-lg font-medium text-xs transition-all shadow"
+              className="flex min-h-11 items-center gap-2 rounded-xl bg-brand-orange px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-[#AB4311] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange focus-visible:ring-offset-2"
             >
-              <Plus className="w-4 h-4" />
-              <span>+ Invite Family Member</span>
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              <span>Invite family member</span>
             </button>
           )}
         </div>
       </div>
 
       {/* Member Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {members.map(m => {
           const ownedWallets = wallets.filter(w => w.owner_id === m.id);
           const memberTxCount = transactions.filter(t => t.payer_id === m.id).length;
@@ -289,53 +290,53 @@ export const MembersView: React.FC = () => {
           return (
             <div 
               key={m.id} 
-              className={`bg-slate-800/90 border rounded-xl p-5 space-y-4 shadow-lg flex flex-col justify-between transition-all ${
-                isSelf ? 'border-sky-500/60 ring-1 ring-sky-500/30' : 'border-slate-700/80 hover:border-slate-600'
+              className={`flex flex-col justify-between space-y-4 rounded-2xl border bg-brand-paper p-4 shadow-[var(--fam-shadow)] transition-colors ${
+                isSelf ? 'border-brand-sky ring-1 ring-brand-sky' : 'border-brand-line hover:border-brand-muted'
               }`}
             >
               <div className="space-y-4">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center space-x-3">
-                    <div className="w-11 h-11 rounded-xl bg-slate-900 border border-slate-700 font-bold text-base text-sky-400 flex items-center justify-center shadow-inner">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-brand-line bg-brand-sky text-base font-bold text-[#16445A]">
                       {m.display_name.charAt(0)}
                     </div>
                     <div>
-                      <h3 className="font-bold text-sm text-white flex items-center space-x-1.5">
+                      <h3 className="flex items-center gap-1.5 text-sm font-bold text-brand-ink">
                         <span>{m.display_name}</span>
                         {isSelf && (
-                          <span className="text-[10px] bg-slate-700 text-slate-300 px-1.5 py-0.2 rounded font-mono">
+                          <span className="rounded-full bg-brand-canvas px-2 py-0.5 text-[10px] font-semibold text-brand-muted">
                             YOU
                           </span>
                         )}
                       </h3>
-                      <p className="text-[11px] text-slate-400 font-mono mt-0.5">{m.email || 'No email registered'}</p>
-                      <div className="mt-1">{getRoleBadge(m.role)}</div>
+                      <p className="mt-0.5 break-all text-xs text-brand-muted">{m.email || 'No email registered'}</p>
+                      <div className="mt-2 flex flex-wrap gap-1.5">{getRoleBadge(m)}<span className="inline-flex items-center rounded-full bg-brand-mint px-2.5 py-1 text-xs font-semibold text-[#31522A]">{m.family_relationship || 'Others'}</span></div>
                     </div>
                   </div>
                 </div>
 
-                <div className="pt-2 border-t border-slate-700/60 grid grid-cols-2 gap-2 text-xs">
-                  <div className="bg-slate-900/60 p-2.5 rounded-lg border border-slate-700/50">
-                    <span className="text-slate-400 text-[10px]">Owned Wallets:</span>
-                    <p className="font-bold text-white font-mono mt-0.5">{ownedWallets.length} Accounts</p>
+                <div className="grid grid-cols-2 gap-2 border-t border-brand-line pt-3 text-xs">
+                  <div className="rounded-xl border border-brand-line bg-brand-canvas p-2.5">
+                    <span className="text-[10px] font-semibold text-brand-muted">Owned wallets</span>
+                    <p className="mt-0.5 font-bold text-brand-ink">{ownedWallets.length} accounts</p>
                   </div>
-                  <div className="bg-slate-900/60 p-2.5 rounded-lg border border-slate-700/50">
-                    <span className="text-slate-400 text-[10px]">Transactions Logged:</span>
-                    <p className="font-bold text-emerald-400 font-mono mt-0.5">{memberTxCount} Entries</p>
+                  <div className="rounded-xl border border-brand-line bg-brand-canvas p-2.5">
+                    <span className="text-[10px] font-semibold text-brand-muted">Transactions logged</span>
+                    <p className="mt-0.5 font-bold text-[#168B63]">{memberTxCount} entries</p>
                   </div>
                 </div>
 
                 {/* Reset Email Notification Banner */}
                 {resetEmailMsg?.memberId === m.id && (
-                  <div className="p-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[11px] rounded-lg flex items-center space-x-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                  <div className="flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 p-2 text-[11px] text-emerald-900" role="status">
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                     <span>{resetEmailMsg.text}</span>
                   </div>
                 )}
               </div>
 
               {/* Actions Footer */}
-              <div className="pt-3 border-t border-slate-700/60 flex items-center justify-between">
+              <div className="flex items-center justify-between border-t border-brand-line pt-3">
                 {isSelf ? (
                   <button
                     onClick={() => {
@@ -344,22 +345,22 @@ export const MembersView: React.FC = () => {
                       setConfirmPassword('');
                       setShowChangePasswordModal(true);
                     }}
-                    className="text-xs text-amber-400 hover:underline font-medium flex items-center space-x-1"
+                    className="flex min-h-10 items-center gap-1 text-sm font-semibold text-brand-orange hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange"
                   >
-                    <KeyRound className="w-3.5 h-3.5" />
+                    <KeyRound className="h-3.5 w-3.5" aria-hidden="true" />
                     <span>Change My Password</span>
                   </button>
                 ) : (
                   canSendPasswordResets && hasEmail ? (
                     <button
                       onClick={() => handleAdminSendResetEmail(m)}
-                      className="text-xs text-sky-400 hover:underline font-medium flex items-center space-x-1"
+                      className="flex min-h-10 items-center gap-1 text-sm font-semibold text-[#16445A] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange"
                       title="Send Password Reset Email to Member"
                     >
                       <Mail className="w-3.5 h-3.5" />
                       <span>Send Reset Email</span>
                     </button>
-                  ) : <span className="text-[11px] text-slate-500">Member Profile</span>
+                  ) : <span className="text-[11px] text-brand-muted">Member Profile</span>
                 )}
 
                 {/* Admin Edit / Delete Actions */}
@@ -372,19 +373,22 @@ export const MembersView: React.FC = () => {
                         setEditDisplayName(m.display_name);
                         setEditEmail(m.email || '');
                         setEditRoleId(getEffectiveRoleId(m));
+                        setEditFamilyRelationship(m.family_relationship || 'Other');
                       }}
                       title="Edit Member Profile & Role"
-                      className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-amber-400/10 rounded transition-colors"
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-brand-muted transition-colors hover:bg-brand-sky hover:text-brand-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange"
+                      aria-label={`Edit ${m.display_name}`}
                     >
-                      <Edit2 className="w-4 h-4" />
+                      <Edit2 className="h-4 w-4" aria-hidden="true" />
                     </button>
                     {!isSelf && (
                       <button
                         onClick={() => handleDeleteMember(m)}
-                        title="Remove Member from Roster"
-                        className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded transition-colors"
+                        title="Remove family member"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-brand-muted transition-colors hover:bg-rose-50 hover:text-rose-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange"
+                        aria-label={`Remove ${m.display_name}`}
                       >
-                        <Trash2 className="w-4 h-4" />
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
                       </button>
                     )}
                   </div>
@@ -399,18 +403,18 @@ export const MembersView: React.FC = () => {
 
       {/* Change Password Modal */}
       {showChangePasswordModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6 space-y-5 shadow-2xl">
-            <h3 className="text-base font-bold text-white flex items-center space-x-2">
-              <KeyRound className="w-5 h-5 text-amber-400" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-brand-ink/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md space-y-5 rounded-2xl border border-brand-line bg-brand-paper p-6 shadow-2xl">
+            <h3 className="flex items-center gap-2 text-base font-bold text-brand-ink">
+              <KeyRound className="h-5 w-5 text-brand-orange" aria-hidden="true" />
               <span>Change Your Password</span>
             </h3>
 
             {passwordMsg && (
-              <div className={`p-3 rounded-lg text-xs flex items-center space-x-2 border ${
+              <div role="status" className={`flex items-center gap-2 rounded-lg border p-3 text-xs ${
                 passwordMsg.type === 'success' 
-                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' 
-                  : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                  ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
+                  : 'border-rose-300 bg-rose-50 text-rose-900'
               }`}>
                 {passwordMsg.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertTriangle className="w-4 h-4 shrink-0" />}
                 <span>{passwordMsg.text}</span>
@@ -419,9 +423,9 @@ export const MembersView: React.FC = () => {
 
             <form onSubmit={handleChangePasswordSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">New Password</label>
+                <label className="mb-1 block text-xs font-medium text-brand-ink">New Password</label>
                 <div className="relative">
-                  <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                  <Lock className="absolute left-3 top-3 h-4 w-4 text-brand-muted" />
                   <input
                     type="password"
                     required
@@ -429,15 +433,15 @@ export const MembersView: React.FC = () => {
                     placeholder="Minimum 6 characters"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    className="w-full bg-slate-800 text-white text-xs pl-9 pr-3 py-2.5 rounded-lg border border-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                    className="w-full rounded-xl border border-brand-line bg-white py-2.5 pl-9 pr-3 text-sm text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-orange"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Confirm New Password</label>
+                <label className="mb-1 block text-xs font-medium text-brand-ink">Confirm New Password</label>
                 <div className="relative">
-                  <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                  <Lock className="absolute left-3 top-3 h-4 w-4 text-brand-muted" />
                   <input
                     type="password"
                     required
@@ -445,23 +449,23 @@ export const MembersView: React.FC = () => {
                     placeholder="Re-type new password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full bg-slate-800 text-white text-xs pl-9 pr-3 py-2.5 rounded-lg border border-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                    className="w-full rounded-xl border border-brand-line bg-white py-2.5 pl-9 pr-3 text-sm text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-orange"
                   />
                 </div>
               </div>
 
-              <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-800">
+              <div className="flex items-center justify-end gap-3 border-t border-brand-line pt-4">
                 <button
                   type="button"
                   onClick={() => setShowChangePasswordModal(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
+                  className="min-h-10 rounded-lg px-4 py-2 text-sm font-semibold text-brand-muted transition-colors hover:bg-brand-canvas hover:text-brand-ink"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={passwordLoading}
-                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg transition-all shadow disabled:opacity-50"
+                  className="min-h-10 rounded-xl bg-brand-orange px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#AB4311] disabled:opacity-50"
                 >
                   {passwordLoading ? 'Updating...' : 'Update Password'}
                 </button>
@@ -473,12 +477,12 @@ export const MembersView: React.FC = () => {
 
       {/* Add Member Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6 space-y-5 shadow-2xl">
-            <h3 className="text-base font-bold text-white">Invite Family Member</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-brand-ink/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md space-y-5 rounded-2xl border border-brand-line bg-brand-paper p-6 shadow-2xl">
+            <h3 className="text-base font-bold text-brand-ink">Invite Family Member</h3>
 
             {errorMsg && (
-              <div className="p-3 bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs rounded-lg flex items-center space-x-2">
+              <div role="alert" className="flex items-center gap-2 rounded-lg border border-rose-300 bg-rose-50 p-3 text-xs text-rose-900">
                 <AlertTriangle className="w-4 h-4 shrink-0" />
                 <span>{errorMsg}</span>
               </div>
@@ -486,54 +490,61 @@ export const MembersView: React.FC = () => {
 
             <form onSubmit={handleAddSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Display Name</label>
+                <label className="mb-1 block text-xs font-medium text-brand-ink">Display Name</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. Grandma Betty, Chloe Miller"
                   value={newDisplayName}
                   onChange={(e) => setNewDisplayName(e.target.value)}
-                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  className="w-full rounded-xl border border-brand-line bg-white p-2.5 text-sm text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-orange"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Email Address</label>
+                <label className="mb-1 block text-xs font-medium text-brand-ink">Email Address</label>
                 <input
                   type="email"
                   required
                   placeholder="member@example.com"
                   value={newEmail}
                   onChange={(e) => setNewEmail(e.target.value)}
-                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-medium"
+                  className="w-full rounded-xl border border-brand-line bg-white p-2.5 text-sm font-medium text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-orange"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Assigned Household Role</label>
+                <label htmlFor="new-family-relationship" className="mb-1.5 block text-sm font-medium text-brand-ink">Family relationship</label>
+                <select id="new-family-relationship" value={newFamilyRelationship} onChange={event => setNewFamilyRelationship(event.target.value as FamilyRelationship)} className="min-h-11 w-full rounded-xl border border-brand-line bg-white px-3 text-sm text-brand-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange">
+                  {FAMILY_RELATIONSHIPS.map(relationship => <option key={relationship.value} value={relationship.value}>{relationship.label}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium text-brand-ink">Assigned Household Role</label>
                 <select
                   value={newRoleId}
                   onChange={(e) => setNewRoleId(e.target.value)}
-                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  className="w-full rounded-xl border border-brand-line bg-white p-2.5 text-sm text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-orange"
                 >
                   {customRoles.map(role => (
-                    <option key={role.id} value={role.id}>{role.name}</option>
+                    <option key={role.id} value={role.id}>{getHouseholdRoleName(role)}</option>
                   ))}
                 </select>
               </div>
 
-              <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-800">
+              <div className="flex items-center justify-end gap-3 border-t border-brand-line pt-4">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
+                  className="min-h-10 rounded-lg px-4 py-2 text-sm font-semibold text-brand-muted transition-colors hover:bg-brand-canvas hover:text-brand-ink"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={inviteLoading}
-                  className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold rounded-lg transition-all shadow disabled:opacity-50"
+                  className="min-h-10 rounded-xl bg-brand-orange px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#AB4311] disabled:opacity-50"
                 >
                   {inviteLoading ? 'Sending...' : 'Send Invitation'}
                 </button>
@@ -545,12 +556,12 @@ export const MembersView: React.FC = () => {
 
       {/* Edit Member Modal */}
       {editingMember && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6 space-y-5 shadow-2xl">
-            <h3 className="text-base font-bold text-white">Edit Member: {editingMember.display_name}</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-brand-ink/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md space-y-5 rounded-2xl border border-brand-line bg-brand-paper p-6 shadow-2xl">
+            <h3 className="text-base font-bold text-brand-ink">Edit member: {editingMember.display_name}</h3>
 
             {errorMsg && (
-              <div className="p-3 bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs rounded-lg flex items-center space-x-2">
+              <div role="alert" className="flex items-center gap-2 rounded-lg border border-rose-300 bg-rose-50 p-3 text-xs text-rose-900">
                 <AlertTriangle className="w-4 h-4 shrink-0" />
                 <span>{errorMsg}</span>
               </div>
@@ -558,50 +569,57 @@ export const MembersView: React.FC = () => {
 
             <form onSubmit={handleEditSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Display Name</label>
+                <label className="mb-1 block text-xs font-medium text-brand-ink">Display Name</label>
                 <input
                   type="text"
                   required
                   value={editDisplayName}
                   onChange={(e) => setEditDisplayName(e.target.value)}
-                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  className="w-full rounded-xl border border-brand-line bg-white p-2.5 text-sm text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-orange"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Email Address</label>
+                <label className="mb-1 block text-xs font-medium text-brand-ink">Email Address</label>
                 <input
                   type="email"
                   value={editEmail}
                   onChange={(e) => setEditEmail(e.target.value)}
-                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-medium"
+                  className="w-full rounded-xl border border-brand-line bg-white p-2.5 text-sm font-medium text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-orange"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Assigned Household Role</label>
+                <label htmlFor="edit-family-relationship" className="mb-1.5 block text-sm font-medium text-brand-ink">Family relationship</label>
+                <select id="edit-family-relationship" value={editFamilyRelationship} onChange={event => setEditFamilyRelationship(event.target.value as FamilyRelationship)} className="min-h-11 w-full rounded-xl border border-brand-line bg-white px-3 text-sm text-brand-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange">
+                  {FAMILY_RELATIONSHIPS.map(relationship => <option key={relationship.value} value={relationship.value}>{relationship.label}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium text-brand-ink">Assigned Household Role</label>
                 <select
                   value={editRoleId}
                   onChange={(e) => setEditRoleId(e.target.value)}
-                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  className="w-full rounded-xl border border-brand-line bg-white p-2.5 text-sm text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-orange"
                 >
                   {customRoles.map(role => (
-                    <option key={role.id} value={role.id}>{role.name}</option>
+                    <option key={role.id} value={role.id}>{getHouseholdRoleName(role)}</option>
                   ))}
                 </select>
               </div>
 
-              <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-800">
+              <div className="flex items-center justify-end gap-3 border-t border-brand-line pt-4">
                 <button
                   type="button"
                   onClick={() => setEditingMember(null)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
+                  className="min-h-10 rounded-lg px-4 py-2 text-sm font-semibold text-brand-muted transition-colors hover:bg-brand-canvas hover:text-brand-ink"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg transition-all shadow"
+                  className="min-h-10 rounded-xl bg-brand-orange px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#AB4311]"
                 >
                   Save Member Changes
                 </button>
@@ -610,6 +628,6 @@ export const MembersView: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
+    </section>
   );
 };

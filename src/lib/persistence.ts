@@ -21,5 +21,15 @@ export function getErrorMessage(error: unknown): string {
 }
 
 export function getSyncFailureWarning(operation: string, error: unknown): string {
-  return `${operation} saved locally, but Supabase sync failed: ${getErrorMessage(error)}`;
+  const message = getErrorMessage(error);
+  const normalized = message.toLowerCase();
+  const roleTableMissing =
+    (normalized.includes('role_permissions') || normalized.includes('household_roles')) &&
+    (normalized.includes('schema cache') || normalized.includes('pgrst205') || normalized.includes('does not exist'));
+
+  if (roleTableMissing) {
+    return `${operation} saved locally, but Supabase cannot find the household role tables. Apply migrations 013_custom_role_permissions.sql and 017_repair_household_member_role_id.sql. If the tables already exist, expose public in the Supabase Data API and refresh PostgREST with: NOTIFY pgrst, 'reload schema'; Original error: ${message}`;
+  }
+
+  return `${operation} saved locally, but Supabase sync failed: ${message}`;
 }

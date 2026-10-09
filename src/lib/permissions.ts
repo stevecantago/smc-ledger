@@ -11,7 +11,7 @@ export const DEFAULT_ROLES: HouseholdCustomRole[] = [
   {
     id: 'role-admin-head-parent',
     household_id: 'hh-101',
-    name: 'Admin (Head Parent)',
+    name: 'Owner',
     base_role: 'admin',
     is_head_parent: true,
     is_default: true,
@@ -20,7 +20,7 @@ export const DEFAULT_ROLES: HouseholdCustomRole[] = [
   {
     id: 'role-parent-guardian',
     household_id: 'hh-101',
-    name: 'Member (Parent/Guardian)',
+    name: 'Admin',
     base_role: 'parent_member',
     is_head_parent: false,
     is_default: true,
@@ -29,7 +29,7 @@ export const DEFAULT_ROLES: HouseholdCustomRole[] = [
   {
     id: 'role-teen-dependent',
     household_id: 'hh-101',
-    name: 'Member (Teen/Dependent)',
+    name: 'Member',
     base_role: 'member',
     is_head_parent: false,
     is_default: true,
@@ -121,9 +121,16 @@ export function getEffectiveRoleId(member: HouseholdMember): string {
   return member.role_id || legacyRoleMap[member.role];
 }
 
+export function getHouseholdRoleName(role: HouseholdCustomRole): string {
+  if (role.id === 'role-admin-head-parent') return 'Owner';
+  if (role.id === 'role-parent-guardian') return 'Admin';
+  if (role.id === 'role-teen-dependent') return 'Member';
+  return role.name;
+}
+
 export function isHeadParent(member: HouseholdMember, roles: HouseholdCustomRole[] = DEFAULT_ROLES): boolean {
   const role = roles.find(item => item.id === getEffectiveRoleId(member));
-  return Boolean(role?.is_head_parent || member.role === 'admin');
+  return role ? role.is_head_parent : member.role === 'admin';
 }
 
 export function getPermissionLevel(

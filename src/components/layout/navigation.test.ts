@@ -7,7 +7,7 @@ describe('responsive navigation destinations', () => {
   });
 
   it('keeps every deferred destination available through More', () => {
-    expect(moreNavigationItems.map(({ label }) => label)).toEqual(['Loans', 'Schedules', 'Roster', 'Activity Log', 'Setting']);
-    expect(new Set(allNavigationItems.map(({ id }) => id)).size).toBe(9);
+    expect(moreNavigationItems.map(({ label }) => label)).toEqual(['Loans', 'Schedules', 'Activity Log', 'Setting']);
+    expect(new Set(allNavigationItems.map(({ id }) => id)).size).toBe(8);
   });
 });

@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { 
   Household, HouseholdMember, Wallet, Category, Transaction, SavingsGoal, 
   Loan, RecurringTransfer, HouseholdRole, RecurringRuleType, RecurringFrequency, LoanPaymentFrequency,
-  ActivityLogEntry, ActivityLogAction, HouseholdCustomRole, RolePermission, PermissionKey, PermissionLevel, CategoryType
+  ActivityLogEntry, ActivityLogAction, HouseholdCustomRole, RolePermission, PermissionKey, PermissionLevel, CategoryType, FamilyRelationship
 } from '../types/database';
 import {
   initialHousehold,
@@ -163,8 +163,8 @@ interface HouseholdContextType {
   deleteRecurringTransfer: (id: string) => MutationResult;
 
   // Family Roster CRUD Actions
-  addMember: (displayName: string, role: HouseholdRole, email?: string, authenticatedUserId?: string | null, options?: { memberId?: string; roleId?: string | null; syncToSupabase?: boolean }) => MutationResult;
-  updateMember: (id: string, updates: { display_name?: string; role?: HouseholdRole; role_id?: string | null; first_name?: string | null; last_name?: string | null; date_of_birth?: string | null; email?: string }) => MutationResult;
+  addMember: (displayName: string, role: HouseholdRole, email?: string, authenticatedUserId?: string | null, options?: { memberId?: string; roleId?: string | null; familyRelationship?: FamilyRelationship; syncToSupabase?: boolean }) => MutationResult;
+  updateMember: (id: string, updates: { display_name?: string; role?: HouseholdRole; role_id?: string | null; first_name?: string | null; last_name?: string | null; date_of_birth?: string | null; family_relationship?: FamilyRelationship; email?: string }) => MutationResult;
   deleteMember: (id: string) => MutationResult;
 
   // Role Permissions CRUD
@@ -1411,7 +1411,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     role: HouseholdRole,
     email?: string,
     authenticatedUserId?: string | null,
-    options?: { memberId?: string; roleId?: string | null; syncToSupabase?: boolean }
+    options?: { memberId?: string; roleId?: string | null; familyRelationship?: FamilyRelationship; syncToSupabase?: boolean }
   ) => {
     if (!hasPermission('manage_members')) return { success: false, error: 'Your role cannot add or invite household members.' };
     const newMember: HouseholdMember = {
@@ -1420,6 +1420,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       user_id: authenticatedUserId || null,
       role: role,
       role_id: options?.roleId || null,
+      family_relationship: options?.familyRelationship || 'Other',
       display_name: displayName,
       email: email || undefined,
       created_at: new Date().toISOString(),
@@ -1446,7 +1447,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       : localSaveResult();
   };
 
-  const updateMember = (id: string, updates: { display_name?: string; role?: HouseholdRole; role_id?: string | null; first_name?: string | null; last_name?: string | null; date_of_birth?: string | null; email?: string }) => {
+  const updateMember = (id: string, updates: { display_name?: string; role?: HouseholdRole; role_id?: string | null; first_name?: string | null; last_name?: string | null; date_of_birth?: string | null; family_relationship?: FamilyRelationship; email?: string }) => {
     const isSelfProfileUpdate = currentMember.id === id && !('role' in updates) && !('role_id' in updates);
     if (!isSelfProfileUpdate && !hasPermission('manage_members')) {
       return { success: false, error: 'Your role cannot edit household members.' };

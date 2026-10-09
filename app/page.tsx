@@ -8,7 +8,6 @@ import { WalletsView } from '../src/components/WalletsView';
 import { TransactionsView } from '../src/components/TransactionsView';
 import { LoansView } from '../src/components/LoansView';
 import { SavingsGoalsView } from '../src/components/SavingsGoalsView';
-import { MembersView } from '../src/components/MembersView';
 import { ActivityLogView } from '../src/components/ActivityLogView';
 import { SchedulesView } from '../src/components/SchedulesView';
 import { SettingsView } from '../src/components/SettingsView';
@@ -121,7 +120,6 @@ export default function Home() {
         {activeTab === 'loans' && <LoansView />}
         {activeTab === 'schedules' && <SchedulesView onPayCreditCard={handlePayCreditCard} />}
         {activeTab === 'goals' && <SavingsGoalsView />}
-        {activeTab === 'members' && <MembersView />}
         {activeTab === 'activity' && <ActivityLogView />}
         {activeTab === 'settings' && <SettingsView />}
     </AppShell>

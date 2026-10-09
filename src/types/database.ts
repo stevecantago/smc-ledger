@@ -1,4 +1,21 @@
 export type HouseholdRole = 'admin' | 'parent_member' | 'member';
+export type FamilyRelationship =
+  | 'Father' | 'Mother' | 'Grandfather' | 'Grandmother' | 'Guardian'
+  | 'Son' | 'Daughter' | 'Niece' | 'Nephew' | 'Grandson' | 'Granddaughter' | 'Other';
+export const FAMILY_RELATIONSHIPS: { value: FamilyRelationship; label: string }[] = [
+  { value: 'Father', label: 'Father' },
+  { value: 'Mother', label: 'Mother' },
+  { value: 'Grandfather', label: 'Grandfather' },
+  { value: 'Grandmother', label: 'Grandmother' },
+  { value: 'Guardian', label: 'Guardian' },
+  { value: 'Son', label: 'Son' },
+  { value: 'Daughter', label: 'Daughter' },
+  { value: 'Niece', label: 'Niece' },
+  { value: 'Nephew', label: 'Nephew' },
+  { value: 'Grandson', label: 'Grandson' },
+  { value: 'Granddaughter', label: 'Granddaughter' },
+  { value: 'Other', label: 'Others' },
+];
 export type WalletType = 'bank' | 'e_wallet' | 'e_wallet_savings' | 'cash' | 'credit_card';
 export type TransactionType = 'income' | 'expense' | 'transfer' | 'loan';
 export type CategoryType = 'income' | 'expense';
@@ -52,6 +69,7 @@ export interface HouseholdMember {
   first_name?: string | null;
   last_name?: string | null;
   date_of_birth?: string | null;
+  family_relationship?: FamilyRelationship;
   display_name: string;
   email?: string;
   avatar_url?: string;
