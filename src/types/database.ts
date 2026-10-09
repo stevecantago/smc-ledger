@@ -102,6 +102,7 @@ export interface Wallet {
   owner_id: string | null;
   name: string;
   wallet_type: WalletType;
+  account_group?: 'main' | 'savings';
   is_shared: boolean;
   current_balance: number; // For credit_card, this is used/outstanding balance
   credit_limit?: number | null; // Approved credit limit line (e.g. 150000.00)

@@ -76,8 +76,8 @@ interface HouseholdContextType {
   restoreFullHouseholdBackup: (jsonContent: string) => Promise<MutationResult>;
 
   // Wallets CRUD
-  addWallet: (wallet: { name: string; wallet_type: Wallet['wallet_type']; is_shared: boolean; owner_id?: string | null; initial_balance: number; credit_limit?: number | null }) => MutationResult;
-  updateWallet: (id: string, updates: { name?: string; wallet_type?: Wallet['wallet_type']; current_balance?: number; service_fee_balance?: number | null; credit_limit?: number | null; is_shared?: boolean }) => MutationResult;
+  addWallet: (wallet: { name: string; wallet_type: Wallet['wallet_type']; account_group?: Wallet['account_group']; is_shared: boolean; owner_id?: string | null; initial_balance: number; credit_limit?: number | null }) => MutationResult;
+  updateWallet: (id: string, updates: { name?: string; wallet_type?: Wallet['wallet_type']; account_group?: Wallet['account_group']; current_balance?: number; service_fee_balance?: number | null; credit_limit?: number | null; is_shared?: boolean }) => MutationResult;
   deleteWallet: (id: string) => MutationResult;
 
   // Categories CRUD
@@ -113,6 +113,7 @@ interface HouseholdContextType {
     due_day_of_month?: number;
     second_due_day_of_month?: number | null;
     next_due_date?: string | null;
+    category_id?: string | null;
   }) => MutationResult;
   updateLoan: (id: string, updates: { 
     name?: string; 
@@ -129,6 +130,7 @@ interface HouseholdContextType {
     due_day_of_month?: number;
     second_due_day_of_month?: number | null;
     next_due_date?: string | null;
+    category_id?: string | null;
   }) => MutationResult;
   deleteLoan: (id: string) => MutationResult;
   payLoanAmortization: (loanId: string, amount: number, walletId: string) => MutationResult;
@@ -748,7 +750,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   // Wallets CRUD
-  const addWallet = (data: { name: string; wallet_type: Wallet['wallet_type']; is_shared: boolean; owner_id?: string | null; initial_balance: number; credit_limit?: number | null }) => {
+  const addWallet = (data: { name: string; wallet_type: Wallet['wallet_type']; account_group?: Wallet['account_group']; is_shared: boolean; owner_id?: string | null; initial_balance: number; credit_limit?: number | null }) => {
     if (!hasPermission('manage_wallets', data.owner_id || currentMember.id)) {
       return { success: false, error: 'Your role cannot create this wallet or credit line.' };
     }
@@ -758,6 +760,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       owner_id: data.owner_id || currentMember.id,
       name: data.name,
       wallet_type: data.wallet_type,
+      account_group: data.account_group || 'main',
       is_shared: data.is_shared,
       current_balance: data.wallet_type === 'credit_card' ? Math.abs(data.initial_balance) : data.initial_balance,
       service_fee_balance: 0,
@@ -772,7 +775,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       : localSaveResult();
   };
 
-  const updateWallet = (id: string, updates: { name?: string; wallet_type?: Wallet['wallet_type']; current_balance?: number; service_fee_balance?: number | null; credit_limit?: number | null; is_shared?: boolean }) => {
+  const updateWallet = (id: string, updates: { name?: string; wallet_type?: Wallet['wallet_type']; account_group?: Wallet['account_group']; current_balance?: number; service_fee_balance?: number | null; credit_limit?: number | null; is_shared?: boolean }) => {
     const target = wallets.find(w => w.id === id);
     if (!target) return { success: false, error: 'Wallet account not found.' };
     if (!hasPermission('manage_wallets', target.owner_id)) return { success: false, error: 'Your role cannot edit this wallet or credit line.' };
@@ -1082,6 +1085,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     due_day_of_month?: number;
     second_due_day_of_month?: number | null;
     next_due_date?: string | null;
+    category_id?: string | null;
   }) => {
     if (!hasPermission('manage_loans')) return { success: false, error: 'Your role cannot create loan records.' };
 
@@ -1124,7 +1128,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         rule_type: 'loan_payment',
         source_wallet_id: sourceW,
         destination_wallet_id: null,
-        category_id: null,
+        category_id: data.category_id || null,
         loan_id: newLoan.id,
         amount: data.monthly_amortization,
         frequency: freq,
@@ -1167,15 +1171,17 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     due_day_of_month?: number;
     second_due_day_of_month?: number | null;
     next_due_date?: string | null;
+    category_id?: string | null;
   }) => {
     if (!hasPermission('manage_loans')) return { success: false, error: 'Your role cannot edit loan records.' };
     const target = loans.find(l => l.id === id);
-    const updated = { ...target, ...updates } as Loan;
+    const { category_id, ...loanUpdates } = updates;
+    const updated = { ...target, ...loanUpdates } as Loan;
     setLoans(prev => prev.map(l => l.id === id ? updated : l));
     logActivity('update_loan', `Updated loan record "${updates.name || target?.name || id}"`);
 
     const syncResult = supabase
-      ? trackSupabaseWrite('Update loan', supabase.from('loans').update(updates).eq('id', id))
+      ? trackSupabaseWrite('Update loan', supabase.from('loans').update(loanUpdates).eq('id', id))
       : localSaveResult();
 
     // Sync Recurring Transfer Rule
@@ -1189,6 +1195,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         frequency: freq,
         next_run_date: updated.next_due_date || existingRule.next_run_date,
         note: updated.name,
+        ...(category_id !== undefined ? { category_id } : {}),
       });
     } else if (updated.source_wallet_id) {
       const freq: RecurringFrequency = updated.payment_frequency === 'bi_monthly' ? 'bimonthly' : 'monthly';
@@ -1196,7 +1203,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         rule_type: 'loan_payment',
         source_wallet_id: updated.source_wallet_id,
         loan_id: id,
-        category_id: null,
+        category_id: category_id ?? null,
         amount: updated.monthly_amortization,
         frequency: freq,
         next_run_date: updated.next_due_date || new Date().toISOString().split('T')[0],
@@ -1276,6 +1283,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     addTransaction({
       wallet_id: walletId,
+      category_id: recurringTransfers.find(rule => rule.loan_id === loanId)?.category_id || null,
       type: 'expense',
       amount: amount,
       transaction_date: new Date().toISOString().split('T')[0],

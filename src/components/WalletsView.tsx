@@ -29,11 +29,13 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
   const [editingWallet, setEditingWallet] = useState<Wallet | null>(null);
   const [name, setName] = useState('');
   const [walletType, setWalletType] = useState<WalletType>('bank');
+  const [accountGroup, setAccountGroup] = useState<'main' | 'savings'>('main');
   const [isShared, setIsShared] = useState(isAdmin);
   const [initialBalance, setInitialBalance] = useState('');
   const [creditLimit, setCreditLimit] = useState('');
   const [editName, setEditName] = useState('');
   const [editType, setEditType] = useState<WalletType>('bank');
+  const [editAccountGroup, setEditAccountGroup] = useState<'main' | 'savings'>('main');
   const [editBalance, setEditBalance] = useState('');
   const [editServiceFees, setEditServiceFees] = useState('');
   const [editCreditLimit, setEditCreditLimit] = useState('');
@@ -62,6 +64,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
     const result = addWallet({
       name: name.trim(),
       wallet_type: walletType,
+      account_group: accountGroup,
       is_shared: canManageWallets ? isShared : false,
       owner_id: currentMember.id,
       initial_balance: walletType === 'credit_card' ? Math.abs(parseFloat(initialBalance) || 0) : (parseFloat(initialBalance) || 0),
@@ -76,6 +79,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
     setName('');
     setInitialBalance('');
     setCreditLimit('');
+    setAccountGroup('main');
     setShowWalletModal(false);
   };
 
@@ -93,6 +97,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
     const result = updateWallet(editingWallet.id, {
       name: editName.trim(),
       wallet_type: editType,
+      account_group: editAccountGroup,
       current_balance: editType === 'credit_card' ? Math.abs(parseFloat(editBalance) || 0) : (parseFloat(editBalance) || 0),
       credit_limit: editType === 'credit_card' ? (parseFloat(editCreditLimit) || 0) : null,
       service_fee_balance: editType === 'credit_card' ? parsedServiceFees : 0,
@@ -130,6 +135,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
           <button
             onClick={() => {
               setErrorMsg('');
+              setAccountGroup('main');
               setShowWalletModal(true);
             }}
             className="flex items-center space-x-2 bg-sky-600 hover:bg-sky-500 text-white px-4 py-2 rounded-lg font-medium text-xs transition-all shadow"
@@ -276,6 +282,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
                           setEditingWallet(wallet);
                           setEditName(wallet.name);
                           setEditType(wallet.wallet_type);
+                          setEditAccountGroup(wallet.account_group || 'main');
                           setEditBalance(getCreditCardUsedBalance(wallet).toString());
                           setEditServiceFees(getCreditCardServiceFeeBalance(wallet).toString());
                           setEditCreditLimit((wallet.credit_limit || 0).toString());
@@ -339,6 +346,18 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
                 </select>
               </div>
 
+              <fieldset>
+                <legend className="block text-xs font-medium text-slate-300 mb-1">Account Category</legend>
+                <div className="grid grid-cols-2 gap-2">
+                  {(['main', 'savings'] as const).map(group => (
+                    <label key={group} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs cursor-pointer ${accountGroup === group ? 'border-sky-500 bg-sky-500/10 text-white' : 'border-slate-700 text-slate-300'}`}>
+                      <input type="radio" name="create-wallet-account-group" value={group} checked={accountGroup === group} onChange={() => setAccountGroup(group)} className="accent-sky-500" />
+                      {group === 'main' ? 'Main' : 'Savings'}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+
               {walletType === 'credit_card' ? (
                 <>
                   <div>
@@ -384,17 +403,20 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
               )}
 
               {canManageWallets && (
-                <div className="flex items-center space-x-2 pt-2">
-                  <input
-                    type="checkbox"
-                    id="isSharedCheck"
-                    checked={isShared}
-                    onChange={(e) => setIsShared(e.target.checked)}
-                    className="w-4 h-4 rounded border-slate-700 text-sky-600 focus:ring-sky-500 bg-slate-800 cursor-pointer"
-                  />
-                  <label htmlFor="isSharedCheck" className="text-xs text-slate-300 cursor-pointer">
-                    Share with all household members
-                  </label>
+                <div className="pt-2">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="isSharedCheck"
+                      checked={isShared}
+                      onChange={(e) => setIsShared(e.target.checked)}
+                      className="w-4 h-4 rounded border-slate-700 text-sky-600 focus:ring-sky-500 bg-slate-800 cursor-pointer"
+                    />
+                    <label htmlFor="isSharedCheck" className="text-xs text-slate-300 cursor-pointer">
+                      Share with all household members
+                    </label>
+                  </div>
+                  <p className="ml-6 mt-1 text-[11px] text-slate-400">When on, this account is available for household transactions. When off, it is for your personal transactions.</p>
                 </div>
               )}
 
@@ -447,6 +469,18 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
                   ))}
                 </select>
               </div>
+
+              <fieldset>
+                <legend className="block text-xs font-medium text-slate-300 mb-1">Account Category</legend>
+                <div className="grid grid-cols-2 gap-2">
+                  {(['main', 'savings'] as const).map(group => (
+                    <label key={group} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs cursor-pointer ${editAccountGroup === group ? 'border-sky-500 bg-sky-500/10 text-white' : 'border-slate-700 text-slate-300'}`}>
+                      <input type="radio" name="edit-wallet-account-group" value={group} checked={editAccountGroup === group} onChange={() => setEditAccountGroup(group)} className="accent-sky-500" />
+                      {group === 'main' ? 'Main' : 'Savings'}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
 
               {editType === 'credit_card' ? (
                 <>
@@ -504,17 +538,20 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onLogCardExpense }) =>
                 </div>
               )}
 
-              <div className="flex items-center space-x-2 pt-2">
-                <input
-                  type="checkbox"
-                  id="editSharedCheck"
-                  checked={editIsShared}
-                  onChange={(e) => setEditIsShared(e.target.checked)}
-                  className="w-4 h-4 rounded border-slate-700 text-sky-600 focus:ring-sky-500 bg-slate-800 cursor-pointer"
-                />
-                <label htmlFor="editSharedCheck" className="text-xs text-slate-300 cursor-pointer">
-                  Shared Household Wallet
-                </label>
+              <div className="pt-2">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="editSharedCheck"
+                    checked={editIsShared}
+                    onChange={(e) => setEditIsShared(e.target.checked)}
+                    className="w-4 h-4 rounded border-slate-700 text-sky-600 focus:ring-sky-500 bg-slate-800 cursor-pointer"
+                  />
+                  <label htmlFor="editSharedCheck" className="text-xs text-slate-300 cursor-pointer">
+                    Share with all household members
+                  </label>
+                </div>
+                <p className="ml-6 mt-1 text-[11px] text-slate-400">When on, this account is available for household transactions. When off, it is for your personal transactions.</p>
               </div>
 
               <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-800">

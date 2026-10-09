@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Home, Plus, LogOut, AlertCircle, X, User, ChevronDown, MoreHorizontal, Settings } from 'lucide-react';
+import { Home, Plus, LogOut, AlertCircle, X, User, ChevronDown, MoreHorizontal } from 'lucide-react';
 import { useHousehold } from '../context/HouseholdContext';
 import { supabase } from '../lib/supabase';
 import { clearAuthStorage } from '../lib/storageKeys';
@@ -10,7 +10,7 @@ import { ProfileModal } from './ProfileModal';
 import { getHouseholdDisplayName } from '../lib/householdNaming';
 import { Button } from './ui/Button';
 import { MoneyAmount } from './ui/MoneyAmount';
-import { moreNavigationItems, primaryNavigationItems } from './layout/navigation';
+import { desktopBottomNavigationItems, desktopPrimaryNavigationItems, moreNavigationItems, primaryNavigationItems } from './layout/navigation';
 
 interface NavbarProps {
   activeTab: string;
@@ -127,18 +127,11 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
       <aside className="fixed bottom-0 left-0 top-[4.5rem] z-30 hidden w-64 border-r border-brand-line bg-[#F1F3F5] px-4 py-5 lg:block">
         <nav aria-label="Main navigation" className="flex h-full flex-col">
           <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[.14em] text-brand-muted">Household</p>
-          <div className="space-y-1">{primaryNavigationItems.map(item => navButton(item))}</div>
-          <p className="mb-2 mt-7 px-3 text-[10px] font-bold uppercase tracking-[.14em] text-brand-muted">More</p>
-          <div className="space-y-1">{moreNavigationItems.filter(item => item.id !== 'settings').map(item => navButton(item))}</div>
-          <button
-            type="button"
-            onClick={() => navigate('settings')}
-            aria-current={activeTab === 'settings' ? 'page' : undefined}
-            className={`mt-auto flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange ${activeTab === 'settings' ? 'bg-brand-ink text-white shadow-sm' : 'text-slate-600 hover:bg-white hover:text-brand-ink'}`}
-          >
-            <Settings className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
-            <span>Setting</span>
-          </button>
+          <div className="space-y-1">{desktopPrimaryNavigationItems.map(item => navButton(item))}</div>
+          <div className="mt-auto">
+            <p className="mb-2 mt-7 px-3 text-[10px] font-bold uppercase tracking-[.14em] text-brand-muted">Personal</p>
+            <div className="space-y-1">{desktopBottomNavigationItems.map(item => navButton(item))}</div>
+          </div>
           <div className="mt-4 rounded-2xl bg-white p-4 ring-1 ring-brand-line">
             <p className="text-[11px] font-semibold leading-snug text-brand-muted">For visible wallets. Excludes outstanding card service fees and separate loan principal.</p>
             <MoneyAmount amount={totalNetWorth} className="mt-2 block text-sm font-bold text-brand-ink" />
@@ -148,15 +141,15 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
 
       <nav className="fixed inset-x-0 bottom-0 z-40 flex items-center gap-1 border-t border-brand-line bg-white/95 px-2 pt-1.5 shadow-[0_-8px_24px_rgb(22_38_61/0.06)] backdrop-blur lg:hidden" style={{ paddingBottom: 'max(.375rem, env(safe-area-inset-bottom))' }} aria-label="Mobile navigation">
         {primaryNavigationItems.map(item => navButton(item, true))}
-        <button ref={moreButtonRef} type="button" onClick={() => setShowMore(open => !open)} aria-expanded={showMore} aria-controls="more-destinations" className={`flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-semibold ${showMore || moreNavigationItems.some(item => item.id === activeTab) ? 'bg-brand-sky text-[#16445A]' : 'text-slate-600 hover:bg-slate-100'}`}>
-          <MoreHorizontal className="h-5 w-5" aria-hidden="true" /><span>More</span>
+        <button ref={moreButtonRef} type="button" onClick={() => setShowMore(open => !open)} aria-expanded={showMore} aria-controls="personal-destinations" className={`flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-semibold ${showMore || moreNavigationItems.some(item => item.id === activeTab) ? 'bg-brand-sky text-[#16445A]' : 'text-slate-600 hover:bg-slate-100'}`}>
+          <MoreHorizontal className="h-5 w-5" aria-hidden="true" /><span>Personal</span>
         </button>
       </nav>
 
       {showMore && (
         <>
           <button type="button" className="fixed inset-0 z-40 bg-brand-ink/30 lg:hidden" aria-label="Close more navigation" onClick={() => setShowMore(false)} />
-          <nav id="more-destinations" aria-label="More destinations" className="fixed inset-x-3 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-50 grid grid-cols-2 gap-2 rounded-2xl border border-brand-line bg-white p-3 shadow-2xl lg:hidden">
+          <nav id="personal-destinations" aria-label="Personal destinations" className="fixed inset-x-3 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-50 grid grid-cols-2 gap-2 rounded-2xl border border-brand-line bg-white p-3 shadow-2xl lg:hidden">
             {moreNavigationItems.map(item => {
               const Icon = item.icon;
               return <button key={item.id} type="button" onClick={() => navigate(item.id)} className={`flex min-h-12 items-center gap-2 rounded-xl px-3 text-sm font-semibold ${activeTab === item.id ? 'bg-brand-ink text-white' : 'text-brand-ink hover:bg-slate-50'}`}><Icon className="h-4 w-4 shrink-0" aria-hidden="true" /><span>{item.label}</span></button>;

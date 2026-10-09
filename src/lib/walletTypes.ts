@@ -2,7 +2,7 @@ import { Wallet, WalletType } from '../types/database';
 import { getCreditCardAvailableCredit, getCreditCardUsedBalance } from './creditCardTransactions';
 
 export const WALLET_TYPE_OPTIONS: { value: WalletType; label: string }[] = [
-  { value: 'bank', label: 'Bank Account' },
+  { value: 'bank', label: 'Debit Card' },
   { value: 'credit_card', label: 'Credit Card / Credit Line' },
   { value: 'e_wallet', label: 'E Wallet' },
   { value: 'e_wallet_savings', label: 'E Wallet (Savings)' },

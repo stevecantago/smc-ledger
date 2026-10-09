@@ -2,10 +2,7 @@
 
 import React, { useState } from 'react';
 import { useHousehold } from '../context/HouseholdContext';
-import { 
-  History, Download, Upload, ShieldCheck, Search, Filter, CheckCircle2, 
-  AlertCircle, FileText, Database, RefreshCw, UserCheck, Trash2, PlusCircle 
-} from 'lucide-react';
+import { History, Download, Upload, Search, Filter, CheckCircle2, AlertCircle, Trash2 } from 'lucide-react';
 import { ActivityLogAction } from '../types/database';
 
 export const ActivityLogView: React.FC = () => {
@@ -18,10 +15,12 @@ export const ActivityLogView: React.FC = () => {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const filteredLogs = activityLogs.filter(log => {
-    const matchesSearch = !searchTerm || (log.description && log.description.toLowerCase().includes(searchTerm.toLowerCase()));
+    const query = searchTerm.trim().toLowerCase();
+    const matchesSearch = !query || [log.description, log.member_name, log.action].some(value => value?.toLowerCase().includes(query));
     const matchesAction = actionFilter === 'all' || log.action === actionFilter;
     return matchesSearch && matchesAction;
   });
+  const actionOptions = Array.from(new Set(activityLogs.map(log => log.action))).sort();
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -57,30 +56,30 @@ export const ActivityLogView: React.FC = () => {
 
   const getActionBadge = (action: ActivityLogAction) => {
     if (action.includes('create')) {
-      return <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[10px] font-mono uppercase font-bold">CREATE</span>;
+      return <span className="inline-flex rounded-full border border-emerald-200 bg-brand-mint px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-[#356326]">Create</span>;
     }
     if (action.includes('update') || action.includes('pay') || action.includes('fund')) {
-      return <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded text-[10px] font-mono uppercase font-bold">UPDATE</span>;
+      return <span className="inline-flex rounded-full border border-orange-200 bg-[#FFF0E7] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-brand-orange">Update</span>;
     }
     if (action.includes('delete')) {
-      return <span className="bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded text-[10px] font-mono uppercase font-bold">DELETE</span>;
+      return <span className="inline-flex rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-rose-800">Delete</span>;
     }
     if (action.includes('backup')) {
-      return <span className="bg-sky-500/10 text-sky-400 border border-sky-500/20 px-2 py-0.5 rounded text-[10px] font-mono uppercase font-bold">BACKUP</span>;
+      return <span className="inline-flex rounded-full border border-sky-200 bg-brand-sky px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-[#16445A]">Backup</span>;
     }
-    return <span className="bg-slate-800 text-slate-300 border border-slate-700 px-2 py-0.5 rounded text-[10px] font-mono uppercase font-bold">{action}</span>;
+    return <span className="inline-flex rounded-full border border-brand-line bg-brand-canvas px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-brand-ink">{action.replace(/_/g, ' ')}</span>;
   };
 
   return (
-    <div className="space-y-6 pb-28 md:pb-6">
+    <div className="famledger-view space-y-6 pb-28 md:pb-6">
       {/* Header & Backup Tool Controls */}
-      <div className="bg-slate-800/80 border border-slate-700/70 p-5 rounded-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-lg">
+      <div className="flex flex-col items-start justify-between gap-4 rounded-2xl border border-brand-line bg-brand-paper p-5 shadow-[var(--fam-shadow)] md:flex-row md:items-center">
         <div>
-          <h2 className="text-lg font-bold text-white flex items-center space-x-2">
-            <History className="w-5 h-5 text-sky-400" />
-            <span>Activity Log & Data Restoration Center</span>
+          <h2 className="flex items-center gap-2 text-lg font-bold text-brand-ink">
+            <History className="w-5 h-5 text-brand-orange" />
+            <span>System Logs & Data Restoration Center</span>
           </h2>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="mt-1 text-sm text-brand-muted">
             Real-time administrative audit log and 1-click JSON data backup & restoration manager.
           </p>
         </div>
@@ -88,14 +87,14 @@ export const ActivityLogView: React.FC = () => {
         <div className="flex w-full flex-col items-stretch gap-2 md:w-auto md:flex-row md:items-center md:justify-end">
           <button
             onClick={exportFullHouseholdBackup}
-            className="flex w-full items-center justify-center space-x-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-lg font-bold text-xs transition-all shadow md:w-auto"
+            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-brand-line bg-white px-3.5 py-2 text-sm font-semibold text-brand-ink transition-colors hover:bg-brand-canvas md:w-auto"
             title="Download complete JSON backup file of household accounts, loans, and ledger"
           >
             <Download className="w-4 h-4" />
             <span>Export Backup (JSON)</span>
           </button>
 
-          <label className="flex w-full items-center justify-center space-x-1.5 bg-sky-600 hover:bg-sky-500 text-white px-3.5 py-2 rounded-lg font-bold text-xs cursor-pointer transition-all shadow md:w-auto">
+          <label className="flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-brand-orange px-3.5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#AB4311] md:w-auto">
             <Upload className="w-4 h-4" />
             <span>Restore Backup (JSON)</span>
             <input 
@@ -110,7 +109,7 @@ export const ActivityLogView: React.FC = () => {
             <button
               type="button"
               onClick={handleResetDemoData}
-              className="flex w-full items-center justify-center space-x-1.5 bg-rose-600 hover:bg-rose-500 text-white px-3.5 py-2 rounded-lg font-bold text-xs transition-all shadow md:w-auto"
+              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2 text-sm font-semibold text-rose-800 transition-colors hover:bg-rose-100 md:w-auto"
               title="Clear saved household demo data from this browser"
             >
               <Trash2 className="w-4 h-4" />
@@ -121,70 +120,73 @@ export const ActivityLogView: React.FC = () => {
       </div>
 
       {message && (
-        <div className={`p-4 rounded-xl text-xs flex items-center space-x-2 border shadow-lg ${
+        <div role="status" className={`flex items-center gap-2 rounded-xl border p-4 text-sm ${
           message.type === 'success' 
-            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' 
-            : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+            ? 'border-emerald-200 bg-brand-mint text-[#24451C]'
+            : 'border-rose-200 bg-rose-50 text-rose-900'
         }`}>
-          {message.type === 'success' ? <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-400" /> : <AlertCircle className="w-5 h-5 shrink-0 text-rose-400" />}
+          {message.type === 'success' ? <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-700" /> : <AlertCircle className="h-5 w-5 shrink-0 text-rose-700" />}
           <span className="font-semibold">{message.text}</span>
         </div>
       )}
 
       {/* Filter Toolbar */}
-      <div className="bg-slate-800/60 border border-slate-700/60 p-4 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="relative w-full sm:w-72">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+      <div className="flex flex-col items-stretch justify-between gap-3 rounded-2xl border border-brand-line bg-brand-paper p-4 shadow-[var(--fam-shadow)] sm:flex-row sm:items-center">
+        <div className="relative w-full sm:max-w-sm">
+          <Search className="absolute left-3 top-3 h-4 w-4 text-brand-muted" />
           <input
             type="text"
-            placeholder="Search activity description..."
+            aria-label="Search activity log"
+            placeholder="Search activity, member, or action..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-slate-900/80 text-white text-xs pl-9 pr-3 py-2 rounded-lg border border-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500"
+            className="min-h-11 w-full rounded-xl border border-brand-line bg-white py-2 pl-9 pr-3 text-sm text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-orange/30"
           />
         </div>
 
-        <div className="flex items-center space-x-2 w-full sm:w-auto justify-end text-xs">
-          <span className="text-slate-400">Total Entries:</span>
-          <span className="font-mono font-bold text-sky-400 bg-slate-900 px-2 py-1 rounded border border-slate-700">
-            {filteredLogs.length}
-          </span>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <label className="flex items-center gap-2 text-sm text-brand-muted">
+            <Filter className="h-4 w-4" aria-hidden="true" />
+            <span className="sr-only">Filter activity by action</span>
+            <select value={actionFilter} onChange={event => setActionFilter(event.target.value)} className="min-h-11 rounded-xl border border-brand-line bg-white px-3 text-sm text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-orange/30">
+              <option value="all">All actions</option>
+              {actionOptions.map(action => <option key={action} value={action}>{action.replace(/_/g, ' ')}</option>)}
+            </select>
+          </label>
+          <p className="text-sm text-brand-muted sm:whitespace-nowrap"><span className="font-semibold text-brand-ink">{filteredLogs.length}</span> {filteredLogs.length === 1 ? 'entry' : 'entries'}</p>
         </div>
       </div>
 
       {/* Activity Log List */}
-      <div className="bg-slate-800/90 border border-slate-700/80 rounded-xl overflow-hidden shadow-xl">
-        <div className="divide-y divide-slate-700/60">
+      <div className="overflow-hidden rounded-2xl border border-brand-line bg-brand-paper shadow-[var(--fam-shadow)]">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px] border-collapse text-left text-sm">
+            <caption className="sr-only">Household activity log entries</caption>
+            <thead className="bg-brand-canvas text-xs font-semibold uppercase tracking-wide text-brand-muted">
+              <tr>
+                <th scope="col" className="px-4 py-3">Action</th>
+                <th scope="col" className="px-4 py-3">Activity</th>
+                <th scope="col" className="px-4 py-3">Member</th>
+                <th scope="col" className="px-4 py-3">Date &amp; time</th>
+                <th scope="col" className="px-4 py-3">Record ID</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-brand-line">
           {filteredLogs.length === 0 ? (
-            <div className="p-8 text-center text-slate-500 italic text-xs">
-              No activity log entries match your search criteria.
-            </div>
+            <tr><td colSpan={5} className="px-4 py-12 text-center text-sm text-brand-muted">No activity log entries match your search criteria.</td></tr>
           ) : (
             filteredLogs.map(log => (
-              <div key={log.id} className="p-4 hover:bg-slate-700/30 transition-colors flex items-start justify-between gap-3 text-xs">
-                <div className="flex items-start space-x-3">
-                  <div className="p-2 rounded-lg bg-slate-900 border border-slate-700 shrink-0 mt-0.5">
-                    <History className="w-4 h-4 text-sky-400" />
-                  </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center space-x-2">
-                      {getActionBadge(log.action)}
-                      <span className="font-bold text-white">{log.description}</span>
-                    </div>
-                    <div className="flex items-center space-x-3 text-[11px] text-slate-400">
-                      <span>By: <strong className="text-slate-300">{log.member_name}</strong></span>
-                      <span>•</span>
-                      <span className="font-mono text-slate-400">{new Date(log.created_at).toLocaleString()}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <span className="text-[10px] text-slate-500 font-mono shrink-0">
-                  {log.id}
-                </span>
-              </div>
+              <tr key={log.id} className="align-top transition-colors hover:bg-brand-canvas">
+                <td className="whitespace-nowrap px-4 py-3">{getActionBadge(log.action)}</td>
+                <th scope="row" className="max-w-[34rem] px-4 py-3 font-semibold text-brand-ink">{log.description}</th>
+                <td className="whitespace-nowrap px-4 py-3 text-brand-muted">{log.member_name}</td>
+                <td className="whitespace-nowrap px-4 py-3 text-brand-muted">{new Date(log.created_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</td>
+                <td className="max-w-40 px-4 py-3"><span className="block truncate font-mono text-xs text-brand-muted" title={log.id}>{log.id}</span></td>
+              </tr>
             ))
           )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

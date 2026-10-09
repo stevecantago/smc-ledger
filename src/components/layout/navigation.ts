@@ -8,10 +8,19 @@ export const primaryNavigationItems = [
 ] as const;
 
 export const moreNavigationItems = [
-  { id: 'loans', label: 'Loans', icon: Landmark },
+  { id: 'loans', label: 'Loans & Amortizations', icon: Landmark },
   { id: 'schedules', label: 'Schedules', icon: Clock },
-  { id: 'activity', label: 'Activity Log', icon: History },
-  { id: 'settings', label: 'Setting', icon: Settings },
+  { id: 'settings', label: 'Settings', icon: Settings },
+  { id: 'activity', label: 'System Logs', icon: History },
 ] as const;
 
+export const desktopPrimaryNavigationItems = [
+  primaryNavigationItems[0],
+  primaryNavigationItems[1],
+  primaryNavigationItems[2],
+  moreNavigationItems[1],
+  primaryNavigationItems[3],
+  moreNavigationItems[0],
+] as const;
+export const desktopBottomNavigationItems = [moreNavigationItems[2], moreNavigationItems[3]];
 export const allNavigationItems = [...primaryNavigationItems, ...moreNavigationItems];

@@ -2,8 +2,8 @@
 
 import React, { useMemo, useState } from 'react';
 import { useHousehold } from '../context/HouseholdContext';
-import { ArrowRightLeft, Calendar, Clock, CreditCard, Edit2, Landmark, Plus, Power, Trash2 } from 'lucide-react';
-import { RecurringFrequency, RecurringRuleType, RecurringTransfer } from '../types/database';
+import { ArrowRightLeft, Calendar, CalendarDays, Clock, CreditCard, Edit2, Filter, Landmark, Plus, Power, Search, Trash2, Wallet as WalletIcon } from 'lucide-react';
+import { RecurringFrequency, RecurringRuleType, RecurringTransfer, WalletType } from '../types/database';
 import { CategoryIconTile } from './CategoryIcon';
 import { buildCreditCardPaymentSchedules, filterCreditCardPaymentSchedules } from '../lib/creditCardPaymentSchedules';
 
@@ -17,14 +17,13 @@ interface SchedulesViewProps {
   onPayCreditCard: (walletId: string, amount: number, walletName: string) => void;
 }
 
-type ScheduleTypeFilter = 'all' | RecurringRuleType | 'credit_card_payment';
-
 export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard }) => {
   const {
     wallets,
     categories,
     loans,
     recurringTransfers,
+    members,
     currentMember,
     isAdmin,
     hasPermission,
@@ -37,9 +36,11 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard })
   const visibleWallets = wallets.filter(w => isAdmin || w.is_shared || w.owner_id === currentMember.id);
   const canManageSchedules = hasPermission('manage_schedules');
 
-  const [typeFilter, setTypeFilter] = useState<ScheduleTypeFilter>('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [memberFilter, setMemberFilter] = useState('all');
   const [walletFilter, setWalletFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'paused'>('all');
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState<'all' | WalletType>('all');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -58,23 +59,39 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard })
   const [errorMsg, setErrorMsg] = useState('');
 
   const filteredSchedules = useMemo(() => recurringTransfers.filter(rule => {
-    if (typeFilter === 'credit_card_payment') return false;
-    if (typeFilter !== 'all' && rule.rule_type !== typeFilter) return false;
-    if (walletFilter !== 'all' && rule.source_wallet_id !== walletFilter && rule.destination_wallet_id !== walletFilter) return false;
-    if (statusFilter === 'active' && !rule.is_active) return false;
-    if (statusFilter === 'paused' && rule.is_active) return false;
-    if (fromDate && rule.next_run_date < fromDate) return false;
-    if (toDate && rule.next_run_date > toDate) return false;
-    return true;
-  }), [fromDate, recurringTransfers, statusFilter, toDate, typeFilter, walletFilter]);
+    const source = wallets.find(wallet => wallet.id === rule.source_wallet_id);
+    const destination = rule.destination_wallet_id ? wallets.find(wallet => wallet.id === rule.destination_wallet_id) : null;
+    const category = rule.category_id ? categories.find(item => item.id === rule.category_id) : null;
+    const loan = rule.loan_id ? loans.find(item => item.id === rule.loan_id) : null;
+    const query = searchTerm.trim().toLocaleLowerCase();
+    const matchesSearch = !query || [rule.note, source?.name, destination?.name, category?.name, loan?.name]
+      .some(value => value?.toLocaleLowerCase().includes(query));
+    const matchesCategory = categoryFilter === 'all'
+      || (categoryFilter === 'uncategorized' ? !rule.category_id : rule.category_id === categoryFilter);
+    const matchesMember = memberFilter === 'all'
+      || (memberFilter === 'shared' ? Boolean(source?.is_shared || !source?.owner_id) : source?.owner_id === memberFilter);
+    const matchesWallet = walletFilter === 'all' || rule.source_wallet_id === walletFilter || rule.destination_wallet_id === walletFilter;
+    const matchesPaymentMethod = paymentMethodFilter === 'all' || source?.wallet_type === paymentMethodFilter;
+    return matchesSearch && matchesCategory && matchesMember && matchesWallet && matchesPaymentMethod
+      && (!fromDate || rule.next_run_date >= fromDate)
+      && (!toDate || rule.next_run_date <= toDate);
+  }), [categories, categoryFilter, fromDate, loans, memberFilter, paymentMethodFilter, recurringTransfers, searchTerm, toDate, walletFilter, wallets]);
 
   const creditCardPayments = buildCreditCardPaymentSchedules(visibleWallets);
   const filteredCreditCardPayments = filterCreditCardPaymentSchedules(creditCardPayments, {
     walletId: walletFilter,
     fromDate,
     toDate,
-  }).filter(() => typeFilter === 'all' || typeFilter === 'credit_card_payment')
-    .filter(() => statusFilter !== 'paused');
+  }).filter(payment => {
+    const wallet = visibleWallets.find(item => item.id === payment.walletId);
+    const query = searchTerm.trim().toLocaleLowerCase();
+    const matchesSearch = !query || `${payment.walletName} credit card payment`.toLocaleLowerCase().includes(query);
+    const matchesCategory = categoryFilter === 'all' || categoryFilter === 'uncategorized';
+    const matchesMember = memberFilter === 'all'
+      || (memberFilter === 'shared' ? Boolean(wallet?.is_shared || !wallet?.owner_id) : wallet?.owner_id === memberFilter);
+    const matchesPaymentMethod = paymentMethodFilter === 'all' || wallet?.wallet_type === paymentMethodFilter;
+    return matchesSearch && matchesCategory && matchesMember && matchesPaymentMethod;
+  });
 
   const resetForm = () => {
     setEditingRule(null);
@@ -196,26 +213,84 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard })
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-3 rounded-xl border border-slate-700/70 bg-slate-800/80 p-4 md:grid-cols-5">
-        <select value={typeFilter} onChange={event => setTypeFilter(event.target.value as typeof typeFilter)} className="rounded-lg border border-slate-700 bg-slate-900 p-2.5 text-xs text-white">
-          <option value="all">All Types</option>
-          <option value="expense">Recurring Bills</option>
-          <option value="transfer">Transfers</option>
-          <option value="loan_payment">Loan Repayments</option>
-          <option value="credit_card_payment">Credit Card Payments</option>
-        </select>
-        <select value={walletFilter} onChange={event => setWalletFilter(event.target.value)} className="rounded-lg border border-slate-700 bg-slate-900 p-2.5 text-xs text-white">
-          <option value="all">All Wallets</option>
-          {visibleWallets.map(wallet => <option key={wallet.id} value={wallet.id}>{wallet.name}</option>)}
-        </select>
-        <select value={statusFilter} onChange={event => setStatusFilter(event.target.value as typeof statusFilter)} className="rounded-lg border border-slate-700 bg-slate-900 p-2.5 text-xs text-white">
-          <option value="all">All Statuses</option>
-          <option value="active">Active</option>
-          <option value="paused">Paused</option>
-        </select>
-        <input type="date" value={fromDate} onChange={event => setFromDate(event.target.value)} className="rounded-lg border border-slate-700 bg-slate-900 p-2.5 text-xs text-white" />
-        <input type="date" value={toDate} onChange={event => setToDate(event.target.value)} className="rounded-lg border border-slate-700 bg-slate-900 p-2.5 text-xs text-white" />
-      </div>
+      <section aria-labelledby="recurring-database-heading" className="space-y-4 rounded-2xl border border-brand-line bg-brand-paper p-4 shadow-[var(--fam-shadow)] sm:p-5">
+        <h3 id="recurring-database-heading" className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-brand-ink">
+          <span className="h-6 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+          Recurring Transaction Database
+        </h3>
+
+        <label className="relative block">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-muted" aria-hidden="true" />
+          <span className="sr-only">Search recurring transactions</span>
+          <input type="search" value={searchTerm} onChange={event => setSearchTerm(event.target.value)} placeholder="Search recurring transactions..." className="min-h-11 w-full rounded-xl border border-brand-line bg-white py-2.5 pl-10 pr-3 text-sm text-brand-ink placeholder:text-brand-muted focus:outline-none focus:ring-2 focus:ring-brand-orange/30" />
+        </label>
+
+        <div className="space-y-2">
+          <span className="text-xs font-medium text-brand-muted">Date Range</span>
+          <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[1fr_auto_1fr]">
+            <label className="relative block">
+              <CalendarDays className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-muted" aria-hidden="true" />
+              <span className="sr-only">Start date</span>
+              <input type="date" value={fromDate} onChange={event => setFromDate(event.target.value)} className="min-h-11 w-full rounded-xl border border-brand-line bg-white py-2 pl-10 pr-3 text-sm text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-orange/30" />
+            </label>
+            <span className="hidden text-brand-muted sm:block" aria-hidden="true">→</span>
+            <label className="relative block">
+              <CalendarDays className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-muted" aria-hidden="true" />
+              <span className="sr-only">End date</span>
+              <input type="date" value={toDate} onChange={event => setToDate(event.target.value)} className="min-h-11 w-full rounded-xl border border-brand-line bg-white py-2 pl-10 pr-3 text-sm text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-orange/30" />
+            </label>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <label className="block space-y-1.5">
+            <span className="text-xs font-medium text-brand-muted">Category</span>
+            <span className="relative block">
+              <Filter className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-muted" aria-hidden="true" />
+              <select value={categoryFilter} onChange={event => setCategoryFilter(event.target.value)} className="min-h-11 w-full rounded-xl border border-brand-line bg-white py-2 pl-10 pr-9 text-sm text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-orange/30">
+                <option value="all">All Categories</option>
+                <option value="uncategorized">Uncategorized</option>
+                {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+              </select>
+            </span>
+          </label>
+
+          <label className="block space-y-1.5">
+            <span className="text-xs font-medium text-brand-muted">Member</span>
+            <select value={memberFilter} onChange={event => setMemberFilter(event.target.value)} className="min-h-11 w-full rounded-xl border border-brand-line bg-white px-3 text-sm text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-orange/30">
+              <option value="all">All Members</option>
+              <option value="shared">Household / Shared</option>
+              {members.map(member => <option key={member.id} value={member.id}>{member.display_name}</option>)}
+            </select>
+          </label>
+
+          <label className="block space-y-1.5">
+            <span className="text-xs font-medium text-brand-muted">Wallet</span>
+            <span className="relative block">
+              <WalletIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-muted" aria-hidden="true" />
+              <select value={walletFilter} onChange={event => setWalletFilter(event.target.value)} className="min-h-11 w-full rounded-xl border border-brand-line bg-white py-2 pl-10 pr-9 text-sm text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-orange/30">
+                <option value="all">All Wallets</option>
+                {visibleWallets.map(wallet => <option key={wallet.id} value={wallet.id}>{wallet.name}</option>)}
+              </select>
+            </span>
+          </label>
+
+          <label className="block space-y-1.5">
+            <span className="text-xs font-medium text-brand-muted">Payment Method</span>
+            <span className="relative block">
+              <CreditCard className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-muted" aria-hidden="true" />
+              <select value={paymentMethodFilter} onChange={event => setPaymentMethodFilter(event.target.value as typeof paymentMethodFilter)} className="min-h-11 w-full rounded-xl border border-brand-line bg-white py-2 pl-10 pr-9 text-sm text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-orange/30">
+                <option value="all">All Methods</option>
+                <option value="cash">Cash</option>
+                <option value="bank">Bank</option>
+                <option value="e_wallet">E-wallet</option>
+                <option value="e_wallet_savings">E-wallet Savings</option>
+                <option value="credit_card">Credit Card</option>
+              </select>
+            </span>
+          </label>
+        </div>
+      </section>
 
       {filteredCreditCardPayments.length > 0 && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

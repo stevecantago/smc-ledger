@@ -7,7 +7,7 @@ import { Loan, LoanPaymentFrequency } from '../types/database';
 import { getCreditCardAvailableCredit, getCreditCardUsedBalance } from '../lib/creditCardTransactions';
 
 export const LoansView: React.FC = () => {
-  const { loans, wallets, currentMember, isAdmin, addLoan, updateLoan, deleteLoan, payLoanAmortization } = useHousehold();
+  const { loans, wallets, categories, recurringTransfers, currentMember, isAdmin, addLoan, updateLoan, deleteLoan, payLoanAmortization } = useHousehold();
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingLoan, setEditingLoan] = useState<Loan | null>(null);
@@ -29,6 +29,7 @@ export const LoansView: React.FC = () => {
   const [interestRate, setInterestRate] = useState('');
   const [paymentFrequency, setPaymentFrequency] = useState<LoanPaymentFrequency>('monthly');
   const [nextDueDate, setNextDueDate] = useState('');
+  const [categoryId, setCategoryId] = useState('');
 
   // Edit Loan Form
   const [editName, setEditName] = useState('');
@@ -41,6 +42,7 @@ export const LoansView: React.FC = () => {
   const [editInterestRate, setEditInterestRate] = useState('');
   const [editFrequency, setEditFrequency] = useState<LoanPaymentFrequency>('monthly');
   const [editNextDueDate, setEditNextDueDate] = useState('');
+  const [editCategoryId, setEditCategoryId] = useState('');
 
   // Pay Amortization Form
   const [payAmount, setPayAmount] = useState('');
@@ -109,6 +111,7 @@ export const LoansView: React.FC = () => {
       monthly_amortization: reqAmort,
       payment_frequency: paymentFrequency,
       next_due_date: nextDueDate.trim() || null,
+      category_id: categoryId || null,
     });
 
     setName('');
@@ -119,6 +122,7 @@ export const LoansView: React.FC = () => {
     setPaidAmortizationsCount('');
     setInterestRate('');
     setNextDueDate('');
+    setCategoryId('');
     setShowAddModal(false);
   };
 
@@ -147,6 +151,7 @@ export const LoansView: React.FC = () => {
       monthly_amortization: reqAmort,
       payment_frequency: editFrequency,
       next_due_date: editNextDueDate.trim() || null,
+      category_id: editCategoryId || null,
     });
 
     setEditingLoan(null);
@@ -180,13 +185,13 @@ export const LoansView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 pb-28 md:pb-6">
+    <div className="famledger-view famledger-loans space-y-6 pb-28 md:pb-6">
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-800/80 border border-slate-700/70 p-5 rounded-xl">
         <div>
           <h2 className="text-lg font-bold text-white flex items-center space-x-2">
             <Landmark className="w-5 h-5 text-amber-400" />
-            <span>Loans & Amortization Manager</span>
+            <span>Loans & Amortizations</span>
           </h2>
           <p className="text-xs text-slate-400 mt-1">
             Track total principal debt, required amortizations, annual interest rates, source paying wallets & next upcoming due dates.
@@ -199,7 +204,7 @@ export const LoansView: React.FC = () => {
               if (visibleWallets.length > 0) setSourceWalletId(visibleWallets[0].id);
               setShowAddModal(true);
             }}
-            className="flex items-center space-x-2 bg-sky-600 hover:bg-sky-500 text-white px-4 py-2 rounded-lg font-medium text-xs transition-all shadow"
+            className="flex items-center space-x-2 rounded-xl bg-brand-orange px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#AB4311] shadow-sm"
           >
             <Plus className="w-4 h-4" />
             <span>+ Add Loan Record</span>
@@ -278,6 +283,7 @@ export const LoansView: React.FC = () => {
                             setEditInterestRate(loan.interest_rate_annual.toString());
                             setEditFrequency(loan.payment_frequency || 'monthly');
                             setEditNextDueDate(loan.next_due_date || '');
+                            setEditCategoryId(recurringTransfers.find(rule => rule.loan_id === loan.id)?.category_id || '');
                           }}
                           title="Edit Loan Agreement"
                           className="p-1 text-slate-400 hover:text-amber-400 hover:bg-amber-400/10 rounded transition-colors"
@@ -368,7 +374,7 @@ export const LoansView: React.FC = () => {
                   setPayAmount(loan.monthly_amortization.toString());
                   setSelectedWalletId(loan.source_wallet_id || (visibleWallets[0]?.id || ''));
                 }}
-                className="w-full mt-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs py-2.5 rounded-lg transition-all shadow flex items-center justify-center space-x-1.5"
+                className="w-full mt-3 bg-brand-orange hover:bg-[#AB4311] text-white font-bold text-sm py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center space-x-1.5"
               >
                 <DollarSign className="w-4 h-4" />
                 <span>
@@ -382,44 +388,47 @@ export const LoansView: React.FC = () => {
 
       {/* Add Loan Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6 space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <h3 className="text-base font-bold text-white flex items-center space-x-2">
-              <Landmark className="w-5 h-5 text-amber-400" />
-              <span>Create Loan & Amortization Agreement</span>
-            </h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-brand-ink/45 backdrop-blur-sm p-4" onMouseDown={event => { if (event.target === event.currentTarget) setShowAddModal(false); }}>
+          <div className="bg-brand-paper border border-brand-line rounded-2xl max-w-md w-full p-6 space-y-5 shadow-[var(--fam-shadow)] max-h-[90vh] overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="create-loan-title">
+            <div className="flex items-start justify-between gap-3">
+              <h3 id="create-loan-title" className="text-base font-bold text-brand-ink flex items-center gap-2">
+                <Landmark className="w-5 h-5 shrink-0 text-brand-orange" />
+                <span>Create Loan & Amortization Agreement</span>
+              </h3>
+              <button type="button" onClick={() => setShowAddModal(false)} aria-label="Close create loan dialog" className="rounded-lg px-2 py-1 text-brand-muted hover:bg-brand-canvas hover:text-brand-ink">×</button>
+            </div>
 
             <form onSubmit={handleAddSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Loan Title / Description</label>
+                <label className="block text-xs font-medium text-brand-ink mb-1">Loan Title / Description</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. BDO Housing Mortgage, Toyota Auto Loan"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  className="w-full bg-white text-brand-ink text-sm border border-brand-line rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-brand-orange/30 focus:border-brand-orange"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Lender / Financial Institution</label>
+                <label className="block text-xs font-medium text-brand-ink mb-1">Lender / Financial Institution</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. BDO Unibank, BPI, Toyota Financial"
                   value={lender}
                   onChange={(e) => setLender(e.target.value)}
-                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  className="w-full bg-white text-brand-ink text-sm border border-brand-line rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-brand-orange/30 focus:border-brand-orange"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Source Wallet Account</label>
+                <label className="block text-xs font-medium text-brand-ink mb-1">Source Wallet Account</label>
                 <select
                   value={sourceWalletId}
                   onChange={(e) => setSourceWalletId(e.target.value)}
-                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  className="w-full bg-white text-brand-ink text-sm border border-brand-line rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-brand-orange/30 focus:border-brand-orange"
                 >
                   {visibleWallets.map(w => (
                     <option key={w.id} value={w.id}>{formatWalletOption(w)}</option>
@@ -428,7 +437,16 @@ export const LoansView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Payment Schedule Frequency</label>
+                <label htmlFor="create-loan-category" className="block text-xs font-medium text-brand-ink mb-1">Expense Category Type</label>
+                <select id="create-loan-category" value={categoryId} onChange={event => setCategoryId(event.target.value)} className="w-full bg-white text-brand-ink text-sm border border-brand-line rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-brand-orange/30 focus:border-brand-orange">
+                  <option value="">No category</option>
+                  {categories.filter(category => category.category_type === 'expense').map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+                </select>
+                <p className="mt-1 text-xs text-brand-muted">Used to label future amortization payments.</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-brand-ink mb-1">Payment Schedule Frequency</label>
                 <select
                   value={paymentFrequency}
                   onChange={(e) => {
@@ -437,7 +455,7 @@ export const LoansView: React.FC = () => {
                     const rate = calculateAutoInterest(totalPrincipal, totalAmortizations, monthlyAmortization, freq);
                     setInterestRate(rate);
                   }}
-                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-semibold"
+                  className="w-full bg-white text-brand-ink text-sm border border-brand-line rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-brand-orange/30 focus:border-brand-orange font-semibold"
                 >
                   <option value="monthly">Monthly</option>
                   <option value="bi_monthly">Bi-Monthly</option>
@@ -446,7 +464,7 @@ export const LoansView: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Total Principal (₱ PHP)</label>
+                  <label className="block text-xs font-medium text-brand-ink mb-1">Total Principal (₱ PHP)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -458,11 +476,11 @@ export const LoansView: React.FC = () => {
                       const rate = calculateAutoInterest(e.target.value, totalAmortizations, monthlyAmortization, paymentFrequency);
                       setInterestRate(rate);
                     }}
-                    className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
+                    className="w-full bg-white text-brand-ink text-sm border border-brand-line rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-brand-orange/30 focus:border-brand-orange font-mono font-bold"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Required Amortization (₱)</label>
+                  <label className="block text-xs font-medium text-brand-ink mb-1">Required Amortization (₱)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -474,14 +492,14 @@ export const LoansView: React.FC = () => {
                       const rate = calculateAutoInterest(totalPrincipal, totalAmortizations, e.target.value, paymentFrequency);
                       setInterestRate(rate);
                     }}
-                    className="w-full bg-slate-800 text-emerald-400 text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
+                    className="w-full bg-white text-emerald-700 text-sm border border-brand-line rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-brand-orange/30 focus:border-brand-orange font-mono font-bold"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Total Amortizations Required</label>
+                  <label className="block text-xs font-medium text-brand-ink mb-1">Total Amortizations Required</label>
                   <input
                     type="number"
                     min="1"
@@ -493,64 +511,64 @@ export const LoansView: React.FC = () => {
                       const rate = calculateAutoInterest(totalPrincipal, e.target.value, monthlyAmortization, paymentFrequency);
                       setInterestRate(rate);
                     }}
-                    className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
+                    className="w-full bg-white text-brand-ink text-sm border border-brand-line rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-brand-orange/30 focus:border-brand-orange font-mono font-bold"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Total Amortizations Paid So Far</label>
+                  <label className="block text-xs font-medium text-brand-ink mb-1">Total Amortizations Paid So Far</label>
                   <input
                     type="number"
                     min="0"
                     placeholder="0 (Optional)"
                     value={paidAmortizationsCount}
                     onChange={(e) => setPaidAmortizationsCount(e.target.value)}
-                    className="w-full bg-slate-800 text-amber-300 text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
+                    className="w-full bg-white text-amber-700 text-sm border border-brand-line rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-brand-orange/30 focus:border-brand-orange font-mono font-bold"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Annual Interest Rate (%)</label>
+                  <label className="block text-xs font-medium text-brand-ink mb-1">Annual Interest Rate (%)</label>
                   <input
                     type="number"
                     step="0.01"
                     value={interestRate}
                     onChange={(e) => setInterestRate(e.target.value)}
                     placeholder="Auto-calculated"
-                    className="w-full bg-slate-800 text-sky-300 text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
+                    className="w-full bg-white text-sky-700 text-sm border border-brand-line rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-brand-orange/30 focus:border-brand-orange font-mono font-bold"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Remaining Balance (₱)</label>
-                  <div className="w-full bg-slate-800/90 text-rose-400 text-xs border border-slate-700 rounded-lg p-2.5 font-mono font-bold">
+                  <label className="block text-xs font-medium text-brand-ink mb-1">Remaining Balance (₱)</label>
+                  <div className="w-full bg-brand-canvas text-brand-orange text-sm border border-brand-line rounded-lg p-2.5 font-mono font-bold">
                     ₱{calculateAutoBalance(totalAmortizations, paidAmortizationsCount, monthlyAmortization, totalPrincipal).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </div>
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Next Upcoming Payment Due Date</label>
+                <label className="block text-xs font-medium text-brand-ink mb-1">Next Upcoming Payment Due Date</label>
                 <input
                   type="date"
                   required
                   value={nextDueDate}
                   onChange={(e) => setNextDueDate(e.target.value)}
-                  className="w-full bg-slate-800 text-amber-300 text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
+                  className="w-full bg-white text-brand-ink text-sm border border-brand-line rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-brand-orange/30 focus:border-brand-orange font-mono font-bold"
                 />
               </div>
 
-              <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-800">
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-brand-line">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
+                  className="rounded-lg border border-brand-line bg-white px-4 py-2 text-sm font-semibold text-brand-ink hover:bg-brand-canvas transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold rounded-lg transition-all shadow"
+                  className="rounded-lg bg-brand-orange hover:bg-[#AB4311] px-4 py-2 text-sm font-semibold text-white transition-colors shadow-sm"
                 >
                   Create Loan Record
                 </button>
@@ -562,42 +580,45 @@ export const LoansView: React.FC = () => {
 
       {/* Edit Loan Modal */}
       {editingLoan && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6 space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <h3 className="text-base font-bold text-white flex items-center space-x-2">
-              <Landmark className="w-5 h-5 text-amber-400" />
-              <span>Edit Loan Agreement: {editingLoan.name}</span>
-            </h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-brand-ink/45 backdrop-blur-sm p-4" onMouseDown={event => { if (event.target === event.currentTarget) setEditingLoan(null); }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="edit-loan-title" className="bg-brand-paper border border-brand-line rounded-2xl max-w-md w-full p-6 space-y-5 shadow-[var(--fam-shadow)] max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between gap-3">
+              <h3 id="edit-loan-title" className="text-base font-bold text-brand-ink flex items-center gap-2 min-w-0">
+                <Landmark className="w-5 h-5 shrink-0 text-brand-orange" />
+                <span className="break-words">Edit Loan Agreement: {editingLoan.name}</span>
+              </h3>
+              <button type="button" onClick={() => setEditingLoan(null)} aria-label="Close edit loan dialog" className="rounded-lg px-2 py-1 text-brand-muted hover:bg-brand-canvas hover:text-brand-ink">×</button>
+            </div>
 
             <form onSubmit={handleEditSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Loan Title / Description</label>
+                <label className="block text-xs font-medium text-brand-ink mb-1">Loan Title / Description</label>
                 <input
                   type="text"
                   required
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  className="w-full bg-white text-brand-ink text-sm border border-brand-line rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-brand-orange/30 focus:border-brand-orange"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Lender / Financial Institution</label>
+                <label className="block text-xs font-medium text-brand-ink mb-1">Lender / Financial Institution</label>
                 <input
                   type="text"
                   required
                   value={editLender}
                   onChange={(e) => setEditLender(e.target.value)}
-                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  className="w-full bg-white text-brand-ink text-sm border border-brand-line rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-brand-orange/30 focus:border-brand-orange"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Source Wallet Account</label>
+                <label className="block text-xs font-medium text-brand-ink mb-1">Source Wallet Account</label>
                 <select
                   value={editSourceWalletId}
                   onChange={(e) => setEditSourceWalletId(e.target.value)}
-                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  className="w-full bg-white text-brand-ink text-sm border border-brand-line rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-brand-orange/30 focus:border-brand-orange"
                 >
                   {visibleWallets.map(w => (
                     <option key={w.id} value={w.id}>{formatWalletOption(w)}</option>
@@ -606,7 +627,23 @@ export const LoansView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Payment Schedule Frequency</label>
+                <label htmlFor="edit-loan-category" className="block text-xs font-medium text-brand-ink mb-1">Expense Category Type</label>
+                <select
+                  id="edit-loan-category"
+                  value={editCategoryId}
+                  onChange={event => setEditCategoryId(event.target.value)}
+                  className="w-full bg-white text-brand-ink text-sm border border-brand-line rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-brand-orange/30 focus:border-brand-orange"
+                >
+                  <option value="">No category</option>
+                  {categories.filter(category => category.category_type === 'expense').map(category => (
+                    <option key={category.id} value={category.id}>{category.name}</option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-brand-muted">Used to label future amortization payments.</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-brand-ink mb-1">Payment Schedule Frequency</label>
                 <select
                   value={editFrequency}
                   onChange={(e) => {
@@ -615,7 +652,7 @@ export const LoansView: React.FC = () => {
                     const rate = calculateAutoInterest(editPrincipal, editTotalAmortizations, editMonthly, freq);
                     setEditInterestRate(rate);
                   }}
-                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-semibold"
+                  className="w-full bg-white text-brand-ink text-sm border border-brand-line rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-brand-orange/30 focus:border-brand-orange font-semibold"
                 >
                   <option value="monthly">Monthly</option>
                   <option value="bi_monthly">Bi-Monthly</option>
@@ -624,7 +661,7 @@ export const LoansView: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Total Principal (₱)</label>
+                  <label className="block text-xs font-medium text-brand-ink mb-1">Total Principal (₱)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -635,11 +672,11 @@ export const LoansView: React.FC = () => {
                       const rate = calculateAutoInterest(e.target.value, editTotalAmortizations, editMonthly, editFrequency);
                       setEditInterestRate(rate);
                     }}
-                    className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
+                    className="w-full bg-white text-brand-ink text-sm border border-brand-line rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-brand-orange/30 focus:border-brand-orange font-mono font-bold"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Required Amortization (₱)</label>
+                  <label className="block text-xs font-medium text-brand-ink mb-1">Required Amortization (₱)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -650,14 +687,14 @@ export const LoansView: React.FC = () => {
                       const rate = calculateAutoInterest(editPrincipal, editTotalAmortizations, e.target.value, editFrequency);
                       setEditInterestRate(rate);
                     }}
-                    className="w-full bg-slate-800 text-emerald-400 text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
+                    className="w-full bg-white text-emerald-700 text-sm border border-brand-line rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-brand-orange/30 focus:border-brand-orange font-mono font-bold"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Total Amortizations Required</label>
+                  <label className="block text-xs font-medium text-brand-ink mb-1">Total Amortizations Required</label>
                   <input
                     type="number"
                     min="1"
@@ -668,62 +705,62 @@ export const LoansView: React.FC = () => {
                       const rate = calculateAutoInterest(editPrincipal, e.target.value, editMonthly, editFrequency);
                       setEditInterestRate(rate);
                     }}
-                    className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
+                    className="w-full bg-white text-brand-ink text-sm border border-brand-line rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-brand-orange/30 focus:border-brand-orange font-mono font-bold"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Amortizations Paid So Far</label>
+                  <label className="block text-xs font-medium text-brand-ink mb-1">Amortizations Paid So Far</label>
                   <input
                     type="number"
                     min="0"
                     value={editPaidAmortizationsCount}
                     onChange={(e) => setEditPaidAmortizationsCount(e.target.value)}
-                    className="w-full bg-slate-800 text-amber-300 text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
+                    className="w-full bg-white text-amber-700 text-sm border border-brand-line rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-brand-orange/30 focus:border-brand-orange font-mono font-bold"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Annual Interest Rate (%)</label>
+                  <label className="block text-xs font-medium text-brand-ink mb-1">Annual Interest Rate (%)</label>
                   <input
                     type="number"
                     step="0.01"
                     value={editInterestRate}
                     onChange={(e) => setEditInterestRate(e.target.value)}
-                    className="w-full bg-slate-800 text-sky-300 text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
+                    className="w-full bg-white text-sky-700 text-sm border border-brand-line rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-brand-orange/30 focus:border-brand-orange font-mono font-bold"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Remaining Balance (₱)</label>
-                  <div className="w-full bg-slate-800/90 text-rose-400 text-xs border border-slate-700 rounded-lg p-2.5 font-mono font-bold">
+                  <label className="block text-xs font-medium text-brand-ink mb-1">Remaining Balance (₱)</label>
+                  <div className="w-full bg-brand-canvas text-brand-orange text-sm border border-brand-line rounded-lg p-2.5 font-mono font-bold">
                     ₱{calculateAutoBalance(editTotalAmortizations, editPaidAmortizationsCount, editMonthly, editPrincipal).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </div>
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Next Upcoming Payment Due Date</label>
+                <label className="block text-xs font-medium text-brand-ink mb-1">Next Upcoming Payment Due Date</label>
                 <input
                   type="date"
                   required
                   value={editNextDueDate}
                   onChange={(e) => setEditNextDueDate(e.target.value)}
-                  className="w-full bg-slate-800 text-amber-300 text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono font-bold"
+                  className="w-full bg-white text-brand-ink text-sm border border-brand-line rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-brand-orange/30 focus:border-brand-orange font-mono font-bold"
                 />
               </div>
 
-              <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-800">
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-brand-line">
                 <button
                   type="button"
                   onClick={() => setEditingLoan(null)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
+                  className="rounded-lg border border-brand-line bg-white px-4 py-2 text-sm font-semibold text-brand-ink hover:bg-brand-canvas transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg transition-all shadow"
+                  className="rounded-lg bg-brand-orange hover:bg-brand-orange/90 px-4 py-2 text-sm font-semibold text-white transition-colors shadow-sm"
                 >
                   Save Loan Changes
                 </button>
