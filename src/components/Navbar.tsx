@@ -122,7 +122,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
 
       <aside className={`fixed inset-y-0 left-0 z-50 hidden ${sidebarCollapsed ? 'w-20' : 'w-64'} overflow-y-auto border-r border-brand-line bg-[#F1F3F5] px-4 py-4 lg:block`} aria-label="Household sidebar">
         <div className="flex min-h-full flex-col">
-          <div className={`mb-5 flex ${sidebarCollapsed ? 'flex-col' : 'items-center'} gap-2`}>
+          <div className={`mb-6 flex ${sidebarCollapsed ? 'flex-col' : 'items-center'} gap-2 border-b border-brand-ink/10 pb-6`}>
             <button type="button" onClick={() => navigate('dashboard')} className="flex min-w-0 flex-1 items-center gap-2 rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange" aria-label="Open FamLedger dashboard" title={sidebarCollapsed ? 'FamLedger' : undefined}>
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-brand-ink text-white shadow-sm"><Home className="h-5 w-5" aria-hidden="true" /></span>
               {!sidebarCollapsed && <span className="min-w-0"><span className="block text-sm font-extrabold tracking-tight text-brand-ink">FamLedger</span><span className="block truncate text-[10px] font-medium text-brand-muted" title={householdDisplayName}>{householdDisplayName}</span></span>}

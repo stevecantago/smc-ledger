@@ -42,7 +42,7 @@ describe('approved sidebar feedback', () => {
     expect(sidebar).not.toContain('For visible wallets.');
   });
 
-  it('removes dashboard obligations while retaining summaries and logging', () => {
+  it('removes dashboard detail cards while retaining financial overview and logging', () => {
     const markup = renderToStaticMarkup(
       <HouseholdProvider>
         <DashboardView setActiveTab={noop} onOpenAddTxModal={noop} onPayCreditCard={noop} />
@@ -50,8 +50,12 @@ describe('approved sidebar feedback', () => {
     );
     expect(markup).not.toContain('Recurring Bills &amp; Transfers Schedule');
     expect(markup).not.toContain('Upcoming Credit Card Payments');
-    expect(markup).toContain('Household Wallets &amp; Credit Lines Summary');
-    expect(markup).toContain('Income in loaded ledger');
+    expect(markup).not.toContain('Household Wallets &amp; Credit Lines Summary');
+    expect(markup).not.toContain('Total Purchasing Power');
+    expect(markup).toContain('Liquid balances less used card balances');
+    expect(markup).toContain('Filtered income');
+    expect(markup).toContain('Analysis Period:');
+    for (const title of ['Daily Trends', 'Expense Breakdown', 'Spending by Member', 'Average Transaction Size']) expect(markup).toContain(title);
     expect(markup).toContain('Quick Log Transaction');
   });
 
