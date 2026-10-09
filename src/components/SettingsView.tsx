@@ -1,50 +1,113 @@
 'use client';
 
-import React, { FormEvent, useState } from 'react';
+import React, { FormEvent, useEffect, useState } from 'react';
 import { Check, CircleArrowDown, CircleArrowUp, List, Pencil, Plus, Settings, Trash2, X } from 'lucide-react';
 import { useHousehold } from '../context/HouseholdContext';
 import { Category, CategoryType } from '../types/database';
-import { AVAILABLE_ICONS, CategoryIcon } from './CategoryIcon';
+import { CategoryColor, CategoryColorPreferences, DEFAULT_CATEGORY_COLORS, EMPTY_CATEGORY_COLOR_PREFERENCES, readCategoryColorPreferences, writeCategoryColorPreferences } from '../lib/categoryColors';
+import { IconPickerGrid, CategoryIcon } from './CategoryIcon';
 import { Button } from './ui/Button';
+import { CategoryColorPicker } from './ui/CategoryColorPicker';
 import { Dialog } from './ui/Dialog';
 
-const listMeta: Record<CategoryType, { title: string; placeholder: string; icon: typeof CircleArrowUp }> = {
-  income: { title: 'Income Categories', placeholder: 'New Income…', icon: CircleArrowUp },
-  expense: { title: 'Expense Categories', placeholder: 'New Expense…', icon: CircleArrowDown },
+const DEFAULT_TYPE_COLORS: Record<CategoryType, CategoryColor> = {
+  income: { hex: '#168B63', opacity: 100 },
+  expense: { hex: '#C45116', opacity: 100 },
 };
+
+const listMeta: Record<CategoryType, { title: string; addTitle: string; icon: typeof CircleArrowUp }> = {
+  income: { title: 'Income Categories', addTitle: 'Add Income Category Type', icon: CircleArrowUp },
+  expense: { title: 'Expense Categories', addTitle: 'Add Expense Category Type', icon: CircleArrowDown },
+};
+
+const categorySuggestions: Record<CategoryType, string[]> = {
+  income: ['Salary', 'Profit', 'Investment', 'Other', 'Gift', 'Bonus', 'Freelance', 'Rental Income'],
+  expense: ['Food', 'Transport', 'Utilities', 'Entertainment', 'Healthcare', 'Education', 'Housing', 'Travel'],
+};
+
+const getCategoryColorKey = (type: CategoryType, name: string) => `${type}:${name.trim().toLocaleLowerCase()}`;
 
 export const SettingsView: React.FC = () => {
   const { categories, hasPermission, addCategory, updateCategory, deleteCategory } = useHousehold();
   const canManageCategories = hasPermission('manage_categories');
-  const [newName, setNewName] = useState<Record<CategoryType, string>>({ income: '', expense: '' });
-  const [newIcon, setNewIcon] = useState<Record<CategoryType, string>>({ income: 'trending-up', expense: 'shopping-cart' });
+  const [addingType, setAddingType] = useState<CategoryType | null>(null);
+  const [newName, setNewName] = useState('');
+  const [newIcon, setNewIcon] = useState('trending-up');
+  const [newMonthlyLimit, setNewMonthlyLimit] = useState('0.00');
+  const [newColor, setNewColor] = useState<CategoryColor>(DEFAULT_TYPE_COLORS.income);
+  const [showNewColorPicker, setShowNewColorPicker] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [editName, setEditName] = useState('');
   const [editIcon, setEditIcon] = useState('');
+  const [editColor, setEditColor] = useState<CategoryColor>(DEFAULT_TYPE_COLORS.expense);
+  const [showEditColorPicker, setShowEditColorPicker] = useState(false);
+  const [colorPreferences, setColorPreferences] = useState<CategoryColorPreferences>(EMPTY_CATEGORY_COLOR_PREFERENCES);
+  const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const [message, setMessage] = useState('');
 
-  const handleAdd = (event: FormEvent, categoryType: CategoryType) => {
+  useEffect(() => {
+    setColorPreferences(readCategoryColorPreferences());
+    setPreferencesLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!preferencesLoaded) return;
+    try {
+      if (!writeCategoryColorPreferences(colorPreferences)) throw new Error('Could not write color preferences');
+    } catch {
+      setMessage('Color preferences could not be saved on this device.');
+    }
+  }, [colorPreferences, preferencesLoaded]);
+
+  const beginAdd = (type: CategoryType) => {
+    setAddingType(type);
+    setNewName('');
+    setNewIcon(type === 'income' ? 'trending-up' : 'shopping-cart');
+    setNewMonthlyLimit('0.00');
+    setNewColor(DEFAULT_TYPE_COLORS[type]);
+    setShowNewColorPicker(false);
+    setMessage('');
+  };
+
+  const closeAdd = () => {
+    setAddingType(null);
+    setShowNewColorPicker(false);
+  };
+
+  const handleAdd = (event: FormEvent) => {
     event.preventDefault();
-    const name = newName[categoryType].trim();
+    if (!addingType) return;
+    const name = newName.trim();
     if (!name) return;
-    const result = addCategory({
-      name,
-      icon_slug: newIcon[categoryType],
-      category_type: categoryType,
-      monthly_budget_limit: 0,
-    });
-    if (!result.success) {
-      setMessage(result.error || `Could not add this ${categoryType} category.`);
+    const parsedLimit = Number(newMonthlyLimit);
+    if (!Number.isFinite(parsedLimit) || parsedLimit < 0) {
+      setMessage('Enter a valid monthly budget limit.');
       return;
     }
-    setNewName(previous => ({ ...previous, [categoryType]: '' }));
-    setMessage(`${name} added to ${listMeta[categoryType].title}.`);
+
+    const result = addCategory({
+      name,
+      icon_slug: newIcon,
+      category_type: addingType,
+      monthly_budget_limit: parsedLimit,
+    });
+    if (!result.success) {
+      setMessage(result.error || `Could not add this ${addingType} category.`);
+      return;
+    }
+
+    const colorKey = getCategoryColorKey(addingType, name);
+    setColorPreferences(previous => ({ ...previous, byCategoryName: { ...previous.byCategoryName, [colorKey]: newColor } }));
+    setMessage(`${name} added to ${listMeta[addingType].title}.`);
+    closeAdd();
   };
 
   const beginEdit = (category: Category) => {
     setEditingCategory(category);
     setEditName(category.name);
     setEditIcon(category.icon_slug);
+    setEditColor(colorPreferences.byCategoryName[getCategoryColorKey(category.category_type, category.name)] || DEFAULT_TYPE_COLORS[category.category_type]);
+    setShowEditColorPicker(false);
     setMessage('');
   };
 
@@ -58,6 +121,15 @@ export const SettingsView: React.FC = () => {
       setMessage(result.error || 'Could not update this category.');
       return;
     }
+
+    const previousKey = getCategoryColorKey(editingCategory.category_type, editingCategory.name);
+    const nextKey = getCategoryColorKey(editingCategory.category_type, name);
+    setColorPreferences(previous => {
+      const byCategoryName = { ...previous.byCategoryName };
+      delete byCategoryName[previousKey];
+      byCategoryName[nextKey] = editColor;
+      return { ...previous, byCategoryName };
+    });
     setEditingCategory(null);
     setMessage(`${name} updated.`);
   };
@@ -66,78 +138,80 @@ export const SettingsView: React.FC = () => {
     const label = category.category_type === 'income' ? 'income' : 'expense';
     if (!window.confirm(`Delete ${label} category “${category.name}”?`)) return;
     const result = deleteCategory(category.id);
+    if (result.success) {
+      const key = getCategoryColorKey(category.category_type, category.name);
+      setColorPreferences(previous => {
+        const byCategoryName = { ...previous.byCategoryName };
+        delete byCategoryName[key];
+        return { ...previous, byCategoryName };
+      });
+    }
     setMessage(result.success ? `${category.name} deleted.` : result.error || 'Could not delete this category.');
   };
 
+  const saveColor = (color: CategoryColor) => setColorPreferences(previous => {
+    if (previous.savedColors.some(saved => saved.hex === color.hex && saved.opacity === color.opacity)) return previous;
+    return { ...previous, savedColors: [...previous.savedColors, color].slice(-18) };
+  });
+
   const renderCategoryList = (categoryType: CategoryType) => {
-    const { title, placeholder, icon: DirectionIcon } = listMeta[categoryType];
+    const { title, icon: DirectionIcon } = listMeta[categoryType];
     const list = categories.filter(category => category.category_type === categoryType);
     const isIncome = categoryType === 'income';
 
     return (
       <section key={categoryType} aria-labelledby={`${categoryType}-categories-heading`} className="overflow-hidden rounded-2xl border border-brand-line bg-brand-paper shadow-[var(--fam-shadow)]">
-        <div className="flex flex-col gap-3 border-b border-brand-line bg-brand-canvas px-4 py-4 sm:px-5">
-          <div>
-            <h3 id={`${categoryType}-categories-heading`} className="flex items-center gap-2 font-semibold text-brand-ink">
-              <DirectionIcon className={`h-4 w-4 ${isIncome ? 'text-[#168B63]' : 'text-brand-orange'}`} aria-hidden="true" />
-              {title}
-            </h3>
-            <p className="mt-1 text-xs text-brand-muted">{isIncome ? 'Used to label income entries.' : 'Used to label expense entries.'}</p>
-          </div>
-          {canManageCategories && (
-            <form onSubmit={event => handleAdd(event, categoryType)} className="flex flex-col gap-2 sm:flex-row">
-              <label htmlFor={`new-${categoryType}-category`} className="sr-only">New {categoryType} category</label>
-              <input
-                id={`new-${categoryType}-category`}
-                value={newName[categoryType]}
-                onChange={event => setNewName(previous => ({ ...previous, [categoryType]: event.target.value }))}
-                placeholder={placeholder}
-                maxLength={100}
-                required
-                className="min-w-0 flex-1 rounded-xl border border-brand-line bg-white px-3 py-2.5 text-sm text-brand-ink placeholder:text-brand-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange"
-              />
-              <label htmlFor={`new-${categoryType}-icon`} className="sr-only">{categoryType} category icon</label>
-              <select id={`new-${categoryType}-icon`} value={newIcon[categoryType]} onChange={event => setNewIcon(previous => ({ ...previous, [categoryType]: event.target.value }))} className="rounded-xl border border-brand-line bg-white px-3 py-2.5 text-sm text-brand-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange">
-                {AVAILABLE_ICONS.map(icon => <option key={icon.slug} value={icon.slug}>{icon.label}</option>)}
-              </select>
-              <Button type="submit" tone="primary" size="sm" aria-label={`Add ${categoryType} category`} className="shrink-0">
-                <Plus className="h-4 w-4" aria-hidden="true" /> Add
+        <div className="border-b border-brand-line bg-brand-paper px-4 py-4 sm:px-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 id={`${categoryType}-categories-heading`} className="flex items-center gap-2 font-semibold text-brand-ink">
+                <DirectionIcon className={`h-4 w-4 ${isIncome ? 'text-[#168B63]' : 'text-brand-orange'}`} aria-hidden="true" />
+                {title}
+              </h3>
+              <p className="mt-1 text-xs text-brand-muted">{isIncome ? 'Used to label income entries.' : 'Used to label expense entries.'}</p>
+            </div>
+            {canManageCategories && (
+              <Button type="button" tone="secondary" size="sm" onClick={() => beginAdd(categoryType)} aria-label={`Add ${isIncome ? 'income' : 'expense'} category`} className="shrink-0 border border-brand-line bg-white">
+                <Plus className="h-4 w-4" aria-hidden="true" /> Add type
               </Button>
-            </form>
-          )}
+            )}
+          </div>
         </div>
 
         <div className="max-h-[32rem] overflow-auto">
-          <table className="w-full min-w-[340px] border-collapse text-left" aria-label={title}>
+          <table className="w-full min-w-[320px] border-collapse text-left" aria-label={title}>
             <thead className="sticky top-0 bg-white text-[11px] font-semibold uppercase tracking-wide text-brand-muted">
               <tr>
-                <th scope="col" className="px-4 py-3">Category</th>
+                <th scope="col" className="px-4 py-3">Type</th>
                 {canManageCategories && <th scope="col" className="px-4 py-3 text-right">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-brand-line">
-              {list.map(category => (
-                <tr key={category.id} className="bg-white hover:bg-brand-canvas">
-                  <th scope="row" className="px-4 py-2.5 font-medium text-brand-ink">
-                    <span className="flex items-center gap-3">
-                      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${isIncome ? 'bg-brand-mint' : 'bg-brand-sky'}`}>
-                        <CategoryIcon slug={category.icon_slug} className="h-4 w-4" />
+              {list.map(category => {
+                const color = colorPreferences.byCategoryName[getCategoryColorKey(categoryType, category.name)];
+                return (
+                  <tr key={category.id} className="bg-white hover:bg-brand-canvas">
+                    <th scope="row" className="px-4 py-2.5 font-medium text-brand-ink">
+                      <span className="flex min-w-0 items-center gap-3">
+                        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${isIncome ? 'bg-brand-mint' : 'bg-brand-sky'}`}>
+                          <CategoryIcon slug={category.icon_slug} className="h-4 w-4" color={color?.hex} opacity={color?.opacity} />
+                        </span>
+                        <span className="truncate">{category.name}</span>
                       </span>
-                      <span className="truncate">{category.name}</span>
-                    </span>
-                  </th>
-                  {canManageCategories && (
-                    <td className="whitespace-nowrap px-3 py-2 text-right">
-                      <button type="button" onClick={() => beginEdit(category)} aria-label={`Edit ${category.name}`} className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-brand-muted hover:bg-brand-sky hover:text-brand-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange">
-                        <Pencil className="h-4 w-4" aria-hidden="true" />
-                      </button>
-                      <button type="button" onClick={() => handleDelete(category)} aria-label={`Delete ${category.name}`} className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-brand-muted hover:bg-[#FBEEEE] hover:text-[#A43838] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange">
-                        <Trash2 className="h-4 w-4" aria-hidden="true" />
-                      </button>
-                    </td>
-                  )}
-                </tr>
-              ))}
+                    </th>
+                    {canManageCategories && (
+                      <td className="whitespace-nowrap px-3 py-2 text-right">
+                        <button type="button" onClick={() => beginEdit(category)} aria-label={`Edit ${category.name}`} className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-brand-muted hover:bg-brand-sky hover:text-brand-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange">
+                          <Pencil className="h-4 w-4" aria-hidden="true" />
+                        </button>
+                        <button type="button" onClick={() => handleDelete(category)} aria-label={`Delete ${category.name}`} className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-brand-muted hover:bg-[#FBEEEE] hover:text-[#A43838] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange">
+                          <Trash2 className="h-4 w-4" aria-hidden="true" />
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
               {list.length === 0 && (
                 <tr><td colSpan={canManageCategories ? 2 : 1} className="px-4 py-10 text-center text-sm text-brand-muted">No {isIncome ? 'income' : 'expense'} categories yet.</td></tr>
               )}
@@ -179,32 +253,85 @@ export const SettingsView: React.FC = () => {
         </div>
       </section>
 
-      <Dialog open={Boolean(editingCategory)} onClose={() => setEditingCategory(null)} titleId="edit-category-title">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h3 id="edit-category-title" className="text-lg font-bold text-brand-ink">Edit {editingCategory?.category_type || 'expense'} category</h3>
-            <p className="mt-1 text-sm text-brand-muted">Rename the category or choose a different icon.</p>
-          </div>
-          <button type="button" onClick={() => setEditingCategory(null)} aria-label="Close edit category" className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-brand-muted hover:bg-brand-canvas focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange">
-            <X className="h-4 w-4" aria-hidden="true" />
-          </button>
-        </div>
-        <form onSubmit={handleEdit} className="mt-5 space-y-4">
-          <div>
-            <label htmlFor="edit-category-name" className="mb-1 block text-sm font-medium text-brand-ink">Category name</label>
-            <input id="edit-category-name" value={editName} onChange={event => setEditName(event.target.value)} maxLength={100} required className="w-full rounded-xl border border-brand-line bg-white px-3 py-2.5 text-sm text-brand-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange" />
-          </div>
-          <div>
-            <label htmlFor="edit-category-icon" className="mb-1 block text-sm font-medium text-brand-ink">Icon</label>
-            <select id="edit-category-icon" value={editIcon} onChange={event => setEditIcon(event.target.value)} className="w-full rounded-xl border border-brand-line bg-white px-3 py-2.5 text-sm text-brand-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange">
-              {AVAILABLE_ICONS.map(icon => <option key={icon.slug} value={icon.slug}>{icon.label}</option>)}
-            </select>
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" tone="secondary" onClick={() => setEditingCategory(null)}>Cancel</Button>
-            <Button type="submit" tone="primary"><Check className="h-4 w-4" aria-hidden="true" />Save</Button>
-          </div>
-        </form>
+      <Dialog open={Boolean(addingType)} onClose={closeAdd} titleId="add-category-title" className="max-w-xl">
+        {addingType && (
+          <>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 id="add-category-title" className="text-lg font-extrabold uppercase tracking-wide text-brand-ink">{listMeta[addingType].addTitle}</h3>
+                <p className="mt-1 text-sm text-brand-muted">Add a type to the {addingType} category list.</p>
+              </div>
+              <button type="button" onClick={closeAdd} aria-label="Close add category" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-brand-muted hover:bg-brand-canvas focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange">
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+            <form onSubmit={handleAdd} className="mt-5 space-y-4">
+              <div>
+                <label htmlFor="new-category-name" className="mb-1.5 block text-sm font-medium text-brand-ink">Type name</label>
+                <input id="new-category-name" list={`${addingType}-category-suggestions`} value={newName} onChange={event => setNewName(event.target.value)} placeholder={addingType === 'income' ? 'e.g. Salary, Profit, Investment' : 'e.g. Food, Healthcare, Transport'} maxLength={100} required autoComplete="off" className="w-full rounded-xl border border-brand-line bg-white px-3 py-3 text-sm text-brand-ink placeholder:text-brand-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange" />
+                <datalist id={`${addingType}-category-suggestions`}>
+                  {categorySuggestions[addingType].map(suggestion => <option key={suggestion} value={suggestion} />)}
+                </datalist>
+              </div>
+
+              <div>
+                <label htmlFor="new-category-monthly-limit" className="mb-1.5 block text-sm font-medium text-brand-ink">Monthly Budget Limit (₱ PHP)</label>
+                <input id="new-category-monthly-limit" type="number" min="0" step="0.01" inputMode="decimal" value={newMonthlyLimit} onChange={event => setNewMonthlyLimit(event.target.value)} className="w-full rounded-xl border border-brand-line bg-white px-3 py-3 text-sm font-semibold text-brand-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange" />
+              </div>
+
+              <IconPickerGrid selectedSlug={newIcon} onSelectSlug={setNewIcon} />
+
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-brand-ink">Category color</p>
+                <button type="button" onClick={() => setShowNewColorPicker(open => !open)} aria-expanded={showNewColorPicker} aria-controls="new-category-color-picker" className="flex min-h-11 items-center gap-3 rounded-xl border border-brand-line bg-white px-3 py-2 text-sm text-brand-ink hover:bg-brand-canvas focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange">
+                  <span className="h-6 w-6 rounded-full border border-brand-ink/15" style={{ backgroundColor: newColor.hex, opacity: newColor.opacity / 100 }} />
+                  <span>Choose color</span><span className="font-mono text-xs text-brand-muted">{newColor.hex}</span>
+                </button>
+                {showNewColorPicker && <div id="new-category-color-picker"><CategoryColorPicker idPrefix="new-category" value={newColor} savedColors={colorPreferences.savedColors} onChange={setNewColor} onSaveColor={() => saveColor(newColor)} onClose={() => setShowNewColorPicker(false)} /></div>}
+              </div>
+
+              <div className="flex justify-end gap-2 border-t border-brand-line pt-4">
+                <Button type="button" tone="secondary" onClick={closeAdd}>Cancel</Button>
+                <Button type="submit" tone="primary"><Plus className="h-4 w-4" aria-hidden="true" /> Add {addingType === 'income' ? 'Income' : 'Expense'} Type</Button>
+              </div>
+            </form>
+          </>
+        )}
+      </Dialog>
+
+      <Dialog open={Boolean(editingCategory)} onClose={() => setEditingCategory(null)} titleId="edit-category-title" className="max-w-xl">
+        {editingCategory && (
+          <>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 id="edit-category-title" className="text-lg font-bold text-brand-ink">Edit {editingCategory.category_type} category</h3>
+                <p className="mt-1 text-sm text-brand-muted">Update its name, icon, or color.</p>
+              </div>
+              <button type="button" onClick={() => setEditingCategory(null)} aria-label="Close edit category" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-brand-muted hover:bg-brand-canvas focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange">
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+            <form onSubmit={handleEdit} className="mt-5 space-y-4">
+              <div>
+                <label htmlFor="edit-category-name" className="mb-1.5 block text-sm font-medium text-brand-ink">Type name</label>
+                <input id="edit-category-name" value={editName} onChange={event => setEditName(event.target.value)} maxLength={100} required className="w-full rounded-xl border border-brand-line bg-white px-3 py-3 text-sm text-brand-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange" />
+              </div>
+              <IconPickerGrid selectedSlug={editIcon} onSelectSlug={setEditIcon} />
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-brand-ink">Category color</p>
+                <button type="button" onClick={() => setShowEditColorPicker(open => !open)} aria-expanded={showEditColorPicker} aria-controls="edit-category-color-picker" className="flex min-h-11 items-center gap-3 rounded-xl border border-brand-line bg-white px-3 py-2 text-sm text-brand-ink hover:bg-brand-canvas focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange">
+                  <span className="h-6 w-6 rounded-full border border-brand-ink/15" style={{ backgroundColor: editColor.hex, opacity: editColor.opacity / 100 }} />
+                  <span>Choose color</span><span className="font-mono text-xs text-brand-muted">{editColor.hex}</span>
+                </button>
+                {showEditColorPicker && <div id="edit-category-color-picker"><CategoryColorPicker idPrefix="edit-category" value={editColor} savedColors={colorPreferences.savedColors} onChange={setEditColor} onSaveColor={() => saveColor(editColor)} onClose={() => setShowEditColorPicker(false)} /></div>}
+              </div>
+              <div className="flex justify-end gap-2 border-t border-brand-line pt-4">
+                <Button type="button" tone="secondary" onClick={() => setEditingCategory(null)}>Cancel</Button>
+                <Button type="submit" tone="primary"><Check className="h-4 w-4" aria-hidden="true" /> Save changes</Button>
+              </div>
+            </form>
+          </>
+        )}
       </Dialog>
     </div>
   );

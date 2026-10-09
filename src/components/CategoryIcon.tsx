@@ -1,11 +1,15 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   ShoppingCart, Zap, Utensils, Film, BookOpen, GraduationCap, Bus, Car, Fuel, 
   HeartPulse, Home, ShieldCheck, Gift, Gamepad2, Plane, Scissors, Wifi, Smartphone, 
-  Dumbbell, Baby, PawPrint, Wrench, Coffee, Music, CreditCard, Receipt, LucideIcon, TrendingUp
+  Dumbbell, Baby, PawPrint, Wrench, Coffee, Music, CreditCard, Receipt, LucideIcon, TrendingUp,
+  Banknote, Briefcase, CircleDollarSign, Coins, PiggyBank, Wallet, HandCoins, Landmark,
+  Handshake, Building2, BadgePercent, Laptop, Store, ChartNoAxesCombined, HeartHandshake,
+  FileText, CirclePlus, Shirt, Stethoscope, Shield, ClipboardList,
 } from 'lucide-react';
+import { CategoryColor, getStoredCategoryColor } from '../lib/categoryColors';
 
 export interface IconOption {
   slug: string;
@@ -41,12 +45,40 @@ export const AVAILABLE_ICONS: IconOption[] = [
   { slug: 'credit-card', label: 'Loans & Bills', icon: CreditCard, color: 'text-rose-300' },
   { slug: 'trending-up', label: 'Income & Salary', icon: TrendingUp, color: 'text-emerald-400' },
   { slug: 'receipt', label: 'General Receipt', icon: Receipt, color: 'text-slate-300' },
+  { slug: 'banknote', label: 'Paycheck', icon: Banknote, color: 'text-emerald-400' },
+  { slug: 'briefcase', label: 'Work & Freelance', icon: Briefcase, color: 'text-indigo-300' },
+  { slug: 'circle-dollar-sign', label: 'Cash Income', icon: CircleDollarSign, color: 'text-green-400' },
+  { slug: 'coins', label: 'Investment Returns', icon: Coins, color: 'text-amber-400' },
+  { slug: 'piggy-bank', label: 'Savings', icon: PiggyBank, color: 'text-pink-300' },
+  { slug: 'wallet', label: 'Wallet', icon: Wallet, color: 'text-sky-300' },
+  { slug: 'hand-coins', label: 'Allowance', icon: HandCoins, color: 'text-yellow-400' },
+  { slug: 'landmark', label: 'Bank', icon: Landmark, color: 'text-slate-300' },
+  { slug: 'handshake', label: 'Reimbursement', icon: Handshake, color: 'text-teal-300' },
+  { slug: 'building-2', label: 'Rental Income', icon: Building2, color: 'text-orange-300' },
+  { slug: 'badge-percent', label: 'Discounts', icon: BadgePercent, color: 'text-rose-300' },
+  { slug: 'laptop', label: 'Online Services', icon: Laptop, color: 'text-cyan-300' },
+  { slug: 'store', label: 'Business Income', icon: Store, color: 'text-lime-300' },
+  { slug: 'chart-no-axes-combined', label: 'Profit & Growth', icon: ChartNoAxesCombined, color: 'text-emerald-300' },
+  { slug: 'heart-handshake', label: 'Support & Donations', icon: HeartHandshake, color: 'text-red-300' },
+  { slug: 'file-text', label: 'Invoices', icon: FileText, color: 'text-blue-300' },
+  { slug: 'circle-plus', label: 'Other Income', icon: CirclePlus, color: 'text-violet-300' },
+  { slug: 'shirt', label: 'Clothing', icon: Shirt, color: 'text-purple-300' },
+  { slug: 'stethoscope', label: 'Medical Care', icon: Stethoscope, color: 'text-red-300' },
+  { slug: 'shield', label: 'Insurance', icon: Shield, color: 'text-sky-300' },
+  { slug: 'clipboard-list', label: 'General Services', icon: ClipboardList, color: 'text-amber-300' },
 ];
 
-export const CategoryIcon: React.FC<{ slug: string; className?: string }> = ({ slug, className = 'w-5 h-5' }) => {
+export const CategoryIcon: React.FC<{ slug: string; className?: string; color?: string; opacity?: number; categoryType?: string; categoryName?: string }> = ({ slug, className = 'w-5 h-5', color, opacity, categoryType, categoryName }) => {
+  const [storedColor, setStoredColor] = useState<CategoryColor | undefined>();
+  useEffect(() => {
+    setStoredColor(categoryType && categoryName ? getStoredCategoryColor(categoryType, categoryName) : undefined);
+  }, [categoryType, categoryName]);
+
   const found = AVAILABLE_ICONS.find(i => i.slug === slug) || AVAILABLE_ICONS[AVAILABLE_ICONS.length - 1];
   const IconComponent = found.icon;
-  return <IconComponent className={`${className} ${found.color}`} />;
+  const iconColor = color || storedColor?.hex;
+  const iconOpacity = opacity ?? storedColor?.opacity;
+  return <IconComponent className={`${className} ${found.color}`} style={iconColor ? { color: iconColor, opacity: (iconOpacity ?? 100) / 100 } : undefined} aria-hidden="true" />;
 };
 
 interface IconPickerGridProps {
@@ -57,8 +89,8 @@ interface IconPickerGridProps {
 export const IconPickerGrid: React.FC<IconPickerGridProps> = ({ selectedSlug, onSelectSlug }) => {
   return (
     <div className="space-y-2">
-      <label className="block text-xs font-medium text-slate-300">Choose Icon Style</label>
-      <div className="grid grid-cols-5 sm:grid-cols-8 gap-2 p-3 bg-slate-950/80 rounded-xl border border-slate-700/80 max-h-48 overflow-y-auto scrollbar-none">
+      <p className="block text-sm font-medium text-brand-ink">Choose icon style</p>
+      <div className="grid max-h-52 grid-cols-6 gap-2 overflow-y-auto rounded-xl border border-brand-line bg-brand-canvas p-3 sm:grid-cols-8">
         {AVAILABLE_ICONS.map(item => {
           const IconComp = item.icon;
           const isSelected = selectedSlug === item.slug;
@@ -68,19 +100,21 @@ export const IconPickerGrid: React.FC<IconPickerGridProps> = ({ selectedSlug, on
               key={item.slug}
               onClick={() => onSelectSlug(item.slug)}
               title={item.label}
-              className={`p-2.5 rounded-lg flex flex-col items-center justify-center transition-all ${
+              aria-label={item.label}
+              aria-pressed={isSelected}
+              className={`flex h-11 w-11 items-center justify-center rounded-lg border bg-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange ${
                 isSelected 
-                  ? 'bg-sky-500/20 border-2 border-sky-400 ring-2 ring-sky-500/30 scale-105' 
-                  : 'bg-slate-800/80 border border-slate-700/60 hover:bg-slate-700 hover:border-slate-500'
+                  ? 'border-brand-orange bg-brand-sky ring-2 ring-brand-orange/20'
+                  : 'border-brand-line hover:bg-brand-paper hover:border-brand-muted'
               }`}
             >
-              <IconComp className={`w-5 h-5 ${item.color}`} />
+              <IconComp className={`h-5 w-5 ${item.color}`} aria-hidden="true" />
             </button>
           );
         })}
       </div>
-      <p className="text-[11px] text-slate-400">
-        Selected Icon: <span className="font-semibold text-white">{AVAILABLE_ICONS.find(i => i.slug === selectedSlug)?.label || 'Default'}</span>
+      <p className="text-xs text-brand-muted" aria-live="polite">
+        Selected icon: <span className="font-semibold text-brand-ink">{AVAILABLE_ICONS.find(i => i.slug === selectedSlug)?.label || 'Default'}</span>
       </p>
     </div>
   );
