@@ -39,6 +39,7 @@ export const SettingsView: React.FC = () => {
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [editName, setEditName] = useState('');
   const [editIcon, setEditIcon] = useState('');
+  const [editMonthlyLimit, setEditMonthlyLimit] = useState('0.00');
   const [editColor, setEditColor] = useState<CategoryColor>(DEFAULT_TYPE_COLORS.expense);
   const [showEditColorPicker, setShowEditColorPicker] = useState(false);
   const [colorPreferences, setColorPreferences] = useState<CategoryColorPreferences>(EMPTY_CATEGORY_COLOR_PREFERENCES);
@@ -80,7 +81,7 @@ export const SettingsView: React.FC = () => {
     const name = newName.trim();
     if (!name) return;
     const parsedLimit = Number(newMonthlyLimit);
-    if (!Number.isFinite(parsedLimit) || parsedLimit < 0) {
+    if (editMonthlyLimit.trim() === '' || !Number.isFinite(parsedLimit) || parsedLimit < 0) {
       setMessage('Enter a valid monthly budget limit.');
       return;
     }
@@ -106,6 +107,7 @@ export const SettingsView: React.FC = () => {
     setEditingCategory(category);
     setEditName(category.name);
     setEditIcon(category.icon_slug);
+    setEditMonthlyLimit(String(category.monthly_budget_limit));
     setEditColor(colorPreferences.byCategoryName[getCategoryColorKey(category.category_type, category.name)] || DEFAULT_TYPE_COLORS[category.category_type]);
     setShowEditColorPicker(false);
     setMessage('');
@@ -116,7 +118,13 @@ export const SettingsView: React.FC = () => {
     if (!editingCategory) return;
     const name = editName.trim();
     if (!name) return;
-    const result = updateCategory(editingCategory.id, { name, icon_slug: editIcon });
+    const parsedLimit = Number(editMonthlyLimit);
+    if (!Number.isFinite(parsedLimit) || parsedLimit < 0) {
+      setMessage('Enter a valid monthly budget limit.');
+      return;
+    }
+
+    const result = updateCategory(editingCategory.id, { name, icon_slug: editIcon, monthly_budget_limit: parsedLimit });
     if (!result.success) {
       setMessage(result.error || 'Could not update this category.');
       return;
@@ -315,6 +323,10 @@ export const SettingsView: React.FC = () => {
               <div>
                 <label htmlFor="edit-category-name" className="mb-1.5 block text-sm font-medium text-brand-ink">Type name</label>
                 <input id="edit-category-name" value={editName} onChange={event => setEditName(event.target.value)} maxLength={100} required className="w-full rounded-xl border border-brand-line bg-white px-3 py-3 text-sm text-brand-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange" />
+              </div>
+              <div>
+                <label htmlFor="edit-category-monthly-limit" className="mb-1.5 block text-sm font-medium text-brand-ink">Monthly Budget Limit (₱ PHP)</label>
+                <input id="edit-category-monthly-limit" type="number" min="0" step="0.01" inputMode="decimal" value={editMonthlyLimit} onChange={event => setEditMonthlyLimit(event.target.value)} required className="w-full rounded-xl border border-brand-line bg-white px-3 py-3 text-sm font-semibold text-brand-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange" />
               </div>
               <IconPickerGrid selectedSlug={editIcon} onSelectSlug={setEditIcon} />
               <div className="space-y-2">
