@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Navbar } from '../Navbar';
 
 type AppShellProps = {
@@ -12,11 +12,13 @@ type AppShellProps = {
 };
 
 export function AppShell({ activeTab, setActiveTab, onOpenAddTxModal, children, legacy = false }: AppShellProps) {
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
   return (
     <div className="min-h-screen bg-brand-canvas">
       <a href="#main-content" className="sr-only z-[100] rounded-lg bg-white px-4 py-3 font-semibold text-brand-ink focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:ring-2 focus:ring-brand-orange">Skip to main content</a>
-      <Navbar activeTab={activeTab} setActiveTab={setActiveTab} onOpenAddTxModal={onOpenAddTxModal} />
-      <div className="lg:ml-64">
+      <div className={sidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'}>
+        <Navbar activeTab={activeTab} setActiveTab={setActiveTab} onOpenAddTxModal={onOpenAddTxModal} sidebarCollapsed={sidebarCollapsed} onToggleSidebar={() => setSidebarCollapsed(collapsed => !collapsed)} />
         <main id="main-content" tabIndex={-1} className={`${legacy ? 'legacy-view' : 'famledger-main'} mx-auto w-full max-w-[1600px] px-3 py-5 pb-[calc(9rem+env(safe-area-inset-bottom))] sm:px-6 sm:py-7 lg:px-8 lg:pb-8`}>
           {children}
         </main>

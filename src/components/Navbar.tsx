@@ -1,24 +1,26 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Home, Plus, LogOut, AlertCircle, X, User, ChevronDown, MoreHorizontal } from 'lucide-react';
+import { Home, Plus, LogOut, AlertCircle, X, User, ChevronDown, MoreHorizontal, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useHousehold } from '../context/HouseholdContext';
 import { supabase } from '../lib/supabase';
 import { clearAuthStorage } from '../lib/storageKeys';
 import { getCreditCardUsedBalance } from '../lib/creditCardTransactions';
 import { ProfileModal } from './ProfileModal';
 import { getHouseholdDisplayName } from '../lib/householdNaming';
-import { Button } from './ui/Button';
 import { MoneyAmount } from './ui/MoneyAmount';
+import { ProfileAvatar } from './ui/ProfileAvatar';
 import { desktopBottomNavigationItems, desktopPrimaryNavigationItems, moreNavigationItems, primaryNavigationItems } from './layout/navigation';
 
 interface NavbarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   onOpenAddTxModal: () => void;
+  sidebarCollapsed: boolean;
+  onToggleSidebar: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenAddTxModal }) => {
+export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenAddTxModal, sidebarCollapsed, onToggleSidebar }) => {
   const { currentMember, members, wallets, isAdmin, syncWarning, clearSyncWarning } = useHousehold();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -68,12 +70,14 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
         type="button"
         onClick={() => navigate(item.id)}
         aria-current={selected ? 'page' : undefined}
+        aria-label={!mobile && sidebarCollapsed ? item.label : undefined}
+        title={!mobile && sidebarCollapsed ? item.label : undefined}
         className={mobile
           ? `flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-semibold transition-colors ${selected ? 'bg-brand-sky text-[#16445A]' : 'text-slate-600 hover:bg-slate-100'}`
-          : `flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-sm font-semibold transition-colors ${selected ? 'bg-brand-ink text-white shadow-sm' : 'text-slate-600 hover:bg-white hover:text-brand-ink'}`}
+          : `flex min-h-11 w-full items-center ${sidebarCollapsed ? 'justify-center' : 'gap-3'} rounded-xl px-3 text-sm font-semibold transition-colors ${selected ? 'bg-brand-ink text-white shadow-sm' : 'text-slate-600 hover:bg-white hover:text-brand-ink'}`}
       >
         <Icon className={mobile ? 'h-5 w-5 shrink-0' : 'h-[18px] w-[18px] shrink-0'} aria-hidden="true" />
-        <span className={mobile ? 'max-w-full truncate' : ''}>{item.label}</span>
+        <span className={mobile ? 'max-w-full truncate' : sidebarCollapsed ? 'sr-only' : ''}>{item.label}</span>
       </button>
     );
   };
@@ -82,7 +86,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
     <>
       <header className="sticky top-0 z-40 border-b border-brand-line bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/90">
         <div className="flex h-[4.5rem] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
-          <button type="button" onClick={() => navigate('dashboard')} className="flex min-w-0 items-center gap-3 rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange" aria-label="Open FamLedger dashboard">
+          <button type="button" onClick={() => navigate('dashboard')} className="flex min-w-0 items-center gap-3 rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange lg:hidden" aria-label="Open FamLedger dashboard">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-brand-ink text-white shadow-sm"><Home className="h-5 w-5" aria-hidden="true" /></span>
             <span className="min-w-0">
               <span className="block text-base font-extrabold tracking-tight text-brand-ink">FamLedger</span>
@@ -90,17 +94,9 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
             </span>
           </button>
 
-          <div className="hidden items-center gap-3 lg:flex">
-            <div className="max-w-[16rem] text-right leading-tight" title="For visible wallets. Excludes outstanding card service fees and separate loan principal.">
-              <span className="block text-[10px] font-semibold uppercase tracking-wide text-brand-muted">Liquid balances less used card balances</span>
-              <MoneyAmount amount={totalNetWorth} className="text-sm font-bold text-brand-ink" />
-            </div>
-            <Button tone="primary" size="sm" onClick={onOpenAddTxModal} className="min-h-11"><Plus className="h-4 w-4" aria-hidden="true" />Log transaction</Button>
-          </div>
-
-          <div className="relative shrink-0">
+          <div className="relative ml-auto shrink-0">
             <button type="button" onClick={() => setShowProfileMenu(open => !open)} className="flex h-11 w-11 items-center justify-center rounded-xl border border-brand-line bg-white text-brand-ink transition-colors hover:bg-slate-50" aria-label="Profile menu" aria-expanded={showProfileMenu}>
-              <User className="h-5 w-5" aria-hidden="true" />
+              <ProfileAvatar key={currentMember.id} member={currentMember} />
             </button>
             {showProfileMenu && (
               <div className="absolute right-0 top-12 z-50 w-60 overflow-hidden rounded-2xl border border-brand-line bg-white p-1.5 shadow-xl">
@@ -124,18 +120,29 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
         )}
       </header>
 
-      <aside className="fixed bottom-0 left-0 top-[4.5rem] z-30 hidden w-64 border-r border-brand-line bg-[#F1F3F5] px-4 py-5 lg:block">
-        <nav aria-label="Main navigation" className="flex h-full flex-col">
-          <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[.14em] text-brand-muted">Household</p>
+      <aside className={`fixed inset-y-0 left-0 z-50 hidden ${sidebarCollapsed ? 'w-20' : 'w-64'} overflow-y-auto border-r border-brand-line bg-[#F1F3F5] px-4 py-4 lg:block`} aria-label="Household sidebar">
+        <div className="flex min-h-full flex-col">
+          <div className={`mb-5 flex ${sidebarCollapsed ? 'flex-col' : 'items-center'} gap-2`}>
+            <button type="button" onClick={() => navigate('dashboard')} className="flex min-w-0 flex-1 items-center gap-2 rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange" aria-label="Open FamLedger dashboard" title={sidebarCollapsed ? 'FamLedger' : undefined}>
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-brand-ink text-white shadow-sm"><Home className="h-5 w-5" aria-hidden="true" /></span>
+              {!sidebarCollapsed && <span className="min-w-0"><span className="block text-sm font-extrabold tracking-tight text-brand-ink">FamLedger</span><span className="block truncate text-[10px] font-medium text-brand-muted" title={householdDisplayName}>{householdDisplayName}</span></span>}
+            </button>
+            <button type="button" onClick={onToggleSidebar} aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} aria-expanded={!sidebarCollapsed} aria-controls="desktop-navigation" title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-brand-ink hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange">
+              {sidebarCollapsed ? <PanelLeftOpen className="h-5 w-5" aria-hidden="true" /> : <PanelLeftClose className="h-5 w-5" aria-hidden="true" />}
+            </button>
+          </div>
+        <nav id="desktop-navigation" aria-label="Main navigation" className="flex flex-1 flex-col">
+          {!sidebarCollapsed && <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[.14em] text-brand-muted">Household</p>}
           <div className="space-y-1">{desktopPrimaryNavigationItems.map(item => navButton(item))}</div>
           <div className="mt-auto">
             <div className="space-y-1 pt-7">{desktopBottomNavigationItems.map(item => navButton(item))}</div>
           </div>
-          <div className="mt-4 rounded-2xl bg-white p-4 ring-1 ring-brand-line">
+          {!sidebarCollapsed && <div className="mt-4 rounded-2xl bg-white p-4 ring-1 ring-brand-line">
             <p className="text-[11px] font-semibold leading-snug text-brand-muted">For visible wallets. Excludes outstanding card service fees and separate loan principal.</p>
             <MoneyAmount amount={totalNetWorth} className="mt-2 block text-sm font-bold text-brand-ink" />
-          </div>
+          </div>}
         </nav>
+        </div>
       </aside>
 
       <nav className="fixed inset-x-0 bottom-0 z-40 flex items-center gap-1 border-t border-brand-line bg-white/95 px-2 pt-1.5 shadow-[0_-8px_24px_rgb(22_38_61/0.06)] backdrop-blur lg:hidden" style={{ paddingBottom: 'max(.375rem, env(safe-area-inset-bottom))' }} aria-label="Mobile navigation">

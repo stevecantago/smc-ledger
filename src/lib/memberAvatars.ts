@@ -1,6 +1,8 @@
 import { FamilyRelationship } from '../types/database';
 import { STORAGE_KEYS } from './storageKeys';
 
+export const MEMBER_AVATARS_CHANGED_EVENT = 'famledger:member-avatars-changed';
+
 export type MemberAvatar =
   | { type: 'preset'; value: string }
   | { type: 'photo'; value: string };
@@ -61,6 +63,7 @@ export function writeMemberAvatars(avatars: Record<string, MemberAvatar>): boole
   if (typeof window === 'undefined') return false;
   try {
     window.localStorage.setItem(STORAGE_KEYS.memberAvatars, JSON.stringify(avatars));
+    window.dispatchEvent(new Event(MEMBER_AVATARS_CHANGED_EVENT));
     return true;
   } catch {
     return false;
