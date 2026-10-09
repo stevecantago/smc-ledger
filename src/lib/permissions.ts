@@ -42,7 +42,7 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   update_transactions: 'Edit transactions',
   delete_transactions: 'Delete transactions',
   manage_wallets: 'Manage wallets and credit lines',
-  manage_categories: 'Manage envelope budgets',
+  manage_categories: 'Manage income and expense categories',
   manage_goals: 'Manage savings goals',
   fund_goals: 'Fund savings goals',
   manage_loans: 'Manage loans',

@@ -42,40 +42,6 @@ export function buildTransactionsCsv(
   return [headers.join(','), ...rows].join('\n');
 }
 
-export function exportBudgetSummaryToCsv(
-  categories: Category[],
-  transactions: Transaction[]
-) {
-  const now = new Date();
-  const currentMonthTx = transactions.filter(t => {
-    const d = new Date(t.transaction_date);
-    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-  });
-
-  const headers = ['Category Name', 'Icon', 'Monthly Budget Limit (PHP)', 'Spent This Month (PHP)', 'Remaining Balance (PHP)', 'Utilization Status'];
-
-  const rows = categories.filter(c => c.category_type === 'expense').map(c => {
-    const spent = currentMonthTx
-      .filter(t => t.type === 'expense' && t.category_id === c.id)
-      .reduce((sum, t) => sum + t.amount, 0);
-    const remaining = c.monthly_budget_limit - spent;
-    const percent = c.monthly_budget_limit > 0 ? (spent / c.monthly_budget_limit) * 100 : 0;
-    const status = percent > 100 ? 'OVER BUDGET' : percent > 85 ? 'WARNING (>85%)' : 'ON TRACK';
-
-    return [
-      `"${c.name}"`,
-      `"${c.icon_slug}"`,
-      c.monthly_budget_limit.toFixed(2),
-      spent.toFixed(2),
-      remaining.toFixed(2),
-      `"${status}"`
-    ].join(',');
-  });
-
-  const csvContent = [headers.join(','), ...rows].join('\n');
-  downloadBlob(csvContent, `FamLedger_Budget_Summary_${now.getFullYear()}_${now.getMonth() + 1}.csv`, 'text/csv;charset=utf-8;');
-}
-
 function downloadBlob(content: string, filename: string, mimeType: string) {
   const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);

@@ -82,7 +82,7 @@ export const SettingsView: React.FC = () => {
               <DirectionIcon className={`h-4 w-4 ${isIncome ? 'text-[#168B63]' : 'text-brand-orange'}`} aria-hidden="true" />
               {title}
             </h3>
-            <p className="mt-1 text-xs text-brand-muted">{isIncome ? 'Used to label income entries.' : 'Used by envelope budgets and expense entries.'}</p>
+            <p className="mt-1 text-xs text-brand-muted">{isIncome ? 'Used to label income entries.' : 'Used to label expense entries.'}</p>
           </div>
           {canManageCategories && (
             <form onSubmit={event => handleAdd(event, categoryType)} className="flex flex-col gap-2 sm:flex-row">

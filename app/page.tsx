@@ -6,7 +6,6 @@ import { AppShell } from '../src/components/layout/AppShell';
 import { DashboardView } from '../src/components/DashboardView';
 import { WalletsView } from '../src/components/WalletsView';
 import { TransactionsView } from '../src/components/TransactionsView';
-import { BudgetsView } from '../src/components/BudgetsView';
 import { LoansView } from '../src/components/LoansView';
 import { SavingsGoalsView } from '../src/components/SavingsGoalsView';
 import { MembersView } from '../src/components/MembersView';
@@ -103,7 +102,7 @@ export default function Home() {
   }
 
   return (
-    <AppShell activeTab={activeTab} setActiveTab={setActiveTab} onOpenAddTxModal={handleOpenAddTxModal} legacy={!['dashboard', 'wallets', 'transactions', 'goals', 'budgets', 'settings'].includes(activeTab)}>
+    <AppShell activeTab={activeTab} setActiveTab={setActiveTab} onOpenAddTxModal={handleOpenAddTxModal} legacy={!['dashboard', 'wallets', 'transactions', 'goals', 'settings'].includes(activeTab)}>
         {activeTab === 'dashboard' && (
           <DashboardView 
             setActiveTab={setActiveTab} 
@@ -119,7 +118,6 @@ export default function Home() {
             draft={transactionDraft}
           />
         )}
-        {activeTab === 'budgets' && <BudgetsView />}
         {activeTab === 'loans' && <LoansView />}
         {activeTab === 'schedules' && <SchedulesView onPayCreditCard={handlePayCreditCard} />}
         {activeTab === 'goals' && <SavingsGoalsView />}
