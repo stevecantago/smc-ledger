@@ -8,12 +8,13 @@ import { SavingsGoal } from '../types/database';
 import { getCreditCardAvailableCredit, getCreditCardUsedBalance } from '../lib/creditCardTransactions';
 import { getSavingsGoalProgress } from '../lib/savingsGoalProgress';
 import { getWalletTypeLabel } from '../lib/walletTypes';
+import { getExpenseCategories } from '../lib/expenseCategories';
 import { Dialog } from './ui/Dialog';
 import { EmptyState } from './ui/EmptyState';
 
 export const SavingsGoalsView: React.FC = () => {
   const { 
-    savingsGoals, wallets, currentMember, isAdmin, 
+    savingsGoals, wallets, categories, currentMember, isAdmin,
     addSavingsGoal, updateSavingsGoal, deleteSavingsGoal, fundSavingsGoal 
   } = useHousehold();
 
@@ -26,12 +27,14 @@ export const SavingsGoalsView: React.FC = () => {
   const [targetAmount, setTargetAmount] = useState('');
   const [targetDate, setTargetDate] = useState('');
   const [goalWalletId, setGoalWalletId] = useState('');
+  const [goalCategoryId, setGoalCategoryId] = useState('');
 
   // Edit Form
   const [editName, setEditName] = useState('');
   const [editTarget, setEditTarget] = useState('');
   const [editDate, setEditDate] = useState('');
   const [editGoalWalletId, setEditGoalWalletId] = useState('');
+  const [editGoalCategoryId, setEditGoalCategoryId] = useState('');
 
   // Fund Form
   const [fundAmount, setFundAmount] = useState('');
@@ -58,12 +61,14 @@ export const SavingsGoalsView: React.FC = () => {
       target_amount: parseFloat(targetAmount) || 0,
       target_date: targetDate || undefined,
       wallet_id: goalWalletId || null,
+      category_id: goalCategoryId || null,
     });
 
     setName('');
     setTargetAmount('');
     setTargetDate('');
     setGoalWalletId('');
+    setGoalCategoryId('');
     setShowAddModal(false);
   };
 
@@ -76,6 +81,7 @@ export const SavingsGoalsView: React.FC = () => {
       target_amount: parseFloat(editTarget) || 0,
       target_date: editDate || null,
       wallet_id: editGoalWalletId || null,
+      category_id: editGoalCategoryId || null,
     });
 
     setEditingGoal(null);
@@ -144,6 +150,7 @@ export const SavingsGoalsView: React.FC = () => {
       ) : <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {savingsGoals.map(goal => {
           const progress = getSavingsGoalProgress(goal, wallets);
+          const linkedCategory = categories.find(category => category.id === goal.category_id);
           const percent = progress.percent;
           const remaining = progress.remainingAmount;
 
@@ -167,6 +174,9 @@ export const SavingsGoalsView: React.FC = () => {
                           <DollarSign className="w-3 h-3 mr-1 text-emerald-400" /> Tracks: {progress.linkedWallet.name}
                         </p>
                       )}
+                      {linkedCategory && (
+                        <p className="text-[11px] text-slate-400 mt-0.5">Expense category: {linkedCategory.name}</p>
+                      )}
                     </div>
                   </div>
 
@@ -184,6 +194,7 @@ export const SavingsGoalsView: React.FC = () => {
                             setEditTarget(goal.target_amount.toString());
                             setEditDate(goal.target_date || '');
                             setEditGoalWalletId(goal.wallet_id || '');
+                            setEditGoalCategoryId(goal.category_id || '');
                           }}
                           title="Edit Savings Goal"
                           aria-label={`Edit ${goal.name}`}
@@ -303,11 +314,26 @@ export const SavingsGoalsView: React.FC = () => {
                 </select>
               </div>
 
+              <div>
+                <label htmlFor="create-goal-category" className="block text-xs font-medium text-slate-300 mb-1">Expense Category Type (Optional)</label>
+                <select
+                  id="create-goal-category"
+                  value={goalCategoryId}
+                  onChange={(e) => setGoalCategoryId(e.target.value)}
+                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                >
+                  <option value="">No linked expense category</option>
+                  {getExpenseCategories(categories).map(category => (
+                    <option key={category.id} value={category.id}>{category.name}</option>
+                  ))}
+                </select>
+              </div>
+
               <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-800">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
+                  className="min-h-10 rounded-xl px-4 py-2 text-sm font-semibold text-brand-muted transition-colors hover:bg-brand-canvas hover:text-brand-ink"
                 >
                   Cancel
                 </button>
@@ -381,11 +407,26 @@ export const SavingsGoalsView: React.FC = () => {
                 </select>
               </div>
 
+              <div>
+                <label htmlFor="edit-goal-category" className="block text-xs font-medium text-slate-300 mb-1">Expense Category Type (Optional)</label>
+                <select
+                  id="edit-goal-category"
+                  value={editGoalCategoryId}
+                  onChange={(e) => setEditGoalCategoryId(e.target.value)}
+                  className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                >
+                  <option value="">No linked expense category</option>
+                  {getExpenseCategories(categories).map(category => (
+                    <option key={category.id} value={category.id}>{category.name}</option>
+                  ))}
+                </select>
+              </div>
+
               <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-800">
                 <button
                   type="button"
                   onClick={() => setEditingGoal(null)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
+                  className="min-h-10 rounded-xl px-4 py-2 text-sm font-semibold text-brand-muted transition-colors hover:bg-brand-canvas hover:text-brand-ink"
                 >
                   Cancel
                 </button>
@@ -450,7 +491,7 @@ export const SavingsGoalsView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setFundingGoal(null)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
+                  className="min-h-10 rounded-xl px-4 py-2 text-sm font-semibold text-brand-muted transition-colors hover:bg-brand-canvas hover:text-brand-ink"
                 >
                   Cancel
                 </button>

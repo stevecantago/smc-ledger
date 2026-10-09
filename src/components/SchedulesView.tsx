@@ -2,10 +2,11 @@
 
 import React, { useMemo, useState } from 'react';
 import { useHousehold } from '../context/HouseholdContext';
-import { ArrowRightLeft, Calendar, CalendarDays, Clock, CreditCard, Edit2, Filter, Landmark, Plus, Power, Search, Trash2, Wallet as WalletIcon } from 'lucide-react';
+import { ArrowRightLeft, CalendarDays, Clock, CreditCard, Edit2, Filter, Landmark, Plus, Power, Search, Trash2, Wallet as WalletIcon } from 'lucide-react';
 import { RecurringFrequency, RecurringRuleType, RecurringTransfer, WalletType } from '../types/database';
-import { CategoryIconTile } from './CategoryIcon';
 import { buildCreditCardPaymentSchedules, filterCreditCardPaymentSchedules } from '../lib/creditCardPaymentSchedules';
+import { CategoryIconTile } from './CategoryIcon';
+import { Button } from './ui/Button';
 
 const ruleTypeLabels: Record<RecurringRuleType, string> = {
   expense: 'Recurring Bill',
@@ -92,6 +93,11 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard })
     const matchesPaymentMethod = paymentMethodFilter === 'all' || wallet?.wallet_type === paymentMethodFilter;
     return matchesSearch && matchesCategory && matchesMember && matchesPaymentMethod;
   });
+
+  const scheduleRows = [
+    ...filteredSchedules.map(rule => ({ kind: 'schedule' as const, dueDate: rule.next_run_date, rule })),
+    ...filteredCreditCardPayments.map(payment => ({ kind: 'credit-card-payment' as const, dueDate: payment.dueDate, payment })),
+  ].sort((first, second) => first.dueDate.localeCompare(second.dueDate));
 
   const resetForm = () => {
     setEditingRule(null);
@@ -189,27 +195,27 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard })
   };
 
   return (
-    <div className="space-y-6 pb-28 md:pb-6">
-      <div className="flex flex-col gap-4 rounded-xl border border-slate-700/70 bg-slate-800/80 p-5 sm:flex-row sm:items-center sm:justify-between">
+    <div className="famledger-view famledger-schedules space-y-6 pb-28 md:pb-6">
+      <div className="flex flex-col gap-4 rounded-2xl border border-brand-line bg-brand-paper p-5 shadow-[var(--fam-shadow)] sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="flex items-center space-x-2 text-lg font-bold text-white">
-            <Clock className="h-5 w-5 text-indigo-400" />
+          <h2 className="flex items-center gap-2 text-lg font-bold text-brand-ink">
+            <Clock className="h-5 w-5 text-brand-orange" />
             <span>Schedules</span>
           </h2>
-          <p className="mt-1 text-xs text-slate-400">Manage recurring bills, loan repayments, and transfer schedules.</p>
+          <p className="mt-1 text-sm text-brand-muted">Manage recurring bills, loan repayments, and transfer schedules.</p>
         </div>
 
         {canManageSchedules && (
-          <button
+          <Button
+            tone="primary"
             onClick={() => {
               resetForm();
               setShowModal(true);
             }}
-            className="flex items-center space-x-2 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-medium text-white shadow transition-all hover:bg-indigo-500"
           >
-            <Plus className="h-4 w-4" />
-            <span>+ Add Schedule</span>
-          </button>
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            <span>Add Schedule</span>
+          </Button>
         )}
       </div>
 
@@ -292,126 +298,106 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard })
         </div>
       </section>
 
-      {filteredCreditCardPayments.length > 0 && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {filteredCreditCardPayments.map(payment => (
-            <div key={payment.id} className="rounded-xl border border-purple-500/40 bg-purple-500/5 p-4 shadow-lg">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start space-x-3">
-                  <div className="rounded-lg border border-purple-500/30 bg-slate-900 p-2.5">
-                    <CreditCard className="h-5 w-5 text-purple-300" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-white">{payment.walletName} payment</h3>
-                    <p className="mt-1 text-xs text-slate-400">Full current total due</p>
-                    <p className="mt-1 text-[11px] font-semibold text-purple-300">Automatic card payment schedule</p>
-                  </div>
-                </div>
-                <span className="shrink-0 rounded border border-purple-500/30 bg-purple-500/10 px-2 py-0.5 text-[10px] font-bold text-purple-300">
-                  PAYMENT DUE
-                </span>
-              </div>
+      <section aria-label="Scheduled transactions" className="overflow-hidden rounded-2xl border border-brand-line bg-brand-paper shadow-[var(--fam-shadow)]">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[900px] divide-y divide-brand-line text-left text-sm">
+            <caption className="sr-only">Scheduled transactions, sorted by next due date from oldest to newest</caption>
+            <thead className="bg-brand-canvas text-xs font-semibold uppercase tracking-wide text-brand-muted">
+              <tr>
+                <th scope="col" className="px-4 py-3">Next due</th>
+                <th scope="col" className="px-4 py-3">Schedule</th>
+                <th scope="col" className="px-4 py-3">Type / category</th>
+                <th scope="col" className="px-4 py-3">Account</th>
+                <th scope="col" className="px-4 py-3 text-right">Amount</th>
+                <th scope="col" className="px-4 py-3">Frequency / status</th>
+                <th scope="col" className="px-4 py-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-brand-line">
+              {scheduleRows.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-10 text-center text-sm text-brand-muted">No schedules match the current filters.</td>
+                </tr>
+              ) : scheduleRows.map(row => {
+                if (row.kind === 'credit-card-payment') {
+                  const { payment } = row;
+                  return (
+                    <tr key={payment.id} className="bg-white align-middle hover:bg-brand-canvas/70">
+                      <td className="whitespace-nowrap px-4 py-3 font-medium text-brand-ink">{new Date(`${payment.dueDate}T00:00:00`).toLocaleDateString()}</td>
+                      <th scope="row" className="min-w-52 px-4 py-3 font-semibold text-brand-ink">
+                        <span className="flex items-center gap-2"><CreditCard className="h-4 w-4 shrink-0 text-brand-orange" aria-hidden="true" />{payment.walletName} payment</span>
+                      </th>
+                      <td className="px-4 py-3 text-brand-muted">Credit card payment</td>
+                      <td className="px-4 py-3 text-brand-ink">{payment.walletName}</td>
+                      <td className="whitespace-nowrap px-4 py-3 text-right font-semibold tabular-nums text-brand-ink">₱{payment.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                      <td className="px-4 py-3"><span className="inline-flex rounded-full bg-brand-sky px-2.5 py-1 text-xs font-semibold text-brand-ink">Payment due</span><span className="mt-1 block text-xs text-brand-muted">Automatic · next 5th or 20th</span></td>
+                      <td className="px-4 py-3 text-right">
+                        <Button size="sm" tone="secondary" className="whitespace-nowrap" onClick={() => onPayCreditCard(payment.walletId, payment.amount, payment.walletName)}>Pay balance</Button>
+                      </td>
+                    </tr>
+                  );
+                }
 
-              <div className="mt-4 flex items-end justify-between gap-3 border-t border-slate-700/70 pt-3 text-xs">
-                <div>
-                  <p className="font-mono font-bold text-rose-400">₱{payment.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
-                  <p className="mt-1 flex items-center text-[11px] text-amber-300">
-                    <Calendar className="mr-1 h-3.5 w-3.5" />
-                    Due: {payment.dueDate} · Next 5th or 20th
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => onPayCreditCard(payment.walletId, payment.amount, payment.walletName)}
-                  className="rounded-lg border border-purple-500/30 bg-purple-600 px-3 py-2 text-[11px] font-bold text-white transition-colors hover:bg-purple-500"
-                >
-                  Pay Balance
-                </button>
-              </div>
-            </div>
-          ))}
+                const { rule } = row;
+                const source = wallets.find(wallet => wallet.id === rule.source_wallet_id);
+                const destination = rule.destination_wallet_id ? wallets.find(wallet => wallet.id === rule.destination_wallet_id) : null;
+                const category = rule.category_id ? categories.find(item => item.id === rule.category_id) : null;
+                const loan = rule.loan_id ? loans.find(item => item.id === rule.loan_id) : null;
+                const accountLabel = rule.rule_type === 'transfer'
+                  ? `${source?.name || 'Source'} → ${destination?.name || 'Destination'}`
+                  : source?.name || 'Source wallet';
+                const typeLabel = rule.rule_type === 'loan_payment' ? 'Loan repayment' : ruleTypeLabels[rule.rule_type];
+                const detailLabel = loan?.name || category?.name || ruleTypeLabels[rule.rule_type];
+
+                return (
+                  <tr key={rule.id} className="bg-white align-middle hover:bg-brand-canvas/70">
+                    <td className="whitespace-nowrap px-4 py-3 font-medium text-brand-ink">{new Date(`${rule.next_run_date}T00:00:00`).toLocaleDateString()}</td>
+                    <th scope="row" className="min-w-52 px-4 py-3 font-semibold text-brand-ink">{rule.note}</th>
+                    <td className="px-4 py-3">
+                      <span className="flex items-center gap-2">
+                        {category
+                          ? <CategoryIconTile slug={category.icon_slug} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" iconClassName="h-4 w-4" categoryType={category.category_type} categoryName={category.name} />
+                          : rule.rule_type === 'loan_payment'
+                            ? <Landmark className="h-4 w-4 shrink-0 text-brand-orange" aria-hidden="true" />
+                            : <ArrowRightLeft className="h-4 w-4 shrink-0 text-brand-muted" aria-hidden="true" />}
+                        <span><span className="text-brand-ink">{typeLabel}</span><span className="mt-1 block text-xs text-brand-muted">{detailLabel}</span></span>
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-brand-ink">{accountLabel}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right font-semibold tabular-nums text-brand-ink">₱{rule.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                    <td className="px-4 py-3"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${rule.is_active ? 'bg-emerald-50 text-emerald-800' : 'bg-brand-canvas text-brand-muted'}`}>{rule.is_active ? 'Active' : 'Paused'}</span><span className="mt-1 block text-xs text-brand-muted">{formatFrequencyLabel(rule.frequency, rule.custom_interval_days)}</span></td>
+                    <td className="px-4 py-3 text-right">
+                      {canManageSchedules && <div className="inline-flex items-center gap-1">
+                        <button type="button" onClick={() => openEdit(rule)} className="rounded-lg p-2 text-brand-muted hover:bg-brand-canvas hover:text-brand-ink" title="Edit schedule" aria-label={`Edit ${rule.note}`}><Edit2 className="h-4 w-4" aria-hidden="true" /></button>
+                        <button type="button" onClick={() => toggleRecurringTransfer(rule.id)} className="rounded-lg p-2 text-brand-muted hover:bg-brand-canvas hover:text-brand-ink" title="Pause or activate schedule" aria-label={`${rule.is_active ? 'Pause' : 'Activate'} ${rule.note}`}><Power className="h-4 w-4" aria-hidden="true" /></button>
+                        <button type="button" onClick={() => handleDelete(rule)} className="rounded-lg p-2 text-brand-muted hover:bg-rose-50 hover:text-rose-800" title="Delete schedule" aria-label={`Delete ${rule.note}`}><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
+                      </div>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
-      )}
-
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {filteredSchedules.length === 0 && filteredCreditCardPayments.length === 0 ? (
-          <div className="rounded-xl border border-slate-700/70 bg-slate-800/80 p-5 text-sm text-slate-400 md:col-span-2">
-            No schedules match the current filters.
-          </div>
-        ) : filteredSchedules.map(rule => {
-          const source = wallets.find(wallet => wallet.id === rule.source_wallet_id);
-          const destination = rule.destination_wallet_id ? wallets.find(wallet => wallet.id === rule.destination_wallet_id) : null;
-          const category = rule.category_id ? categories.find(item => item.id === rule.category_id) : null;
-          const loan = rule.loan_id ? loans.find(item => item.id === rule.loan_id) : null;
-
-          return (
-            <div key={rule.id} className="rounded-xl border border-slate-700/80 bg-slate-800/90 p-4 shadow-lg">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start space-x-3">
-                  <div className="rounded-lg border border-slate-700 bg-slate-900 p-2.5 text-indigo-300">
-                    {rule.rule_type === 'loan_payment' ? <Landmark className="h-5 w-5 text-amber-400" /> : category ? <CategoryIconTile slug={category.icon_slug} className="-m-2.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg" iconClassName="h-5 w-5" categoryType={category.category_type} categoryName={category.name} fallbackClassName="bg-slate-900" fallbackColorHex="#0F172A" baseHex="#0F172A" /> : <ArrowRightLeft className="h-5 w-5" />}
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-white">{rule.note}</h3>
-                    <p className="mt-1 text-xs text-slate-400">
-                      {rule.rule_type === 'transfer'
-                        ? `${source?.name || 'Source'} -> ${destination?.name || 'Destination'}`
-                        : `Payer: ${source?.name || 'Source wallet'}`}
-                    </p>
-                    <p className="mt-1 text-[11px] text-slate-500">{loan ? `Loan: ${loan.name}` : category ? `Category: ${category.name}` : ruleTypeLabels[rule.rule_type]}</p>
-                  </div>
-                </div>
-
-                <span className={`shrink-0 rounded border px-2 py-0.5 text-[10px] font-bold ${rule.is_active ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400' : 'border-slate-700 bg-slate-900 text-slate-500'}`}>
-                  {rule.is_active ? 'ACTIVE' : 'PAUSED'}
-                </span>
-              </div>
-
-              <div className="mt-4 flex items-center justify-between border-t border-slate-700/70 pt-3 text-xs">
-                <div>
-                  <p className="font-mono font-bold text-emerald-400">₱{rule.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
-                  <p className="mt-1 flex items-center text-[11px] text-amber-300">
-                    <Calendar className="mr-1 h-3.5 w-3.5" />
-                    Next Due: {rule.next_run_date} · {formatFrequencyLabel(rule.frequency, rule.custom_interval_days)}
-                  </p>
-                </div>
-
-                {canManageSchedules && (
-                  <div className="flex items-center space-x-2">
-                    <button onClick={() => openEdit(rule)} className="rounded p-1.5 text-slate-400 hover:bg-amber-400/10 hover:text-amber-400" title="Edit Schedule">
-                      <Edit2 className="h-4 w-4" />
-                    </button>
-                    <button onClick={() => toggleRecurringTransfer(rule.id)} className="rounded p-1.5 text-slate-400 hover:bg-indigo-400/10 hover:text-indigo-400" title="Pause or Activate Schedule">
-                      <Power className="h-4 w-4" />
-                    </button>
-                    <button onClick={() => handleDelete(rule)} className="rounded p-1.5 text-slate-400 hover:bg-rose-500/10 hover:text-rose-400" title="Delete Schedule">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      </section>
 
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
-            <h3 className="flex items-center space-x-2 text-base font-bold text-white">
-              <Clock className="h-5 w-5 text-indigo-400" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-brand-ink/40 p-4 backdrop-blur-sm">
+          <div role="dialog" aria-modal="true" aria-labelledby="schedule-dialog-title" className="max-h-[90vh] w-full max-w-md space-y-5 overflow-y-auto rounded-2xl border border-brand-line bg-brand-paper p-6 shadow-[var(--fam-shadow)]">
+            <h3 id="schedule-dialog-title" className="flex items-center gap-2 text-base font-bold text-brand-ink">
+              <Clock className="h-5 w-5 text-brand-orange" />
               <span>{editingRule ? 'Edit Schedule' : 'Create Schedule'}</span>
             </h3>
 
             {errorMsg && (
-              <div className="mt-4 rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300">
+              <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800" role="alert">
                 {errorMsg}
               </div>
             )}
 
             <form onSubmit={handleSubmit} className="mt-5 space-y-4">
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-slate-300">Schedule Type</label>
+                <label className="mb-1.5 block text-xs font-medium text-brand-muted">Schedule Type</label>
                 <div className="grid grid-cols-3 gap-2">
                   {(['expense', 'transfer', 'loan_payment'] as RecurringRuleType[]).map(type => (
                     <button
@@ -425,7 +411,7 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard })
                           setNote(`Loan Amortization - ${loans[0].name}`);
                         }
                       }}
-                      className={`rounded-lg border py-2 text-xs font-bold transition-all ${ruleType === type ? 'border-indigo-500/40 bg-indigo-500/10 text-indigo-300 ring-1 ring-sky-500' : 'border-slate-700 bg-slate-800 text-slate-400'}`}
+                      className={`min-h-11 rounded-xl border px-2 py-2 text-xs font-semibold transition-colors ${ruleType === type ? 'border-brand-orange bg-brand-orange/5 text-brand-ink ring-1 ring-brand-orange/30' : 'border-brand-line bg-white text-brand-muted hover:bg-brand-canvas'}`}
                     >
                       {ruleTypeLabels[type]}
                     </button>
@@ -434,21 +420,21 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard })
               </div>
 
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-300">Title / Description</label>
-                <input value={note} onChange={event => setNote(event.target.value)} required className="w-full rounded-lg border border-slate-700 bg-slate-800 p-2.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-sky-500" />
+                <label className="mb-1 block text-xs font-medium text-brand-muted">Title / Description</label>
+                <input value={note} onChange={event => setNote(event.target.value)} required className="min-h-11 w-full rounded-xl border border-brand-line bg-white px-3 py-2.5 text-sm text-brand-ink focus:border-brand-orange focus:outline-none focus:ring-2 focus:ring-brand-orange/30" />
               </div>
 
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-300">Payer / Source Wallet</label>
-                <select value={sourceWalletId} onChange={event => setSourceWalletId(event.target.value)} className="w-full rounded-lg border border-slate-700 bg-slate-800 p-2.5 text-xs text-white">
+                <label className="mb-1 block text-xs font-medium text-brand-muted">Payer / Source Wallet</label>
+                <select value={sourceWalletId} onChange={event => setSourceWalletId(event.target.value)} className="min-h-11 w-full rounded-xl border border-brand-line bg-white px-3 py-2.5 text-sm text-brand-ink focus:border-brand-orange focus:outline-none focus:ring-2 focus:ring-brand-orange/30">
                   {visibleWallets.map(wallet => <option key={wallet.id} value={wallet.id}>{wallet.name}</option>)}
                 </select>
               </div>
 
               {ruleType === 'transfer' && (
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-300">Destination Account</label>
-                  <select value={destWalletId} onChange={event => setDestWalletId(event.target.value)} className="w-full rounded-lg border border-slate-700 bg-slate-800 p-2.5 text-xs text-white">
+                  <label className="mb-1 block text-xs font-medium text-brand-muted">Destination Account</label>
+                  <select value={destWalletId} onChange={event => setDestWalletId(event.target.value)} className="min-h-11 w-full rounded-xl border border-brand-line bg-white px-3 py-2.5 text-sm text-brand-ink focus:border-brand-orange focus:outline-none focus:ring-2 focus:ring-brand-orange/30">
                     <option value="">-- Select Destination Account --</option>
                     {visibleWallets.map(wallet => <option key={wallet.id} value={wallet.id}>{wallet.name}</option>)}
                   </select>
@@ -457,7 +443,7 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard })
 
               {ruleType === 'loan_payment' ? (
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-300">Associated Loan</label>
+                  <label className="mb-1 block text-xs font-medium text-brand-muted">Associated Loan</label>
                   <select
                     value={loanId}
                     onChange={event => {
@@ -469,7 +455,7 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard })
                         setAmount(foundLoan.monthly_amortization.toString());
                       }
                     }}
-                    className="w-full rounded-lg border border-slate-700 bg-slate-800 p-2.5 text-xs text-white"
+                    className="min-h-11 w-full rounded-xl border border-brand-line bg-white px-3 py-2.5 text-sm text-brand-ink focus:border-brand-orange focus:outline-none focus:ring-2 focus:ring-brand-orange/30"
                   >
                     <option value="">-- Select Associated Loan --</option>
                     {loans.map(loan => <option key={loan.id} value={loan.id}>{loan.name} ({loan.lender})</option>)}
@@ -477,8 +463,8 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard })
                 </div>
               ) : (
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-300">Expense Category</label>
-                  <select value={categoryId} onChange={event => setCategoryId(event.target.value)} className="w-full rounded-lg border border-slate-700 bg-slate-800 p-2.5 text-xs text-white">
+                  <label className="mb-1 block text-xs font-medium text-brand-muted">Expense Category</label>
+                  <select value={categoryId} onChange={event => setCategoryId(event.target.value)} className="min-h-11 w-full rounded-xl border border-brand-line bg-white px-3 py-2.5 text-sm text-brand-ink focus:border-brand-orange focus:outline-none focus:ring-2 focus:ring-brand-orange/30">
                     <option value="">-- None / Uncategorized --</option>
                     {categories.filter(category => category.category_type === 'expense').map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
                   </select>
@@ -487,12 +473,12 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard })
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-300">Amount (₱)</label>
-                  <input type="number" step="0.01" required value={amount} onChange={event => setAmount(event.target.value)} className="w-full rounded-lg border border-slate-700 bg-slate-800 p-2.5 font-mono text-xs font-bold text-white" />
+                  <label className="mb-1 block text-xs font-medium text-brand-muted">Amount (₱)</label>
+                  <input type="number" step="0.01" required value={amount} onChange={event => setAmount(event.target.value)} className="min-h-11 w-full rounded-xl border border-brand-line bg-white px-3 py-2.5 font-mono text-sm font-semibold text-brand-ink focus:border-brand-orange focus:outline-none focus:ring-2 focus:ring-brand-orange/30" />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-300">Frequency</label>
-                  <select value={frequency} onChange={event => setFrequency(event.target.value as RecurringFrequency)} className="w-full rounded-lg border border-slate-700 bg-slate-800 p-2.5 text-xs text-white">
+                  <label className="mb-1 block text-xs font-medium text-brand-muted">Frequency</label>
+                  <select value={frequency} onChange={event => setFrequency(event.target.value as RecurringFrequency)} className="min-h-11 w-full rounded-xl border border-brand-line bg-white px-3 py-2.5 text-sm text-brand-ink focus:border-brand-orange focus:outline-none focus:ring-2 focus:ring-brand-orange/30">
                     <option value="daily">Daily</option>
                     <option value="weekly">Weekly</option>
                     <option value="biweekly">Bi-Weekly</option>
@@ -508,30 +494,30 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard })
 
               {frequency === 'custom_days' && (
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-300">Repeat Every N Days</label>
-                  <input type="number" min="1" max="365" required value={customDays} onChange={event => setCustomDays(event.target.value)} className="w-full rounded-lg border border-slate-700 bg-slate-800 p-2.5 font-mono text-xs font-bold text-white" />
+                  <label className="mb-1 block text-xs font-medium text-brand-muted">Repeat Every N Days</label>
+                  <input type="number" min="1" max="365" required value={customDays} onChange={event => setCustomDays(event.target.value)} className="min-h-11 w-full rounded-xl border border-brand-line bg-white px-3 py-2.5 font-mono text-sm font-semibold text-brand-ink focus:border-brand-orange focus:outline-none focus:ring-2 focus:ring-brand-orange/30" />
                 </div>
               )}
 
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-300">Next Due Date</label>
-                <input type="date" required value={nextRunDate} onChange={event => setNextRunDate(event.target.value)} className="w-full rounded-lg border border-slate-700 bg-slate-800 p-2.5 font-mono text-xs font-bold text-amber-300" />
+                <label className="mb-1 block text-xs font-medium text-brand-muted">Next Due Date</label>
+                <input type="date" required value={nextRunDate} onChange={event => setNextRunDate(event.target.value)} className="min-h-11 w-full rounded-xl border border-brand-line bg-white px-3 py-2.5 font-mono text-sm font-semibold text-brand-ink focus:border-brand-orange focus:outline-none focus:ring-2 focus:ring-brand-orange/30" />
               </div>
 
               {editingRule && (
-                <label className="flex items-center space-x-2 text-xs text-slate-300">
-                  <input type="checkbox" checked={isActive} onChange={event => setIsActive(event.target.checked)} className="h-4 w-4 rounded border-slate-700 bg-slate-800 text-indigo-600" />
+                <label className="flex items-center gap-2 text-sm text-brand-ink">
+                  <input type="checkbox" checked={isActive} onChange={event => setIsActive(event.target.checked)} className="h-4 w-4 rounded border-brand-line text-brand-orange focus:ring-brand-orange/30" />
                   <span>Schedule is active</span>
                 </label>
               )}
 
-              <div className="flex items-center justify-end space-x-3 border-t border-slate-800 pt-4">
-                <button type="button" onClick={() => { setShowModal(false); resetForm(); }} className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white">
+              <div className="flex items-center justify-end gap-3 border-t border-brand-line pt-4">
+                <button type="button" onClick={() => { setShowModal(false); resetForm(); }} className="min-h-11 rounded-xl px-4 text-sm font-semibold text-brand-muted hover:bg-brand-canvas hover:text-brand-ink">
                   Cancel
                 </button>
-                <button type="submit" className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow transition-all hover:bg-indigo-500">
+                <Button type="submit" tone="primary" size="sm">
                   {editingRule ? 'Save Schedule' : 'Create Schedule'}
-                </button>
+                </Button>
               </div>
             </form>
           </div>

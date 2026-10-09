@@ -49,6 +49,7 @@ export const SettingsView: React.FC = () => {
   const [colorPreferences, setColorPreferences] = useState<CategoryColorPreferences>(EMPTY_CATEGORY_COLOR_PREFERENCES);
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const [displayCurrency, setDisplayCurrency] = useState<DisplayCurrency>('PHP');
+  const [savedDisplayCurrency, setSavedDisplayCurrency] = useState<DisplayCurrency>('PHP');
   const [displayCurrencyLoaded, setDisplayCurrencyLoaded] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -60,21 +61,26 @@ export const SettingsView: React.FC = () => {
   useEffect(() => {
     try {
       const savedCurrency = window.localStorage.getItem(DISPLAY_CURRENCY_STORAGE_KEY);
-      if (savedCurrency === 'PHP' || savedCurrency === 'USD') setDisplayCurrency(savedCurrency);
+      if (savedCurrency === 'PHP' || savedCurrency === 'USD') {
+        setDisplayCurrency(savedCurrency);
+        setSavedDisplayCurrency(savedCurrency);
+      }
     } catch {
       // Keep PHP as the safe default when browser storage is unavailable.
     }
     setDisplayCurrencyLoaded(true);
   }, []);
 
-  useEffect(() => {
-    if (!displayCurrencyLoaded) return;
+  const saveDisplayCurrency = () => {
+    if (!displayCurrencyLoaded || displayCurrency === savedDisplayCurrency) return;
     try {
       window.localStorage.setItem(DISPLAY_CURRENCY_STORAGE_KEY, displayCurrency);
+      setSavedDisplayCurrency(displayCurrency);
+      setMessage('');
     } catch {
       setMessage('Currency preference could not be saved on this device.');
     }
-  }, [displayCurrency, displayCurrencyLoaded]);
+  };
 
   useEffect(() => {
     if (!preferencesLoaded) return;
@@ -274,10 +280,13 @@ export const SettingsView: React.FC = () => {
         </h2>
         <div className="mt-4 max-w-xl">
           <label htmlFor="display-currency" className="mb-1.5 block text-sm font-medium text-brand-ink">Display Currency</label>
-          <select id="display-currency" value={displayCurrency} onChange={event => setDisplayCurrency(event.target.value as DisplayCurrency)} className="min-h-11 w-full rounded-xl border border-brand-line bg-white px-3 text-sm text-brand-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange">
-            <option value="PHP">PHP (₱)</option>
-            <option value="USD">USD ($)</option>
-          </select>
+          <div className="flex gap-3">
+            <select id="display-currency" value={displayCurrency} onChange={event => setDisplayCurrency(event.target.value as DisplayCurrency)} className="min-h-11 min-w-0 flex-1 rounded-xl border border-brand-line bg-white px-3 text-sm text-brand-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange">
+              <option value="PHP">PHP (₱)</option>
+              <option value="USD">USD ($)</option>
+            </select>
+            <Button tone="primary" onClick={saveDisplayCurrency} disabled={!displayCurrencyLoaded || displayCurrency === savedDisplayCurrency}>Save</Button>
+          </div>
           <p className="mt-2 text-xs text-brand-muted">Saved on this device. Existing amounts are not converted.</p>
         </div>
       </section>

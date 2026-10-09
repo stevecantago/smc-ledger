@@ -228,6 +228,22 @@ describe('household service-fee persistence', () => {
   });
 
   it.each([
+    ['legacy goal without category', { id: 'goal-legacy', household_id: 'hh-101', name: 'Legacy goal', target_amount: 1000, current_amount: 250, created_at: '2026-10-01T00:00:00.000Z' }],
+    ['goal with expense category', { id: 'goal-linked', household_id: 'hh-101', name: 'School fund', target_amount: 5000, current_amount: 0, category_id: 'expense-school', created_at: '2026-10-01T00:00:00.000Z' }],
+  ])('restores backup compatibility for %s', async (_label, goal) => {
+    const wallet = renderProvider().wallets.find(item => item.id === 'wallet-demo-cash')!;
+    const result = await renderProvider().restoreFullHouseholdBackup(JSON.stringify({
+      wallets: [wallet],
+      transactions: [],
+      savingsGoals: [goal],
+    }));
+
+    expect(result.success).toBe(true);
+    expect(renderProvider().savingsGoals).toEqual([goal]);
+    expect(harness.writes.find(write => write.table === 'savings_goals' && write.operation === 'upsert')?.payload).toEqual([goal]);
+  });
+
+  it.each([
     ['an empty wallet snapshot', false],
     ['a partial wallet snapshot', true],
   ])('rejects %s before changing local state or starting remote writes', async (_label, includeSourceWallet) => {
