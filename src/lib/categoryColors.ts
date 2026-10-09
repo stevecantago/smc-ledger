@@ -22,6 +22,38 @@ export const EMPTY_CATEGORY_COLOR_PREFERENCES: CategoryColorPreferences = {
   savedColors: DEFAULT_CATEGORY_COLORS,
 };
 
+function parseRgb(hex: string): [number, number, number] {
+  const normalized = hex.replace('#', '');
+  return [0, 2, 4].map(offset => Number.parseInt(normalized.slice(offset, offset + 2), 16)) as [number, number, number];
+}
+
+function compositeColor(foreground: [number, number, number], background: [number, number, number], opacity: number): [number, number, number] {
+  return foreground.map((channel, index) => Math.round(channel * opacity + background[index] * (1 - opacity))) as [number, number, number];
+}
+
+function relativeLuminance([red, green, blue]: [number, number, number]): number {
+  const linear = [red, green, blue].map(channel => {
+    const value = channel / 255;
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+}
+
+export function getCategoryColorPresentation(color: CategoryColor, baseHex = '#FFFFFF') {
+  const opacity = Math.min(100, Math.max(0, color.opacity)) / 100;
+  const rgb = parseRgb(color.hex);
+  const backgroundRgb = compositeColor(rgb, parseRgb(baseHex), opacity);
+  const background = `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${opacity})`;
+  const luminance = relativeLuminance(backgroundRgb);
+  const contrastWithBlack = (luminance + 0.05) / 0.05;
+  const contrastWithWhite = 1.05 / (luminance + 0.05);
+
+  return {
+    background,
+    foreground: contrastWithBlack >= contrastWithWhite ? '#000000' : '#FFFFFF',
+  };
+}
+
 const isCategoryColor = (value: unknown): value is CategoryColor => (
   Boolean(value)
   && typeof value === 'object'

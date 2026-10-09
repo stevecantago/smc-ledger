@@ -9,7 +9,7 @@ import {
   Handshake, Building2, BadgePercent, Laptop, Store, ChartNoAxesCombined, HeartHandshake,
   FileText, CirclePlus, Shirt, Stethoscope, Shield, ClipboardList,
 } from 'lucide-react';
-import { CategoryColor, getStoredCategoryColor } from '../lib/categoryColors';
+import { CategoryColor, getCategoryColorPresentation, getStoredCategoryColor } from '../lib/categoryColors';
 
 export interface IconOption {
   slug: string;
@@ -81,12 +81,55 @@ export const CategoryIcon: React.FC<{ slug: string; className?: string; color?: 
   return <IconComponent className={`${className} ${found.color}`} style={iconColor ? { color: iconColor, opacity: (iconOpacity ?? 100) / 100 } : undefined} aria-hidden="true" />;
 };
 
+interface CategoryIconTileProps {
+  slug: string;
+  className?: string;
+  iconClassName?: string;
+  categoryType?: string;
+  categoryName?: string;
+  color?: CategoryColor;
+  fallbackClassName?: string;
+  baseHex?: string;
+}
+
+export const CategoryIconTile: React.FC<CategoryIconTileProps> = ({
+  slug,
+  className = 'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
+  iconClassName = 'h-4 w-4',
+  categoryType,
+  categoryName,
+  color,
+  fallbackClassName = 'bg-brand-sky',
+  baseHex = '#FFFFFF',
+}) => {
+  const [storedColor, setStoredColor] = useState<CategoryColor | undefined>();
+  useEffect(() => {
+    setStoredColor(categoryType && categoryName ? getStoredCategoryColor(categoryType, categoryName) : undefined);
+  }, [categoryType, categoryName]);
+
+  const selectedColor = color || storedColor;
+  const presentation = selectedColor ? getCategoryColorPresentation(selectedColor, baseHex) : undefined;
+
+  return (
+    <span className={`${className} ${presentation ? '' : fallbackClassName}`} style={presentation ? { backgroundColor: presentation.background } : undefined}>
+      <CategoryIcon
+        slug={slug}
+        className={iconClassName}
+        color={presentation?.foreground}
+        opacity={100}
+      />
+    </span>
+  );
+};
+
 interface IconPickerGridProps {
   selectedSlug: string;
   onSelectSlug: (slug: string) => void;
+  selectedColor?: CategoryColor;
 }
 
-export const IconPickerGrid: React.FC<IconPickerGridProps> = ({ selectedSlug, onSelectSlug }) => {
+export const IconPickerGrid: React.FC<IconPickerGridProps> = ({ selectedSlug, onSelectSlug, selectedColor }) => {
+  const selectedPresentation = selectedColor ? getCategoryColorPresentation(selectedColor) : undefined;
   return (
     <div className="space-y-2">
       <p className="block text-sm font-medium text-brand-ink">Choose icon style</p>
@@ -102,13 +145,14 @@ export const IconPickerGrid: React.FC<IconPickerGridProps> = ({ selectedSlug, on
               title={item.label}
               aria-label={item.label}
               aria-pressed={isSelected}
-              className={`flex h-11 w-11 items-center justify-center rounded-lg border bg-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange ${
+              className={`flex h-11 w-11 items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange ${
                 isSelected 
                   ? 'border-brand-orange bg-brand-sky ring-2 ring-brand-orange/20'
-                  : 'border-brand-line hover:bg-brand-paper hover:border-brand-muted'
+                  : 'border-brand-line bg-white hover:bg-brand-paper hover:border-brand-muted'
               }`}
+              style={isSelected && selectedPresentation ? { backgroundColor: selectedPresentation.background } : undefined}
             >
-              <IconComp className={`h-5 w-5 ${item.color}`} aria-hidden="true" />
+              <IconComp className={`h-5 w-5 ${isSelected && selectedPresentation ? '' : item.color}`} style={isSelected && selectedPresentation ? { color: selectedPresentation.foreground } : undefined} aria-hidden="true" />
             </button>
           );
         })}

@@ -5,7 +5,7 @@ import { Check, CircleArrowDown, CircleArrowUp, Coins, List, Pencil, Plus, Setti
 import { useHousehold } from '../context/HouseholdContext';
 import { Category, CategoryType } from '../types/database';
 import { CategoryColor, CategoryColorPreferences, DEFAULT_CATEGORY_COLORS, EMPTY_CATEGORY_COLOR_PREFERENCES, readCategoryColorPreferences, writeCategoryColorPreferences } from '../lib/categoryColors';
-import { IconPickerGrid, CategoryIcon } from './CategoryIcon';
+import { IconPickerGrid, CategoryIconTile } from './CategoryIcon';
 import { Button } from './ui/Button';
 import { CategoryColorPicker } from './ui/CategoryColorPicker';
 import { Dialog } from './ui/Dialog';
@@ -225,9 +225,7 @@ export const SettingsView: React.FC = () => {
                   <tr key={category.id} className="bg-white hover:bg-brand-canvas">
                     <th scope="row" className="px-4 py-2.5 font-medium text-brand-ink">
                       <span className="flex min-w-0 items-center gap-3">
-                        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${isIncome ? 'bg-brand-mint' : 'bg-brand-sky'}`}>
-                          <CategoryIcon slug={category.icon_slug} className="h-4 w-4" color={color?.hex} opacity={color?.opacity} />
-                        </span>
+                        <CategoryIconTile slug={category.icon_slug} categoryType={categoryType} categoryName={category.name} color={color} fallbackClassName={isIncome ? 'bg-brand-mint' : 'bg-brand-sky'} />
                         <span className="truncate">{category.name}</span>
                       </span>
                     </th>
@@ -326,7 +324,7 @@ export const SettingsView: React.FC = () => {
                 <input id="new-category-monthly-limit" type="number" min="0" step="0.01" inputMode="decimal" value={newMonthlyLimit} onChange={event => setNewMonthlyLimit(event.target.value)} className="w-full rounded-xl border border-brand-line bg-white px-3 py-3 text-sm font-semibold text-brand-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange" />
               </div>
 
-              <IconPickerGrid selectedSlug={newIcon} onSelectSlug={setNewIcon} />
+              <IconPickerGrid selectedSlug={newIcon} onSelectSlug={setNewIcon} selectedColor={newColor} />
 
               <div className="space-y-2">
                 <p className="text-sm font-medium text-brand-ink">Category color</p>
@@ -367,7 +365,7 @@ export const SettingsView: React.FC = () => {
                 <label htmlFor="edit-category-monthly-limit" className="mb-1.5 block text-sm font-medium text-brand-ink">Monthly Budget Limit (₱ PHP)</label>
                 <input id="edit-category-monthly-limit" type="number" min="0" step="0.01" inputMode="decimal" value={editMonthlyLimit} onChange={event => setEditMonthlyLimit(event.target.value)} required className="w-full rounded-xl border border-brand-line bg-white px-3 py-3 text-sm font-semibold text-brand-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange" />
               </div>
-              <IconPickerGrid selectedSlug={editIcon} onSelectSlug={setEditIcon} />
+              <IconPickerGrid selectedSlug={editIcon} onSelectSlug={setEditIcon} selectedColor={editColor} />
               <div className="space-y-2">
                 <p className="text-sm font-medium text-brand-ink">Category color</p>
                 <button type="button" onClick={() => setShowEditColorPicker(open => !open)} aria-expanded={showEditColorPicker} aria-controls="edit-category-color-picker" className="flex min-h-11 items-center gap-3 rounded-xl border border-brand-line bg-white px-3 py-2 text-sm text-brand-ink hover:bg-brand-canvas focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange">
