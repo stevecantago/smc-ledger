@@ -1058,7 +1058,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
               {(txType === 'expense' || txType === 'income') && (
                 <div>
                   <label htmlFor="transaction-category" className="block text-xs font-medium text-slate-300 mb-1">
-                    {txType === 'income' ? 'Income Category' : 'Envelope Category'}
+                    {txType === 'income' ? 'Income Category' : 'Expense Category'}
                   </label>
                   <select
                     id="transaction-category"

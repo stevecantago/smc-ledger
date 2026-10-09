@@ -1,7 +1,7 @@
 'use client';
 
 import React, { FormEvent, useEffect, useState } from 'react';
-import { Check, CircleArrowDown, CircleArrowUp, List, Pencil, Plus, Settings, Trash2, X } from 'lucide-react';
+import { Check, CircleArrowDown, CircleArrowUp, Coins, List, Pencil, Plus, Settings, Trash2, X } from 'lucide-react';
 import { useHousehold } from '../context/HouseholdContext';
 import { Category, CategoryType } from '../types/database';
 import { CategoryColor, CategoryColorPreferences, DEFAULT_CATEGORY_COLORS, EMPTY_CATEGORY_COLOR_PREFERENCES, readCategoryColorPreferences, writeCategoryColorPreferences } from '../lib/categoryColors';
@@ -25,6 +25,9 @@ const categorySuggestions: Record<CategoryType, string[]> = {
   expense: ['Food', 'Transport', 'Utilities', 'Entertainment', 'Healthcare', 'Education', 'Housing', 'Travel'],
 };
 
+const DISPLAY_CURRENCY_STORAGE_KEY = 'famledger-display-currency-v1';
+type DisplayCurrency = 'PHP' | 'USD';
+
 const getCategoryColorKey = (type: CategoryType, name: string) => `${type}:${name.trim().toLocaleLowerCase()}`;
 
 export const SettingsView: React.FC = () => {
@@ -44,12 +47,33 @@ export const SettingsView: React.FC = () => {
   const [showEditColorPicker, setShowEditColorPicker] = useState(false);
   const [colorPreferences, setColorPreferences] = useState<CategoryColorPreferences>(EMPTY_CATEGORY_COLOR_PREFERENCES);
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
+  const [displayCurrency, setDisplayCurrency] = useState<DisplayCurrency>('PHP');
+  const [displayCurrencyLoaded, setDisplayCurrencyLoaded] = useState(false);
   const [message, setMessage] = useState('');
 
   useEffect(() => {
     setColorPreferences(readCategoryColorPreferences());
     setPreferencesLoaded(true);
   }, []);
+
+  useEffect(() => {
+    try {
+      const savedCurrency = window.localStorage.getItem(DISPLAY_CURRENCY_STORAGE_KEY);
+      if (savedCurrency === 'PHP' || savedCurrency === 'USD') setDisplayCurrency(savedCurrency);
+    } catch {
+      // Keep PHP as the safe default when browser storage is unavailable.
+    }
+    setDisplayCurrencyLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!displayCurrencyLoaded) return;
+    try {
+      window.localStorage.setItem(DISPLAY_CURRENCY_STORAGE_KEY, displayCurrency);
+    } catch {
+      setMessage('Currency preference could not be saved on this device.');
+    }
+  }, [displayCurrency, displayCurrencyLoaded]);
 
   useEffect(() => {
     if (!preferencesLoaded) return;
@@ -243,6 +267,21 @@ export const SettingsView: React.FC = () => {
           </div>
         </div>
       </header>
+
+      <section aria-labelledby="currency-preference-heading" className="rounded-2xl border border-brand-line bg-brand-paper p-5 shadow-[var(--fam-shadow)] sm:p-6">
+        <h2 id="currency-preference-heading" className="flex items-center gap-2 text-lg font-bold text-brand-ink">
+          <Coins className="h-5 w-5 text-brand-orange" aria-hidden="true" />
+          Currency Preference
+        </h2>
+        <div className="mt-4 max-w-xl">
+          <label htmlFor="display-currency" className="mb-1.5 block text-sm font-medium text-brand-ink">Display Currency</label>
+          <select id="display-currency" value={displayCurrency} onChange={event => setDisplayCurrency(event.target.value as DisplayCurrency)} className="min-h-11 w-full rounded-xl border border-brand-line bg-white px-3 text-sm text-brand-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange">
+            <option value="PHP">PHP (₱)</option>
+            <option value="USD">USD ($)</option>
+          </select>
+          <p className="mt-2 text-xs text-brand-muted">Saved on this device. Existing amounts are not converted.</p>
+        </div>
+      </section>
 
       <section aria-labelledby="list-management-heading" className="space-y-4">
         <div>

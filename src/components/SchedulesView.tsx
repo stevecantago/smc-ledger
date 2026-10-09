@@ -283,7 +283,7 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard })
                         ? `${source?.name || 'Source'} -> ${destination?.name || 'Destination'}`
                         : `Payer: ${source?.name || 'Source wallet'}`}
                     </p>
-                    <p className="mt-1 text-[11px] text-slate-500">{loan ? `Loan: ${loan.name}` : category ? `Envelope: ${category.name}` : ruleTypeLabels[rule.rule_type]}</p>
+                    <p className="mt-1 text-[11px] text-slate-500">{loan ? `Loan: ${loan.name}` : category ? `Category: ${category.name}` : ruleTypeLabels[rule.rule_type]}</p>
                   </div>
                 </div>
 
@@ -402,7 +402,7 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard })
                 </div>
               ) : (
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-300">Envelope Category</label>
+                  <label className="mb-1 block text-xs font-medium text-slate-300">Expense Category</label>
                   <select value={categoryId} onChange={event => setCategoryId(event.target.value)} className="w-full rounded-lg border border-slate-700 bg-slate-800 p-2.5 text-xs text-white">
                     <option value="">-- None / Uncategorized --</option>
                     {categories.filter(category => category.category_type === 'expense').map(category => <option key={category.id} value={category.id}>{category.name}</option>)}

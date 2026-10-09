@@ -831,7 +831,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const updateCategory = (id: string, updates: { name?: string; icon_slug?: string; monthly_budget_limit?: number }) => {
     if (!hasPermission('manage_categories')) return { success: false, error: 'Your role cannot edit categories.' };
     setCategories(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
-    logActivity('update_category', `Updated category envelope "${updates.name || id}"`);
+    logActivity('update_category', `Updated category "${updates.name || id}"`);
 
     return supabase
       ? trackSupabaseWrite('Update category', supabase.from('categories').update(updates).eq('id', id))
@@ -846,7 +846,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (!hasPermission('manage_categories')) return { success: false, error: 'Your role cannot delete categories.' };
     const target = categories.find(c => c.id === id);
     setCategories(prev => prev.filter(c => c.id !== id));
-    logActivity('delete_category', `Deleted envelope category "${target?.name || id}"`);
+    logActivity('delete_category', `Deleted category "${target?.name || id}"`);
 
     return supabase
       ? trackSupabaseWrite('Delete category', supabase.from('categories').delete().eq('id', id))
