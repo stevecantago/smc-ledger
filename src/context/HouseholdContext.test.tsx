@@ -131,6 +131,40 @@ describe('household service-fee persistence', () => {
     expect(renderProvider().transactions[0].service_fee_amount).toBe(0);
   });
 
+  it('saves the selected expense category on a loan amortization transaction', () => {
+    const provider = renderProvider();
+    expect(provider.addLoan({
+      name: 'Synthetic loan for category test',
+      lender: 'Synthetic lender',
+      source_wallet_id: 'wallet-demo-bank',
+      total_principal: 10000,
+      remaining_balance: 10000,
+      interest_rate_annual: 0,
+      monthly_amortization: 100,
+      category_id: 'previous-category',
+    }).success).toBe(true);
+
+    const loan = renderProvider().loans.find(item => item.name === 'Synthetic loan for category test');
+    expect(loan).toBeDefined();
+    harness.writes = [];
+
+    const categoryId = 'expense-school-fees';
+    const result = renderProvider().payLoanAmortization(loan!.id, 100, 'wallet-demo-bank', categoryId);
+
+    expect(result.success).toBe(true);
+    expect(renderProvider().transactions[0]).toMatchObject({
+      type: 'expense',
+      category_id: categoryId,
+      amount: 100,
+    });
+    expect(harness.writes.filter(write => write.table === 'transactions' && write.operation === 'insert'))
+      .toEqual([expect.objectContaining({
+        table: 'transactions',
+        operation: 'insert',
+        payload: [expect.objectContaining({ category_id: categoryId, type: 'expense', amount: 100 })],
+      })]);
+  });
+
   it('rejects a negative transaction fee before changing local or remote financial state', () => {
     const before = renderProvider();
     const beforeWallets = before.wallets;

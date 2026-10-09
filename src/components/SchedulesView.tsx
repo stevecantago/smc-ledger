@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { useHousehold } from '../context/HouseholdContext';
-import { ArrowRightLeft, CalendarDays, Clock, CreditCard, Edit2, Filter, Landmark, Plus, Power, Search, Trash2, Wallet as WalletIcon } from 'lucide-react';
+import { ArrowRightLeft, CalendarDays, Clock, CreditCard, Download, Edit2, Filter, Landmark, Plus, Power, Search, Trash2, Wallet as WalletIcon } from 'lucide-react';
 import { RecurringFrequency, RecurringRuleType, RecurringTransfer, WalletType } from '../types/database';
 import { buildCreditCardPaymentSchedules, filterCreditCardPaymentSchedules } from '../lib/creditCardPaymentSchedules';
 import { CategoryIconTile } from './CategoryIcon';
@@ -16,9 +16,20 @@ const ruleTypeLabels: Record<RecurringRuleType, string> = {
 
 interface SchedulesViewProps {
   onPayCreditCard: (walletId: string, amount: number, walletName: string) => void;
+  onLogTransaction: (draft: {
+    type: 'income' | 'expense' | 'transfer' | 'loan';
+    walletId?: string;
+    destinationWalletId?: string;
+    amount?: number;
+    note?: string;
+    categoryId?: string;
+    selectedRecurringId?: string;
+    selectedLoanId?: string;
+    transactionDate?: string;
+  }) => void;
 }
 
-export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard }) => {
+export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard, onLogTransaction }) => {
   const {
     wallets,
     categories,
@@ -38,10 +49,11 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard })
   const canManageSchedules = hasPermission('manage_schedules');
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState<'all' | 'income' | 'expense'>('all');
+  const [categoryTypeFilter, setCategoryTypeFilter] = useState('all');
   const [memberFilter, setMemberFilter] = useState('all');
   const [walletFilter, setWalletFilter] = useState('all');
-  const [paymentMethodFilter, setPaymentMethodFilter] = useState<'all' | WalletType>('all');
+  const [accountTypeFilter, setAccountTypeFilter] = useState<'all' | Exclude<WalletType, 'cash'>>('all');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -49,7 +61,7 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard })
   const [ruleType, setRuleType] = useState<RecurringRuleType>('expense');
   const [sourceWalletId, setSourceWalletId] = useState(visibleWallets[0]?.id || '');
   const [destWalletId, setDestWalletId] = useState('');
-  const [categoryId, setCategoryId] = useState(categories[0]?.id || '');
+  const [categoryId, setCategoryId] = useState(categories.find(category => category.category_type === 'expense')?.id || '');
   const [loanId, setLoanId] = useState(loans[0]?.id || '');
   const [amount, setAmount] = useState('');
   const [frequency, setFrequency] = useState<RecurringFrequency>('monthly');
@@ -59,6 +71,11 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard })
   const [isActive, setIsActive] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
 
+  const availableCategoryTypes = useMemo(
+    () => categories.filter(category => categoryFilter === 'all' || category.category_type === categoryFilter),
+    [categories, categoryFilter],
+  );
+
   const filteredSchedules = useMemo(() => recurringTransfers.filter(rule => {
     const source = wallets.find(wallet => wallet.id === rule.source_wallet_id);
     const destination = rule.destination_wallet_id ? wallets.find(wallet => wallet.id === rule.destination_wallet_id) : null;
@@ -67,16 +84,17 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard })
     const query = searchTerm.trim().toLocaleLowerCase();
     const matchesSearch = !query || [rule.note, source?.name, destination?.name, category?.name, loan?.name]
       .some(value => value?.toLocaleLowerCase().includes(query));
-    const matchesCategory = categoryFilter === 'all'
-      || (categoryFilter === 'uncategorized' ? !rule.category_id : rule.category_id === categoryFilter);
+    const matchesCategory = categoryFilter === 'all' || category?.category_type === categoryFilter;
+    const matchesCategoryType = categoryTypeFilter === 'all'
+      || (categoryTypeFilter === 'uncategorized' ? !rule.category_id : rule.category_id === categoryTypeFilter);
     const matchesMember = memberFilter === 'all'
       || (memberFilter === 'shared' ? Boolean(source?.is_shared || !source?.owner_id) : source?.owner_id === memberFilter);
     const matchesWallet = walletFilter === 'all' || rule.source_wallet_id === walletFilter || rule.destination_wallet_id === walletFilter;
-    const matchesPaymentMethod = paymentMethodFilter === 'all' || source?.wallet_type === paymentMethodFilter;
-    return matchesSearch && matchesCategory && matchesMember && matchesWallet && matchesPaymentMethod
+    const matchesAccountType = accountTypeFilter === 'all' || source?.wallet_type === accountTypeFilter || destination?.wallet_type === accountTypeFilter;
+    return matchesSearch && matchesCategory && matchesCategoryType && matchesMember && matchesWallet && matchesAccountType
       && (!fromDate || rule.next_run_date >= fromDate)
       && (!toDate || rule.next_run_date <= toDate);
-  }), [categories, categoryFilter, fromDate, loans, memberFilter, paymentMethodFilter, recurringTransfers, searchTerm, toDate, walletFilter, wallets]);
+  }), [accountTypeFilter, categories, categoryFilter, categoryTypeFilter, fromDate, loans, memberFilter, recurringTransfers, searchTerm, toDate, walletFilter, wallets]);
 
   const creditCardPayments = buildCreditCardPaymentSchedules(visibleWallets);
   const filteredCreditCardPayments = filterCreditCardPaymentSchedules(creditCardPayments, {
@@ -87,11 +105,12 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard })
     const wallet = visibleWallets.find(item => item.id === payment.walletId);
     const query = searchTerm.trim().toLocaleLowerCase();
     const matchesSearch = !query || `${payment.walletName} credit card payment`.toLocaleLowerCase().includes(query);
-    const matchesCategory = categoryFilter === 'all' || categoryFilter === 'uncategorized';
+    const matchesCategory = categoryFilter === 'all' || categoryFilter === 'expense';
+    const matchesCategoryType = categoryTypeFilter === 'all' || categoryTypeFilter === 'uncategorized';
     const matchesMember = memberFilter === 'all'
       || (memberFilter === 'shared' ? Boolean(wallet?.is_shared || !wallet?.owner_id) : wallet?.owner_id === memberFilter);
-    const matchesPaymentMethod = paymentMethodFilter === 'all' || wallet?.wallet_type === paymentMethodFilter;
-    return matchesSearch && matchesCategory && matchesMember && matchesPaymentMethod;
+    const matchesAccountType = accountTypeFilter === 'all' || wallet?.wallet_type === accountTypeFilter;
+    return matchesSearch && matchesCategory && matchesCategoryType && matchesMember && matchesAccountType;
   });
 
   const scheduleRows = [
@@ -99,12 +118,37 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard })
     ...filteredCreditCardPayments.map(payment => ({ kind: 'credit-card-payment' as const, dueDate: payment.dueDate, payment })),
   ].sort((first, second) => first.dueDate.localeCompare(second.dueDate));
 
+  const handleExportCsv = () => {
+    const escapeCsv = (value: unknown) => `"${String(value ?? '').replaceAll('"', '""')}"`;
+    const rows = scheduleRows.map(row => {
+      if (row.kind === 'credit-card-payment') {
+        return [row.dueDate, `${row.payment.walletName} payment`, 'Credit Card Payment', 'Expense', 'Credit Card Payment', row.payment.walletName, row.payment.amount, 'Automatic · next 5th or 20th', 'Payment due'];
+      }
+      const { rule } = row;
+      const source = wallets.find(wallet => wallet.id === rule.source_wallet_id);
+      const destination = rule.destination_wallet_id ? wallets.find(wallet => wallet.id === rule.destination_wallet_id) : null;
+      const category = rule.category_id ? categories.find(item => item.id === rule.category_id) : null;
+      const loan = rule.loan_id ? loans.find(item => item.id === rule.loan_id) : null;
+      const account = rule.rule_type === 'transfer' ? `${source?.name || 'Source'} → ${destination?.name || 'Destination'}` : source?.name || 'Source wallet';
+      return [rule.next_run_date, rule.note, ruleTypeLabels[rule.rule_type], rule.rule_type === 'transfer' ? '' : category?.category_type === 'income' ? 'Income' : 'Expense', category?.name || loan?.name || '', account, rule.amount, formatFrequencyLabel(rule.frequency, rule.custom_interval_days), rule.is_active ? 'Active' : 'Paused'];
+    });
+    const csv = [['Next Due', 'Schedule', 'Schedule Type', 'Category', 'Category Type', 'Account', 'Amount', 'Frequency', 'Status'], ...rows]
+      .map(row => row.map(escapeCsv).join(',')).join('\r\n');
+    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'recurring-transactions.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const resetForm = () => {
     setEditingRule(null);
     setRuleType('expense');
     setSourceWalletId(visibleWallets[0]?.id || '');
     setDestWalletId('');
-    setCategoryId(categories[0]?.id || '');
+    setCategoryId(categories.find(category => category.category_type === 'expense')?.id || '');
     setLoanId(loans[0]?.id || '');
     setAmount('');
     setFrequency('monthly');
@@ -166,7 +210,7 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard })
       rule_type: ruleType,
       source_wallet_id: sourceWalletId,
       destination_wallet_id: ruleType === 'transfer' ? destWalletId : null,
-      category_id: ruleType === 'loan_payment' ? null : (categoryId || null),
+      category_id: categoryId || null,
       loan_id: ruleType === 'loan_payment' ? loanId : null,
       amount: parseFloat(amount) || 0,
       frequency,
@@ -205,18 +249,6 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard })
           <p className="mt-1 text-sm text-brand-muted">Manage recurring bills, loan repayments, and transfer schedules.</p>
         </div>
 
-        {canManageSchedules && (
-          <Button
-            tone="primary"
-            onClick={() => {
-              resetForm();
-              setShowModal(true);
-            }}
-          >
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            <span>Add Schedule</span>
-          </Button>
-        )}
       </div>
 
       <section aria-labelledby="recurring-database-heading" className="space-y-4 rounded-2xl border border-brand-line bg-brand-paper p-4 shadow-[var(--fam-shadow)] sm:p-5">
@@ -248,17 +280,26 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard })
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <label className="block space-y-1.5">
             <span className="text-xs font-medium text-brand-muted">Category</span>
             <span className="relative block">
               <Filter className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-muted" aria-hidden="true" />
-              <select value={categoryFilter} onChange={event => setCategoryFilter(event.target.value)} className="min-h-11 w-full rounded-xl border border-brand-line bg-white py-2 pl-10 pr-9 text-sm text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-orange/30">
+              <select value={categoryFilter} onChange={event => { setCategoryFilter(event.target.value as typeof categoryFilter); setCategoryTypeFilter('all'); }} className="min-h-11 w-full rounded-xl border border-brand-line bg-white py-2 pl-10 pr-9 text-sm text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-orange/30">
                 <option value="all">All Categories</option>
-                <option value="uncategorized">Uncategorized</option>
-                {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+                <option value="income">Income</option>
+                <option value="expense">Expenses</option>
               </select>
             </span>
+          </label>
+
+          <label className="block space-y-1.5">
+            <span className="text-xs font-medium text-brand-muted">Category Type</span>
+            <select value={categoryTypeFilter} onChange={event => setCategoryTypeFilter(event.target.value)} className="min-h-11 w-full rounded-xl border border-brand-line bg-white px-3 text-sm text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-orange/30">
+              <option value="all">All Types</option>
+              {categoryFilter === 'all' && <option value="uncategorized">Uncategorized</option>}
+              {availableCategoryTypes.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+            </select>
           </label>
 
           <label className="block space-y-1.5">
@@ -282,31 +323,43 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard })
           </label>
 
           <label className="block space-y-1.5">
-            <span className="text-xs font-medium text-brand-muted">Payment Method</span>
+            <span className="text-xs font-medium text-brand-muted">Account Type</span>
             <span className="relative block">
               <CreditCard className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-muted" aria-hidden="true" />
-              <select value={paymentMethodFilter} onChange={event => setPaymentMethodFilter(event.target.value as typeof paymentMethodFilter)} className="min-h-11 w-full rounded-xl border border-brand-line bg-white py-2 pl-10 pr-9 text-sm text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-orange/30">
-                <option value="all">All Methods</option>
-                <option value="cash">Cash</option>
-                <option value="bank">Bank</option>
-                <option value="e_wallet">E-wallet</option>
-                <option value="e_wallet_savings">E-wallet Savings</option>
-                <option value="credit_card">Credit Card</option>
+              <select value={accountTypeFilter} onChange={event => setAccountTypeFilter(event.target.value as typeof accountTypeFilter)} className="min-h-11 w-full rounded-xl border border-brand-line bg-white py-2 pl-10 pr-9 text-sm text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-orange/30">
+                <option value="all">All Account Types</option>
+                <option value="bank">Debit Card</option>
+                <option value="credit_card">Credit Card / Credit Line</option>
+                <option value="e_wallet">E-Wallet</option>
+                <option value="e_wallet_savings">E-Wallet (Savings)</option>
               </select>
             </span>
           </label>
+        </div>
+
+        <div className="flex flex-col-reverse gap-2 border-t border-brand-line pt-4 sm:flex-row sm:justify-end">
+          <Button type="button" tone="secondary" onClick={handleExportCsv}>
+            <Download className="h-4 w-4" aria-hidden="true" />
+            <span>Export to CSV</span>
+          </Button>
+          {canManageSchedules && <Button type="button" tone="primary" onClick={() => { resetForm(); setShowModal(true); }}>
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            <span>Add Schedule</span>
+          </Button>}
         </div>
       </section>
 
       <section aria-label="Scheduled transactions" className="overflow-hidden rounded-2xl border border-brand-line bg-brand-paper shadow-[var(--fam-shadow)]">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px] divide-y divide-brand-line text-left text-sm">
+          <table className="w-full min-w-[1120px] divide-y divide-brand-line text-left text-sm">
             <caption className="sr-only">Scheduled transactions, sorted by next due date from oldest to newest</caption>
             <thead className="bg-brand-canvas text-xs font-semibold uppercase tracking-wide text-brand-muted">
               <tr>
                 <th scope="col" className="px-4 py-3">Next due</th>
                 <th scope="col" className="px-4 py-3">Schedule</th>
-                <th scope="col" className="px-4 py-3">Type / category</th>
+                <th scope="col" className="px-4 py-3">Schedule Type</th>
+                <th scope="col" className="px-4 py-3">Category</th>
+                <th scope="col" className="px-4 py-3">Category Type</th>
                 <th scope="col" className="px-4 py-3">Account</th>
                 <th scope="col" className="px-4 py-3 text-right">Amount</th>
                 <th scope="col" className="px-4 py-3">Frequency / status</th>
@@ -316,7 +369,7 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard })
             <tbody className="divide-y divide-brand-line">
               {scheduleRows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-sm text-brand-muted">No schedules match the current filters.</td>
+                  <td colSpan={9} className="px-4 py-10 text-center text-sm text-brand-muted">No schedules match the current filters.</td>
                 </tr>
               ) : scheduleRows.map(row => {
                 if (row.kind === 'credit-card-payment') {
@@ -327,12 +380,14 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard })
                       <th scope="row" className="min-w-52 px-4 py-3 font-semibold text-brand-ink">
                         <span className="flex items-center gap-2"><CreditCard className="h-4 w-4 shrink-0 text-brand-orange" aria-hidden="true" />{payment.walletName} payment</span>
                       </th>
-                      <td className="px-4 py-3 text-brand-muted">Credit card payment</td>
+                      <td className="px-4 py-3 text-brand-ink">Credit Card Payment</td>
+                      <td className="px-4 py-3 text-brand-ink">Expense</td>
+                      <td className="px-4 py-3 text-brand-muted">Credit Card Payment</td>
                       <td className="px-4 py-3 text-brand-ink">{payment.walletName}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-right font-semibold tabular-nums text-brand-ink">₱{payment.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
                       <td className="px-4 py-3"><span className="inline-flex rounded-full bg-brand-sky px-2.5 py-1 text-xs font-semibold text-brand-ink">Payment due</span><span className="mt-1 block text-xs text-brand-muted">Automatic · next 5th or 20th</span></td>
                       <td className="px-4 py-3 text-right">
-                        <Button size="sm" tone="secondary" className="whitespace-nowrap" onClick={() => onPayCreditCard(payment.walletId, payment.amount, payment.walletName)}>Pay balance</Button>
+                        <Button size="sm" tone="secondary" className="whitespace-nowrap" onClick={() => onPayCreditCard(payment.walletId, payment.amount, payment.walletName)}><Plus className="h-3.5 w-3.5" aria-hidden="true" />Log Transaction</Button>
                       </td>
                     </tr>
                   );
@@ -347,31 +402,49 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard })
                   ? `${source?.name || 'Source'} → ${destination?.name || 'Destination'}`
                   : source?.name || 'Source wallet';
                 const typeLabel = rule.rule_type === 'loan_payment' ? 'Loan repayment' : ruleTypeLabels[rule.rule_type];
-                const detailLabel = loan?.name || category?.name || ruleTypeLabels[rule.rule_type];
+                const categoryLabel = rule.rule_type === 'transfer' ? '—' : category?.category_type === 'income' ? 'Income' : 'Expense';
+                const categoryTypeLabel = category?.name || (rule.rule_type === 'loan_payment' ? loan?.name || 'Loan Payment' : '—');
 
                 return (
                   <tr key={rule.id} className="bg-white align-middle hover:bg-brand-canvas/70">
                     <td className="whitespace-nowrap px-4 py-3 font-medium text-brand-ink">{new Date(`${rule.next_run_date}T00:00:00`).toLocaleDateString()}</td>
                     <th scope="row" className="min-w-52 px-4 py-3 font-semibold text-brand-ink">{rule.note}</th>
+                    <td className="px-4 py-3 text-brand-ink">{typeLabel}</td>
+                    <td className="px-4 py-3 text-brand-ink">{categoryLabel}</td>
                     <td className="px-4 py-3">
                       <span className="flex items-center gap-2">
                         {category
                           ? <CategoryIconTile slug={category.icon_slug} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" iconClassName="h-4 w-4" categoryType={category.category_type} categoryName={category.name} />
                           : rule.rule_type === 'loan_payment'
                             ? <Landmark className="h-4 w-4 shrink-0 text-brand-orange" aria-hidden="true" />
-                            : <ArrowRightLeft className="h-4 w-4 shrink-0 text-brand-muted" aria-hidden="true" />}
-                        <span><span className="text-brand-ink">{typeLabel}</span><span className="mt-1 block text-xs text-brand-muted">{detailLabel}</span></span>
+                            : rule.rule_type === 'transfer'
+                              ? <ArrowRightLeft className="h-4 w-4 shrink-0 text-brand-muted" aria-hidden="true" />
+                              : null}
+                        <span className="text-brand-ink">{categoryTypeLabel}</span>
                       </span>
                     </td>
                     <td className="px-4 py-3 text-brand-ink">{accountLabel}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-right font-semibold tabular-nums text-brand-ink">₱{rule.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
                     <td className="px-4 py-3"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${rule.is_active ? 'bg-emerald-50 text-emerald-800' : 'bg-brand-canvas text-brand-muted'}`}>{rule.is_active ? 'Active' : 'Paused'}</span><span className="mt-1 block text-xs text-brand-muted">{formatFrequencyLabel(rule.frequency, rule.custom_interval_days)}</span></td>
                     <td className="px-4 py-3 text-right">
-                      {canManageSchedules && <div className="inline-flex items-center gap-1">
+                      <div className="flex flex-col items-end gap-1 sm:flex-row sm:justify-end">
+                        <Button size="sm" tone="secondary" className="whitespace-nowrap" onClick={() => onLogTransaction({
+                          type: rule.rule_type === 'transfer' ? 'transfer' : rule.rule_type === 'loan_payment' ? 'loan' : 'expense',
+                          walletId: rule.source_wallet_id,
+                          destinationWalletId: rule.destination_wallet_id || undefined,
+                          amount: rule.amount,
+                          note: rule.note,
+                          categoryId: rule.category_id || undefined,
+                          selectedRecurringId: rule.id,
+                          selectedLoanId: rule.loan_id || undefined,
+                          transactionDate: rule.next_run_date,
+                        })}><Plus className="h-3.5 w-3.5" aria-hidden="true" />Log Transaction</Button>
+                        {canManageSchedules && <div className="inline-flex items-center gap-1">
                         <button type="button" onClick={() => openEdit(rule)} className="rounded-lg p-2 text-brand-muted hover:bg-brand-canvas hover:text-brand-ink" title="Edit schedule" aria-label={`Edit ${rule.note}`}><Edit2 className="h-4 w-4" aria-hidden="true" /></button>
                         <button type="button" onClick={() => toggleRecurringTransfer(rule.id)} className="rounded-lg p-2 text-brand-muted hover:bg-brand-canvas hover:text-brand-ink" title="Pause or activate schedule" aria-label={`${rule.is_active ? 'Pause' : 'Activate'} ${rule.note}`}><Power className="h-4 w-4" aria-hidden="true" /></button>
                         <button type="button" onClick={() => handleDelete(rule)} className="rounded-lg p-2 text-brand-muted hover:bg-rose-50 hover:text-rose-800" title="Delete schedule" aria-label={`Delete ${rule.note}`}><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
-                      </div>}
+                        </div>}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -410,6 +483,9 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard })
                           setAmount(loans[0].monthly_amortization.toString());
                           setNote(`Loan Amortization - ${loans[0].name}`);
                         }
+                        if (type === 'loan_payment') {
+                          setCategoryId(categories.find(category => category.category_type === 'expense')?.id || '');
+                        }
                       }}
                       className={`min-h-11 rounded-xl border px-2 py-2 text-xs font-semibold transition-colors ${ruleType === type ? 'border-brand-orange bg-brand-orange/5 text-brand-ink ring-1 ring-brand-orange/30' : 'border-brand-line bg-white text-brand-muted hover:bg-brand-canvas'}`}
                     >
@@ -442,24 +518,33 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard })
               )}
 
               {ruleType === 'loan_payment' ? (
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-brand-muted">Associated Loan</label>
-                  <select
-                    value={loanId}
-                    onChange={event => {
-                      const selectedId = event.target.value;
-                      setLoanId(selectedId);
-                      const foundLoan = loans.find(loan => loan.id === selectedId);
-                      if (foundLoan) {
-                        setNote(`Loan Amortization - ${foundLoan.name}`);
-                        setAmount(foundLoan.monthly_amortization.toString());
-                      }
-                    }}
-                    className="min-h-11 w-full rounded-xl border border-brand-line bg-white px-3 py-2.5 text-sm text-brand-ink focus:border-brand-orange focus:outline-none focus:ring-2 focus:ring-brand-orange/30"
-                  >
-                    <option value="">-- Select Associated Loan --</option>
-                    {loans.map(loan => <option key={loan.id} value={loan.id}>{loan.name} ({loan.lender})</option>)}
-                  </select>
+                <div className="space-y-4">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-brand-muted">Associated Loan</label>
+                    <select
+                      value={loanId}
+                      onChange={event => {
+                        const selectedId = event.target.value;
+                        setLoanId(selectedId);
+                        const foundLoan = loans.find(loan => loan.id === selectedId);
+                        if (foundLoan) {
+                          setNote(`Loan Amortization - ${foundLoan.name}`);
+                          setAmount(foundLoan.monthly_amortization.toString());
+                        }
+                      }}
+                      className="min-h-11 w-full rounded-xl border border-brand-line bg-white px-3 py-2.5 text-sm text-brand-ink focus:border-brand-orange focus:outline-none focus:ring-2 focus:ring-brand-orange/30"
+                    >
+                      <option value="">-- Select Associated Loan --</option>
+                      {loans.map(loan => <option key={loan.id} value={loan.id}>{loan.name} ({loan.lender})</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-brand-muted">Expense Category</label>
+                    <select value={categoryId} onChange={event => setCategoryId(event.target.value)} className="min-h-11 w-full rounded-xl border border-brand-line bg-white px-3 py-2.5 text-sm text-brand-ink focus:border-brand-orange focus:outline-none focus:ring-2 focus:ring-brand-orange/30">
+                      <option value="">-- Select Expense Category --</option>
+                      {categories.filter(category => category.category_type === 'expense').map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+                    </select>
+                  </div>
                 </div>
               ) : (
                 <div>

@@ -27,6 +27,10 @@ export default function Home() {
     note?: string;
     requireSourceSelection?: boolean;
     creditCardPayment?: boolean;
+    categoryId?: string;
+    selectedRecurringId?: string;
+    selectedLoanId?: string;
+    transactionDate?: string;
   } | null>(null);
   const [isSessionReady, setIsSessionReady] = useState(false);
 
@@ -89,6 +93,22 @@ export default function Home() {
     setShowAddTxModal(true);
   };
 
+  const handleLogScheduledTransaction = (draft: {
+    type: TransactionType;
+    walletId?: string;
+    destinationWalletId?: string;
+    amount?: number;
+    note?: string;
+    categoryId?: string;
+    selectedRecurringId?: string;
+    selectedLoanId?: string;
+    transactionDate?: string;
+  }) => {
+    setTransactionDraft(draft);
+    setActiveTab('transactions');
+    setShowAddTxModal(true);
+  };
+
   if (!isSessionReady) {
     return (
       <div className="min-h-screen bg-slate-900 text-slate-100 flex items-center justify-center p-6">
@@ -118,7 +138,7 @@ export default function Home() {
           />
         )}
         {activeTab === 'loans' && <LoansView />}
-        {activeTab === 'schedules' && <SchedulesView onPayCreditCard={handlePayCreditCard} />}
+        {activeTab === 'schedules' && <SchedulesView onPayCreditCard={handlePayCreditCard} onLogTransaction={handleLogScheduledTransaction} />}
         {activeTab === 'goals' && <SavingsGoalsView />}
         {activeTab === 'activity' && <ActivityLogView />}
         {activeTab === 'settings' && <SettingsView />}

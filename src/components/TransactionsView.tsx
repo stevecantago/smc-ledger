@@ -78,6 +78,10 @@ interface TransactionsViewProps {
     note?: string;
     requireSourceSelection?: boolean;
     creditCardPayment?: boolean;
+    categoryId?: string;
+    selectedRecurringId?: string;
+    selectedLoanId?: string;
+    transactionDate?: string;
   } | null;
 }
 
@@ -131,7 +135,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
   useEffect(() => {
     if (!showModal || !draft) return;
     if (draft.type) setTxType(draft.type);
-    setCategoryId('');
+    setCategoryId(draft.categoryId || '');
     if (draft.requireSourceSelection) {
       setWalletId('');
     } else if (draft.walletId) {
@@ -141,8 +145,9 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
     if (draft.amount !== undefined) setAmount(draft.amount.toString());
     if (draft.note !== undefined) setNote(draft.note);
     setIsCreditCardPayment(Boolean(draft.creditCardPayment));
-    setSelectedRecurringId('');
-    setSelectedLoanId('');
+    setSelectedRecurringId(draft.selectedRecurringId || '');
+    setSelectedLoanId(draft.selectedLoanId || '');
+    if (draft.transactionDate) setTxDate(draft.transactionDate);
     setShowCustomNote(false);
     setErrorMsg('');
   }, [draft, showModal]);
@@ -282,9 +287,10 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
     }
 
     const submissionAction = getTransactionSubmissionAction({ type: txType, selectedLoanId });
+    let shouldAdvanceRecurring = submissionAction === 'transaction';
 
     if (submissionAction === 'loan_payment' && selectedLoanId) {
-      const res = payLoanAmortization(selectedLoanId, parsedAmount, walletId);
+      const res = payLoanAmortization(selectedLoanId, parsedAmount, walletId, categoryId || null);
       if (!res.success) {
         setErrorMsg(res.error || 'Failed to process loan payment.');
         return;
@@ -294,6 +300,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
         const parentLoan = loans.find(l => l.id === selectedLoanId);
         if (parentLoan && (parentLoan.remaining_balance - parsedAmount) <= 0) {
           deleteRecurringTransfer(selectedRecurringId);
+        } else {
+          shouldAdvanceRecurring = true;
         }
       }
     } else {
@@ -315,8 +323,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
       }
     }
 
-    if (submissionAction === 'transaction' && selectedRecurringId && selectedRecurringId !== 'others') {
-      // Advance Next Due date of recurring expense or transfer item
+    if (shouldAdvanceRecurring && selectedRecurringId && selectedRecurringId !== 'others') {
+      // Advance the next due date after a successful scheduled transaction.
       const rule = recurringTransfers.find(r => r.id === selectedRecurringId);
       if (rule) {
         const offsetDays = getDaysOffset(rule.frequency, rule.custom_interval_days);
@@ -933,6 +941,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                           setAmount(r.amount.toString());
                           setWalletId(r.source_wallet_id);
                           if (r.loan_id) setSelectedLoanId(r.loan_id);
+                          setCategoryId(r.category_id || '');
                           setNote(r.note);
                           setShowCustomNote(false);
                         }
@@ -1125,6 +1134,23 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
                       <option key={l.id} value={l.id}>
                         {l.name} ({l.lender}) - Bal: ₱{l.remaining_balance.toFixed(2)}
                       </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {txType === 'loan' && !isCreditCardPayment && (
+                <div>
+                  <label htmlFor="loan-expense-category" className="block text-xs font-medium text-slate-300 mb-1">Expense Category</label>
+                  <select
+                    id="loan-expense-category"
+                    value={categoryId}
+                    onChange={(e) => setCategoryId(e.target.value)}
+                    className="w-full bg-slate-800 text-white text-xs border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  >
+                    <option value="">-- Select Expense Category (Optional) --</option>
+                    {categories.filter(category => category.category_type === 'expense').map(category => (
+                      <option key={category.id} value={category.id}>{category.name}</option>
                     ))}
                   </select>
                 </div>

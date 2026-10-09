@@ -133,7 +133,7 @@ interface HouseholdContextType {
     category_id?: string | null;
   }) => MutationResult;
   deleteLoan: (id: string) => MutationResult;
-  payLoanAmortization: (loanId: string, amount: number, walletId: string) => MutationResult;
+  payLoanAmortization: (loanId: string, amount: number, walletId: string, categoryId?: string | null) => MutationResult;
   
   // Recurring Transfers & Bills CRUD
   addRecurringTransfer: (rule: { 
@@ -1233,7 +1233,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       : localSaveResult();
   };
 
-  const payLoanAmortization = (loanId: string, amount: number, walletId: string) => {
+  const payLoanAmortization = (loanId: string, amount: number, walletId: string, categoryId?: string | null) => {
     if (!hasPermission('pay_loans')) return { success: false, error: 'Your role cannot pay loan amortizations.' };
     const targetLoan = loans.find(l => l.id === loanId);
     if (!targetLoan) return { success: false, error: 'Loan record not found' };
@@ -1285,7 +1285,7 @@ export const HouseholdProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     addTransaction({
       wallet_id: walletId,
-      category_id: recurringTransfers.find(rule => rule.loan_id === loanId)?.category_id || null,
+      category_id: categoryId || recurringTransfers.find(rule => rule.loan_id === loanId)?.category_id || null,
       type: 'expense',
       amount: amount,
       transaction_date: new Date().toISOString().split('T')[0],
