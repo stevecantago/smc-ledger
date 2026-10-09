@@ -5,6 +5,7 @@ import { HouseholdProvider } from '../context/HouseholdContext';
 import { initialMembers } from '../lib/supabase';
 import { Navbar } from './Navbar';
 import { DashboardView } from './DashboardView';
+import { ProfileModal } from './ProfileModal';
 import { ProfileAvatar } from './ui/ProfileAvatar';
 import { allNavigationItems } from './layout/navigation';
 
@@ -27,6 +28,7 @@ describe('approved sidebar feedback', () => {
     expect(header).not.toContain('Liquid balances');
     expect(header).not.toContain('Log transaction');
     expect(sidebar).toContain('FamLedger');
+    expect(sidebar).not.toContain('For visible wallets.');
     expect(sidebar).toContain('Collapse sidebar');
     expect(sidebar).toContain('aria-expanded="true"');
   });
@@ -57,6 +59,19 @@ describe('approved sidebar feedback', () => {
     expect(markup).toContain('Analysis Period:');
     for (const title of ['Daily Trends', 'Expense Breakdown', 'Spending by Member', 'Average Transaction Size']) expect(markup).toContain(title);
     expect(markup).toContain('Quick Log Transaction');
+  });
+
+  it('connects profile field labels and title to the shared native dialog', () => {
+    const markup = renderToStaticMarkup(<HouseholdProvider><ProfileModal isOpen={true} onClose={noop} /></HouseholdProvider>);
+    expect(markup).toContain('<dialog');
+    const titleId = markup.match(/aria-labelledby="([^"]+)"/)?.[1];
+    expect(titleId).toBeTruthy();
+    expect(markup).toContain(`id="${titleId}"`);
+    const labels = Array.from(markup.matchAll(/<label for="([^"]+)"/g), match => match[1]);
+    expect(labels).toHaveLength(7);
+    for (const id of labels) expect(markup).toContain(`id="${id}"`);
+    expect(markup).toContain('autoComplete="current-password"');
+    expect(markup).toContain('autoComplete="new-password"');
   });
 
   it('uses a member profile photo without exposing duplicate alternative text', () => {

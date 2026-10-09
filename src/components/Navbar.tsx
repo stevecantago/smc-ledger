@@ -5,10 +5,8 @@ import { Home, Plus, LogOut, AlertCircle, X, User, ChevronDown, MoreHorizontal, 
 import { useHousehold } from '../context/HouseholdContext';
 import { supabase } from '../lib/supabase';
 import { clearAuthStorage } from '../lib/storageKeys';
-import { getCreditCardUsedBalance } from '../lib/creditCardTransactions';
 import { ProfileModal } from './ProfileModal';
 import { getHouseholdDisplayName } from '../lib/householdNaming';
-import { MoneyAmount } from './ui/MoneyAmount';
 import { ProfileAvatar } from './ui/ProfileAvatar';
 import { desktopBottomNavigationItems, desktopPrimaryNavigationItems, moreNavigationItems, primaryNavigationItems } from './layout/navigation';
 
@@ -21,16 +19,12 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenAddTxModal, sidebarCollapsed, onToggleSidebar }) => {
-  const { currentMember, members, wallets, isAdmin, syncWarning, clearSyncWarning } = useHousehold();
+  const { currentMember, members, syncWarning, clearSyncWarning } = useHousehold();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showMore, setShowMore] = useState(false);
   const moreButtonRef = useRef<HTMLButtonElement>(null);
   const householdDisplayName = getHouseholdDisplayName(members);
-  const visibleWallets = wallets.filter(w => isAdmin || w.is_shared || w.owner_id === currentMember.id);
-  const liquidAssets = visibleWallets.filter(w => w.wallet_type !== 'credit_card').reduce((acc, w) => acc + w.current_balance, 0);
-  const creditDebt = visibleWallets.filter(w => w.wallet_type === 'credit_card').reduce((acc, w) => acc + getCreditCardUsedBalance(w), 0);
-  const totalNetWorth = liquidAssets - creditDebt;
 
   const navigate = (tab: string) => {
     setActiveTab(tab);
@@ -137,10 +131,6 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
           <div className="mt-auto">
             <div className="space-y-1 pt-7">{desktopBottomNavigationItems.map(item => navButton(item))}</div>
           </div>
-          {!sidebarCollapsed && <div className="mt-4 rounded-2xl bg-white p-4 ring-1 ring-brand-line">
-            <p className="text-[11px] font-semibold leading-snug text-brand-muted">For visible wallets. Excludes outstanding card service fees and separate loan principal.</p>
-            <MoneyAmount amount={totalNetWorth} className="mt-2 block text-sm font-bold text-brand-ink" />
-          </div>}
         </nav>
         </div>
       </aside>

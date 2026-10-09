@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { AnalysisGroup, DailyPoint } from '../../lib/dashboardAnalysis';
 import { formatMoney } from '../ui/MoneyAmount';
 
@@ -24,11 +24,23 @@ export function ChartEmpty({ text = 'No expense transactions in this period.' }:
 
 export function DailyTrends({ points }: { points: DailyPoint[] }) {
   const [activeDate, setActiveDate] = useState<string | null>(null);
+  const chartRef = useRef<SVGSVGElement>(null);
+  const [chartWidth, setChartWidth] = useState(900);
+  const hasPoints = points.length > 0;
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    const measure = () => setChartWidth(Math.max(600, Math.round(chart.getBoundingClientRect().width)));
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(chart);
+    return () => observer.disconnect();
+  }, [hasPoints]);
   if (!points.length) return <ChartEmpty text="No income or expense transactions in this period." />;
   const maximum = points.reduce((maximum, point) => Math.max(maximum, point.income, point.expenses), 1);
   const firstTime = Date.parse(points[0].date);
   const span = Math.max(86400000, Date.parse(points[points.length - 1].date) - firstTime);
-  const x = (point: DailyPoint) => points.length === 1 ? 460 : 70 + (Date.parse(point.date) - firstTime) / span * 790;
+  const x = (point: DailyPoint) => points.length === 1 ? chartWidth / 2 : 70 + (Date.parse(point.date) - firstTime) / span * (chartWidth - 110);
   const y = (value: number) => 250 - value / maximum * 200;
   const activeIndex = points.findIndex(point => point.date === activeDate);
   const active = activeIndex >= 0 ? points[activeIndex] : null;
@@ -36,7 +48,7 @@ export function DailyTrends({ points }: { points: DailyPoint[] }) {
   return <>
     <div className="mb-2 flex flex-wrap justify-center gap-5 text-sm font-semibold"><span className="text-red-700">— Expense</span><span className="text-emerald-700">— Income</span></div>
     <div className="overflow-x-auto rounded-lg">
-      <svg viewBox="0 0 900 290" className="h-72 w-full min-w-[600px] rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange" tabIndex={0} role="group" aria-label="Daily income and expenses. Use left and right arrow keys to inspect dates."
+      <svg ref={chartRef} viewBox={`0 0 ${chartWidth} 290`} className="h-72 w-full min-w-[600px] rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange" tabIndex={0} role="group" aria-label="Daily income and expenses. Use left and right arrow keys to inspect dates."
         onFocus={() => setActiveDate(points[0].date)} onBlur={() => setActiveDate(null)}
         onKeyDown={event => {
           if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
@@ -46,12 +58,12 @@ export function DailyTrends({ points }: { points: DailyPoint[] }) {
         onMouseLeave={() => setActiveDate(null)}
         onMouseMove={event => {
           const box = event.currentTarget.getBoundingClientRect();
-          const cursor = (event.clientX - box.left) / box.width * 900;
+          const cursor = (event.clientX - box.left) / box.width * chartWidth;
           const nearest = points.reduce((best, point) => Math.abs(x(point) - cursor) < Math.abs(x(best) - cursor) ? point : best, points[0]);
           setActiveDate(nearest.date);
         }}>
         <title>Daily income and expenses in Philippine pesos</title>
-        {[0, 1, 2, 3, 4].map(step => <g key={step}><line x1="70" x2="860" y1={y(maximum * step / 4)} y2={y(maximum * step / 4)} stroke="#E6E8EB" strokeDasharray="3 4" /><text x="58" y={y(maximum * step / 4) + 4} textAnchor="end" fontSize="12" fill="#5E6877">{compactMoney(maximum * step / 4)}</text></g>)}
+        {[0, 1, 2, 3, 4].map(step => <g key={step}><line x1="70" x2={chartWidth - 40} y1={y(maximum * step / 4)} y2={y(maximum * step / 4)} stroke="#E6E8EB" strokeDasharray="3 4" /><text x="58" y={y(maximum * step / 4) + 4} textAnchor="end" fontSize="12" fill="#5E6877">{compactMoney(maximum * step / 4)}</text></g>)}
         {labels.map(index => <text key={index} x={x(points[index])} y="276" textAnchor="middle" fontSize="12" fill="#5E6877">{shortDate(points[index].date)}</text>)}
         <polyline points={points.map(point => `${x(point)},${y(point.income)}`).join(' ')} fill="none" stroke={INCOME} strokeWidth="2.5" />
         <polyline points={points.map(point => `${x(point)},${y(point.expenses)}`).join(' ')} fill="none" stroke={EXPENSE} strokeWidth="2.5" />
