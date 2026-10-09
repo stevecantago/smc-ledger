@@ -4,9 +4,9 @@ import React, { useEffect, useState } from 'react';
 import { Plus, X } from 'lucide-react';
 import { CategoryColor, DEFAULT_CATEGORY_COLORS } from '../../lib/categoryColors';
 
-type Hsl = { hue: number; saturation: number; lightness: number };
+type Hsv = { hue: number; saturation: number; value: number };
 
-function hexToHsl(hex: string): Hsl {
+function hexToHsv(hex: string): Hsv {
   const safeHex = /^#[\da-f]{6}$/i.test(hex) ? hex : '#C45116';
   const red = parseInt(safeHex.slice(1, 3), 16) / 255;
   const green = parseInt(safeHex.slice(3, 5), 16) / 255;
@@ -14,12 +14,12 @@ function hexToHsl(hex: string): Hsl {
   const max = Math.max(red, green, blue);
   const min = Math.min(red, green, blue);
   const delta = max - min;
-  const lightness = (max + min) / 2;
+  const value = max;
   let hue = 0;
   let saturation = 0;
 
   if (delta !== 0) {
-    saturation = delta / (1 - Math.abs(2 * lightness - 1));
+    saturation = delta / max;
     if (max === red) hue = ((green - blue) / delta) % 6;
     else if (max === green) hue = (blue - red) / delta + 2;
     else hue = (red - green) / delta + 4;
@@ -27,13 +27,13 @@ function hexToHsl(hex: string): Hsl {
     if (hue < 0) hue += 360;
   }
 
-  return { hue, saturation: saturation * 100, lightness: lightness * 100 };
+  return { hue, saturation: saturation * 100, value: value * 100 };
 }
 
-function hslToHex({ hue, saturation, lightness }: Hsl): string {
+function hsvToHex({ hue, saturation, value }: Hsv): string {
   const s = saturation / 100;
-  const l = lightness / 100;
-  const chroma = (1 - Math.abs(2 * l - 1)) * s;
+  const v = value / 100;
+  const chroma = v * s;
   const section = hue / 60;
   const secondary = chroma * (1 - Math.abs(section % 2 - 1));
   let rgb: [number, number, number];
@@ -45,7 +45,7 @@ function hslToHex({ hue, saturation, lightness }: Hsl): string {
   else if (section < 5) rgb = [secondary, 0, chroma];
   else rgb = [chroma, 0, secondary];
 
-  const offset = l - chroma / 2;
+  const offset = v - chroma;
   return `#${rgb.map(channel => Math.round((channel + offset) * 255).toString(16).padStart(2, '0')).join('')}`.toUpperCase();
 }
 
@@ -60,27 +60,27 @@ type CategoryColorPickerProps = {
 
 export function CategoryColorPicker({ idPrefix, value, savedColors, onChange, onSaveColor, onClose }: CategoryColorPickerProps) {
   const [hexDraft, setHexDraft] = useState(value.hex);
-  const hsl = hexToHsl(value.hex);
+  const hsv = hexToHsv(value.hex);
 
   useEffect(() => setHexDraft(value.hex), [value.hex]);
 
-  const updateHsl = (next: Hsl) => onChange({ ...value, hex: hslToHex(next) });
+  const updateHsv = (next: Hsv) => onChange({ ...value, hex: hsvToHex(next) });
   const setFromPointer = (event: React.PointerEvent<HTMLDivElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect();
     if (!bounds.width || !bounds.height) return;
     const saturation = Math.min(100, Math.max(0, ((event.clientX - bounds.left) / bounds.width) * 100));
-    const lightness = 100 - Math.min(100, Math.max(0, ((event.clientY - bounds.top) / bounds.height) * 100));
-    updateHsl({ ...hsl, saturation, lightness });
+    const brightness = 100 - Math.min(100, Math.max(0, ((event.clientY - bounds.top) / bounds.height) * 100));
+    updateHsv({ ...hsv, saturation, value: brightness });
   };
 
   const handleShadeKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     const step = event.shiftKey ? 10 : 2;
     if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
     event.preventDefault();
-    updateHsl({
-      ...hsl,
-      saturation: Math.min(100, Math.max(0, hsl.saturation + (event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0))),
-      lightness: Math.min(100, Math.max(0, hsl.lightness + (event.key === 'ArrowUp' ? step : event.key === 'ArrowDown' ? -step : 0))),
+    updateHsv({
+      ...hsv,
+      saturation: Math.min(100, Math.max(0, hsv.saturation + (event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0))),
+      value: Math.min(100, Math.max(0, hsv.value + (event.key === 'ArrowUp' ? step : event.key === 'ArrowDown' ? -step : 0))),
     });
   };
 
@@ -100,25 +100,25 @@ export function CategoryColorPicker({ idPrefix, value, savedColors, onChange, on
 
       <div
         className="relative mt-3 h-44 touch-none overflow-hidden rounded-xl border border-brand-line focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange"
-        style={{ backgroundColor: `hsl(${hsl.hue}, 100%, 50%)`, backgroundImage: 'linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, transparent)' }}
+        style={{ backgroundColor: `hsl(${hsv.hue}, 100%, 50%)`, backgroundImage: 'linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, transparent)' }}
         role="slider"
         tabIndex={0}
         aria-label="Saturation and brightness. Use arrow keys to adjust."
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-valuenow={Math.round(hsl.saturation)}
-        aria-valuetext={`${Math.round(hsl.saturation)}% saturation, ${Math.round(hsl.lightness)}% brightness`}
+        aria-valuenow={Math.round(hsv.saturation)}
+        aria-valuetext={`${Math.round(hsv.saturation)}% saturation, ${Math.round(hsv.value)}% brightness`}
         onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); setFromPointer(event); }}
         onPointerMove={event => { if (event.buttons > 0) setFromPointer(event); }}
         onKeyDown={handleShadeKeyDown}
       >
-        <span className="pointer-events-none absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-white shadow-[0_1px_4px_rgb(0_0_0/0.45)] ring-1 ring-black/20" style={{ left: `${hsl.saturation}%`, top: `${100 - hsl.lightness}%` }} />
+        <span className="pointer-events-none absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-white shadow-[0_1px_4px_rgb(0_0_0/0.45)] ring-1 ring-black/20" style={{ left: `${hsv.saturation}%`, top: `${100 - hsv.value}%` }} />
       </div>
 
       <div className="mt-4 space-y-3">
         <div>
           <label htmlFor={`${idPrefix}-color-hue`} className="sr-only">Hue</label>
-          <input id={`${idPrefix}-color-hue`} type="range" min="0" max="360" value={Math.round(hsl.hue)} onChange={event => updateHsl({ ...hsl, hue: Number(event.target.value) })} className="h-3 w-full cursor-pointer appearance-none rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange" style={{ background: 'linear-gradient(90deg, #F00, #FF0, #0F0, #0FF, #00F, #F0F, #F00)' }} />
+          <input id={`${idPrefix}-color-hue`} type="range" min="0" max="360" value={Math.round(hsv.hue)} onChange={event => updateHsv({ ...hsv, hue: Number(event.target.value) })} className="h-3 w-full cursor-pointer appearance-none rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange" style={{ background: 'linear-gradient(90deg, #F00, #FF0, #0F0, #0FF, #00F, #F0F, #F00)' }} />
         </div>
         <div>
           <label htmlFor={`${idPrefix}-color-opacity`} className="sr-only">Opacity</label>
