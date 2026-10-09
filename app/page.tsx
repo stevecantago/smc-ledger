@@ -121,7 +121,7 @@ export default function Home() {
   }
 
   return (
-    <AppShell activeTab={activeTab} setActiveTab={setActiveTab} onOpenAddTxModal={handleOpenAddTxModal} legacy={!['dashboard', 'wallets', 'transactions', 'goals', 'loans', 'activity', 'settings'].includes(activeTab)}>
+    <AppShell activeTab={activeTab} setActiveTab={setActiveTab} onOpenAddTxModal={handleOpenAddTxModal} legacy={!['dashboard', 'wallets', 'transactions', 'schedules', 'goals', 'loans', 'activity', 'settings'].includes(activeTab)}>
         {activeTab === 'dashboard' && (
           <DashboardView 
             setActiveTab={setActiveTab} 

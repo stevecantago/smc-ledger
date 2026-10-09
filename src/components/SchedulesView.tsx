@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { useHousehold } from '../context/HouseholdContext';
-import { ArrowRightLeft, CalendarDays, Clock, CreditCard, Download, Edit2, Filter, Landmark, Plus, Power, Search, Trash2, Wallet as WalletIcon } from 'lucide-react';
+import { ArrowRightLeft, CalendarDays, Clock, CreditCard, Download, Filter, Landmark, Plus, Search, Wallet as WalletIcon, X } from 'lucide-react';
 import { RecurringFrequency, RecurringRuleType, RecurringTransfer, WalletType } from '../types/database';
 import { buildCreditCardPaymentSchedules, filterCreditCardPaymentSchedules } from '../lib/creditCardPaymentSchedules';
 import { CategoryIconTile } from './CategoryIcon';
@@ -41,7 +41,6 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard, o
     hasPermission,
     addRecurringTransfer,
     updateRecurringTransfer,
-    toggleRecurringTransfer,
     deleteRecurringTransfer,
   } = useHousehold();
 
@@ -70,6 +69,7 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard, o
   const [note, setNote] = useState('');
   const [isActive, setIsActive] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
+  const [actionError, setActionError] = useState('');
 
   const availableCategoryTypes = useMemo(
     () => categories.filter(category => categoryFilter === 'all' || category.category_type === categoryFilter),
@@ -234,8 +234,16 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard, o
 
   const handleDelete = (rule: RecurringTransfer) => {
     if (!window.confirm(`Delete schedule "${rule.note}"?`)) return;
+    setActionError('');
     const result = deleteRecurringTransfer(rule.id);
-    if (!result.success) alert(result.error);
+    if (!result.success) setActionError(result.error || 'Failed to delete schedule.');
+  };
+
+  const handleStatusChange = (rule: RecurringTransfer, active: boolean) => {
+    if (active === rule.is_active) return;
+    setActionError('');
+    const result = updateRecurringTransfer(rule.id, { is_active: active });
+    if (!result.success) setActionError(result.error || 'Failed to update schedule status.');
   };
 
   return (
@@ -349,21 +357,34 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard, o
         </div>
       </section>
 
+      {actionError && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{actionError}</p>}
+
       <section aria-label="Scheduled transactions" className="overflow-hidden rounded-2xl border border-brand-line bg-brand-paper shadow-[var(--fam-shadow)]">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1120px] divide-y divide-brand-line text-left text-sm">
+          <table className="schedule-table w-full min-w-[880px] table-fixed divide-y divide-brand-line text-left text-[11px] leading-snug">
             <caption className="sr-only">Scheduled transactions, sorted by next due date from oldest to newest</caption>
-            <thead className="bg-brand-canvas text-xs font-semibold uppercase tracking-wide text-brand-muted">
+            <colgroup>
+              <col className="w-[9%]" />
+              <col className="w-[15%]" />
+              <col className="w-[8%]" />
+              <col className="w-[6%]" />
+              <col className="w-[14%]" />
+              <col className="w-[13%]" />
+              <col className="w-[9%]" />
+              <col className="w-[10%]" />
+              <col className="w-[16%]" />
+            </colgroup>
+            <thead className="bg-brand-canvas text-[10px] font-semibold uppercase tracking-wide text-brand-muted">
               <tr>
-                <th scope="col" className="px-4 py-3">Next due</th>
-                <th scope="col" className="px-4 py-3">Schedule</th>
-                <th scope="col" className="px-4 py-3">Schedule Type</th>
-                <th scope="col" className="px-4 py-3">Category</th>
-                <th scope="col" className="px-4 py-3">Category Type</th>
-                <th scope="col" className="px-4 py-3">Account</th>
-                <th scope="col" className="px-4 py-3 text-right">Amount</th>
-                <th scope="col" className="px-4 py-3">Frequency / status</th>
-                <th scope="col" className="px-4 py-3 text-right">Actions</th>
+                <th scope="col" className="px-2 py-3">Next due</th>
+                <th scope="col" className="px-2 py-3">Schedule</th>
+                <th scope="col" className="px-2 py-3">Schedule Type</th>
+                <th scope="col" className="px-2 py-3">Category</th>
+                <th scope="col" className="px-2 py-3">Category Type</th>
+                <th scope="col" className="px-2 py-3">Account</th>
+                <th scope="col" className="px-2 py-3 text-right">Amount</th>
+                <th scope="col" className="px-2 py-3">Frequency / status</th>
+                <th scope="col" className="px-2 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-brand-line">
@@ -376,18 +397,18 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard, o
                   const { payment } = row;
                   return (
                     <tr key={payment.id} className="bg-white align-middle hover:bg-brand-canvas/70">
-                      <td className="whitespace-nowrap px-4 py-3 font-medium text-brand-ink">{new Date(`${payment.dueDate}T00:00:00`).toLocaleDateString()}</td>
-                      <th scope="row" className="min-w-52 px-4 py-3 font-semibold text-brand-ink">
-                        <span className="flex items-center gap-2"><CreditCard className="h-4 w-4 shrink-0 text-brand-orange" aria-hidden="true" />{payment.walletName} payment</span>
+                      <td className="whitespace-nowrap px-2 py-3 font-medium text-brand-ink">{new Date(`${payment.dueDate}T00:00:00`).toLocaleDateString()}</td>
+                      <th scope="row" className="px-2 py-3 font-semibold text-brand-ink">
+                        <span className="flex items-center gap-1.5"><CreditCard className="h-3.5 w-3.5 shrink-0 text-brand-orange" aria-hidden="true" />{payment.walletName} payment</span>
                       </th>
-                      <td className="px-4 py-3 text-brand-ink">Credit Card Payment</td>
-                      <td className="px-4 py-3 text-brand-ink">Expense</td>
-                      <td className="px-4 py-3 text-brand-muted">Credit Card Payment</td>
-                      <td className="px-4 py-3 text-brand-ink">{payment.walletName}</td>
-                      <td className="whitespace-nowrap px-4 py-3 text-right font-semibold tabular-nums text-brand-ink">₱{payment.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                      <td className="px-4 py-3"><span className="inline-flex rounded-full bg-brand-sky px-2.5 py-1 text-xs font-semibold text-brand-ink">Payment due</span><span className="mt-1 block text-xs text-brand-muted">Automatic · next 5th or 20th</span></td>
-                      <td className="px-4 py-3 text-right">
-                        <Button size="sm" tone="secondary" className="whitespace-nowrap" onClick={() => onPayCreditCard(payment.walletId, payment.amount, payment.walletName)}><Plus className="h-3.5 w-3.5" aria-hidden="true" />Log Transaction</Button>
+                      <td className="px-2 py-3 text-brand-ink">Credit Card Payment</td>
+                      <td className="px-2 py-3 text-brand-ink">Expense</td>
+                      <td className="px-2 py-3 text-brand-muted">Credit Card Payment</td>
+                      <td className="px-2 py-3 text-brand-ink">{payment.walletName}</td>
+                      <td className="whitespace-nowrap px-2 py-3 text-right font-semibold tabular-nums text-brand-ink">₱{payment.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                      <td className="px-2 py-3"><span className="inline-flex rounded-full bg-brand-sky px-2 py-1 text-[10px] font-semibold text-brand-ink">Payment due</span><span className="mt-1 block text-[10px] text-brand-muted">Automatic · next 5th or 20th</span></td>
+                      <td className="px-2 py-3 text-right">
+                        <button type="button" className="schedule-log-button inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-brand-line bg-white px-2 py-1.5 text-[10px] font-semibold text-brand-ink hover:bg-brand-canvas" onClick={() => onPayCreditCard(payment.walletId, payment.amount, payment.walletName)}><Plus className="h-3 w-3" aria-hidden="true" />Log Transaction</button>
                       </td>
                     </tr>
                   );
@@ -406,29 +427,46 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard, o
                 const categoryTypeLabel = category?.name || (rule.rule_type === 'loan_payment' ? loan?.name || 'Loan Payment' : '—');
 
                 return (
-                  <tr key={rule.id} className="bg-white align-middle hover:bg-brand-canvas/70">
-                    <td className="whitespace-nowrap px-4 py-3 font-medium text-brand-ink">{new Date(`${rule.next_run_date}T00:00:00`).toLocaleDateString()}</td>
-                    <th scope="row" className="min-w-52 px-4 py-3 font-semibold text-brand-ink">{rule.note}</th>
-                    <td className="px-4 py-3 text-brand-ink">{typeLabel}</td>
-                    <td className="px-4 py-3 text-brand-ink">{categoryLabel}</td>
-                    <td className="px-4 py-3">
-                      <span className="flex items-center gap-2">
+                  <tr key={rule.id} onClick={event => {
+                    if (canManageSchedules && !(event.target as Element).closest('button, select, a, input')) openEdit(rule);
+                  }} className={`group bg-white align-middle hover:bg-brand-canvas/70 focus-within:bg-brand-canvas/70 ${canManageSchedules ? 'cursor-pointer' : ''}`}>
+                    <td className="whitespace-nowrap px-2 py-3 font-medium text-brand-ink">{new Date(`${rule.next_run_date}T00:00:00`).toLocaleDateString()}</td>
+                    <th scope="row" className="px-2 py-3 font-semibold text-brand-ink">
+                      {canManageSchedules ? <button type="button" onClick={() => openEdit(rule)} className="schedule-name w-full rounded text-left hover:text-brand-orange" aria-label={`Edit schedule: ${rule.note}`}>{rule.note}</button> : rule.note}
+                    </th>
+                    <td className="px-2 py-3 text-brand-ink">{typeLabel}</td>
+                    <td className="px-2 py-3 text-brand-ink">{categoryLabel}</td>
+                    <td className="px-2 py-3">
+                      <span className="flex items-center gap-1.5">
                         {category
-                          ? <CategoryIconTile slug={category.icon_slug} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" iconClassName="h-4 w-4" categoryType={category.category_type} categoryName={category.name} />
+                          ? <CategoryIconTile slug={category.icon_slug} className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md" iconClassName="h-3.5 w-3.5" categoryType={category.category_type} categoryName={category.name} />
                           : rule.rule_type === 'loan_payment'
                             ? <Landmark className="h-4 w-4 shrink-0 text-brand-orange" aria-hidden="true" />
                             : rule.rule_type === 'transfer'
                               ? <ArrowRightLeft className="h-4 w-4 shrink-0 text-brand-muted" aria-hidden="true" />
                               : null}
-                        <span className="text-brand-ink">{categoryTypeLabel}</span>
+                        <span className="min-w-0 text-brand-ink">{categoryTypeLabel}</span>
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-brand-ink">{accountLabel}</td>
-                    <td className="whitespace-nowrap px-4 py-3 text-right font-semibold tabular-nums text-brand-ink">₱{rule.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                    <td className="px-4 py-3"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${rule.is_active ? 'bg-emerald-50 text-emerald-800' : 'bg-brand-canvas text-brand-muted'}`}>{rule.is_active ? 'Active' : 'Paused'}</span><span className="mt-1 block text-xs text-brand-muted">{formatFrequencyLabel(rule.frequency, rule.custom_interval_days)}</span></td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex flex-col items-end gap-1 sm:flex-row sm:justify-end">
-                        <Button size="sm" tone="secondary" className="whitespace-nowrap" onClick={() => onLogTransaction({
+                    <td className="px-2 py-3 text-brand-ink">{accountLabel}</td>
+                    <td className="whitespace-nowrap px-2 py-3 text-right font-semibold tabular-nums text-brand-ink">₱{rule.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                    <td className="px-2 py-3">
+                      {canManageSchedules ? <select
+                        aria-label={`Status for ${rule.note}`}
+                        title="Change schedule status"
+                        value={rule.is_active ? 'active' : 'paused'}
+                        onChange={event => handleStatusChange(rule, event.target.value === 'active')}
+                        data-active={rule.is_active}
+                        className="schedule-status max-w-full cursor-pointer rounded-full border border-transparent py-1 pl-2 pr-1 text-[10px] font-semibold focus:outline-none focus:ring-2 focus:ring-brand-orange/30"
+                      >
+                        <option value="active">Active</option>
+                        <option value="paused">Paused</option>
+                      </select> : <span className={`inline-flex rounded-full px-2 py-1 text-[10px] font-semibold ${rule.is_active ? 'bg-emerald-50 text-emerald-800' : 'bg-brand-canvas text-brand-muted'}`}>{rule.is_active ? 'Active' : 'Paused'}</span>}
+                      <span className="mt-1 block text-[10px] text-brand-muted">{formatFrequencyLabel(rule.frequency, rule.custom_interval_days)}</span>
+                    </td>
+                    <td className="px-2 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button type="button" className="schedule-log-button inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-brand-line bg-white px-2 py-1.5 text-[10px] font-semibold text-brand-ink hover:bg-brand-canvas" onClick={() => onLogTransaction({
                           type: rule.rule_type === 'transfer' ? 'transfer' : rule.rule_type === 'loan_payment' ? 'loan' : 'expense',
                           walletId: rule.source_wallet_id,
                           destinationWalletId: rule.destination_wallet_id || undefined,
@@ -438,12 +476,8 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({ onPayCreditCard, o
                           selectedRecurringId: rule.id,
                           selectedLoanId: rule.loan_id || undefined,
                           transactionDate: rule.next_run_date,
-                        })}><Plus className="h-3.5 w-3.5" aria-hidden="true" />Log Transaction</Button>
-                        {canManageSchedules && <div className="inline-flex items-center gap-1">
-                        <button type="button" onClick={() => openEdit(rule)} className="rounded-lg p-2 text-brand-muted hover:bg-brand-canvas hover:text-brand-ink" title="Edit schedule" aria-label={`Edit ${rule.note}`}><Edit2 className="h-4 w-4" aria-hidden="true" /></button>
-                        <button type="button" onClick={() => toggleRecurringTransfer(rule.id)} className="rounded-lg p-2 text-brand-muted hover:bg-brand-canvas hover:text-brand-ink" title="Pause or activate schedule" aria-label={`${rule.is_active ? 'Pause' : 'Activate'} ${rule.note}`}><Power className="h-4 w-4" aria-hidden="true" /></button>
-                        <button type="button" onClick={() => handleDelete(rule)} className="rounded-lg p-2 text-brand-muted hover:bg-rose-50 hover:text-rose-800" title="Delete schedule" aria-label={`Delete ${rule.note}`}><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
-                        </div>}
+                        })}><Plus className="h-3 w-3" aria-hidden="true" />Log Transaction</button>
+                        {canManageSchedules && <button type="button" onClick={() => handleDelete(rule)} className="schedule-delete-button inline-flex w-7 shrink-0 items-center justify-center rounded-lg text-brand-muted transition-opacity hover:bg-rose-50 hover:text-rose-800" title="Delete schedule" aria-label={`Delete ${rule.note}`}><X className="h-3.5 w-3.5" aria-hidden="true" /></button>}
                       </div>
                     </td>
                   </tr>

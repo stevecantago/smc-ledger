@@ -112,6 +112,26 @@ button, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent
   border-radius: .75rem;
 }
 .famledger-view button { min-height: 2.75rem; }
+
+.famledger-schedules .schedule-table th,
+.famledger-schedules .schedule-table td { overflow-wrap: anywhere; }
+.famledger-schedules .schedule-table .schedule-name { min-height: 0; }
+.famledger-schedules .schedule-table .schedule-status {
+  border-radius: 9999px;
+  background-color: var(--fam-canvas);
+  color: var(--fam-muted);
+}
+.famledger-schedules .schedule-table .schedule-status[data-active="true"] {
+  background-color: #ECFDF5;
+  color: #065F46;
+}
+@media (hover: hover) and (pointer: fine) {
+  .famledger-schedules .schedule-table .schedule-log-button,
+  .famledger-schedules .schedule-table .schedule-delete-button { min-height: 2rem; }
+  .famledger-schedules .schedule-table .schedule-delete-button { opacity: 0; }
+  .famledger-schedules .schedule-table tr:hover .schedule-delete-button,
+  .famledger-schedules .schedule-table tr:focus-within .schedule-delete-button { opacity: 1; }
+}
 .famledger-dashboard > :first-child {
   position: relative;
   overflow: hidden;

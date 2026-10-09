@@ -5,12 +5,14 @@ import NextImage from 'next/image';
 import { useHousehold } from '../context/HouseholdContext';
 import { 
   TrendingDown, TrendingUp, ArrowRightLeft, Landmark, Search, Filter, Trash2, Edit3, Clock, 
-  ExternalLink, Plus, AlertCircle, CheckCircle2, ShieldAlert, Download, Image, Upload, DollarSign 
+  ExternalLink, Plus, AlertCircle, CheckCircle2, ShieldAlert, Download, Image, Upload, DollarSign,
+  CalendarDays, CreditCard, Wallet as WalletIcon,
 } from 'lucide-react';
-import { Transaction, TransactionType, Wallet } from '../types/database';
+import { CategoryType, Transaction, TransactionType, Wallet, WalletType } from '../types/database';
 import { exportTransactionsToCsv } from '../lib/exportCsv';
 import { getTransactionSubmissionAction } from '../lib/transactionFlow';
 import { Dialog } from './ui/Dialog';
+import { Button } from './ui/Button';
 import {
   type CreditCardPaymentAllocation,
   addPhpAmounts,
@@ -94,9 +96,13 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
 
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
-  const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [categoryFilter, setCategoryFilter] = useState<'all' | CategoryType>('all');
+  const [categoryTypeFilter, setCategoryTypeFilter] = useState('all');
   const [payerFilter, setPayerFilter] = useState<string>('all');
-  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [walletFilter, setWalletFilter] = useState('all');
+  const [accountTypeFilter, setAccountTypeFilter] = useState<'all' | WalletType>('all');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
 
   // Form state for Modal
   const [txType, setTxType] = useState<TransactionType>('expense');
@@ -189,12 +195,25 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
     return d.toISOString().split('T')[0];
   };
 
-  const filteredTx = transactions.filter(t => {
-    const matchesSearch = !searchTerm || (t.note && t.note.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesType = typeFilter === 'all' || t.type === typeFilter;
-    const matchesPayer = payerFilter === 'all' || t.payer_id === payerFilter;
-    const matchesCategory = categoryFilter === 'all' || t.category_id === categoryFilter;
-    return matchesSearch && matchesType && matchesPayer && matchesCategory;
+  const availableCategoryTypes = categories.filter(category => categoryFilter === 'all' || category.category_type === categoryFilter);
+  const filteredTx = transactions.filter(transaction => {
+    const source = wallets.find(wallet => wallet.id === transaction.wallet_id);
+    const destination = wallets.find(wallet => wallet.id === transaction.destination_wallet_id);
+    const category = categories.find(category => category.id === transaction.category_id);
+    const payer = members.find(member => member.id === transaction.payer_id);
+    const query = searchTerm.trim().toLocaleLowerCase();
+    const matchesSearch = !query || [transaction.note, transaction.type, source?.name, destination?.name, category?.name, payer?.display_name]
+      .some(value => value?.toLocaleLowerCase().includes(query));
+    const matchesCategory = categoryFilter === 'all'
+      || (categoryFilter === 'income' ? transaction.type === 'income' : transaction.type === 'expense' || transaction.type === 'loan');
+    const matchesCategoryType = categoryTypeFilter === 'all'
+      || (categoryTypeFilter === 'uncategorized' ? !transaction.category_id : transaction.category_id === categoryTypeFilter);
+    const matchesPayer = payerFilter === 'all' || transaction.payer_id === payerFilter;
+    const matchesWallet = walletFilter === 'all' || transaction.wallet_id === walletFilter || transaction.destination_wallet_id === walletFilter;
+    const matchesAccountType = accountTypeFilter === 'all' || source?.wallet_type === accountTypeFilter || destination?.wallet_type === accountTypeFilter;
+    const date = transaction.transaction_date.slice(0, 10);
+    return matchesSearch && matchesCategory && matchesCategoryType && matchesPayer && matchesWallet && matchesAccountType
+      && (!fromDate || date >= fromDate) && (!toDate || date <= toDate);
   });
 
   const handleReceiptFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -368,88 +387,114 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ showModal, s
           </p>
         </div>
 
-        <div className="flex items-center space-x-2 sm:space-x-3 w-full sm:w-auto justify-end">
-          <button
-            onClick={handleExportCsv}
-            className="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-2 rounded-lg font-medium text-xs transition-all shadow"
-            title="Export filtered transaction ledger to CSV file"
-          >
-            <Download className="w-4 h-4 text-emerald-400" />
-            <span>Export CSV</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setErrorMsg('');
-              if (visibleWallets.length > 0) setWalletId(visibleWallets[0].id);
-              setCategoryId('');
-              setSelectedRecurringId('');
-              setSelectedLoanId('');
-              setShowCustomNote(false);
-              setIsCreditCardPayment(false);
-              setShowModal(true);
-            }}
-            className="flex items-center space-x-1.5 bg-sky-600 hover:bg-sky-500 text-white px-3.5 py-2 rounded-lg font-medium text-xs transition-all shadow shrink-0"
-          >
-            <Plus className="w-4 h-4" />
-            <span>+ Log Transaction</span>
-          </button>
-        </div>
       </div>
 
-      {/* Filter Toolbar */}
-      <div className="bg-slate-800/60 border border-slate-700/60 p-3 sm:p-4 rounded-xl space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-          {/* Search Input */}
-          <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-            <input
-              type="text"
-              placeholder="Search note or description..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-slate-900/80 text-white text-xs pl-9 pr-3 py-2 rounded-lg border border-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500"
-            />
+      <section aria-labelledby="transaction-database-heading" className="space-y-4 rounded-2xl border border-brand-line bg-brand-paper p-4 shadow-[var(--fam-shadow)] sm:p-5">
+        <h3 id="transaction-database-heading" className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-brand-ink">
+          <span className="h-6 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+          Transaction Database
+        </h3>
+
+        <label className="relative block">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-muted" aria-hidden="true" />
+          <span className="sr-only">Search transactions</span>
+          <input type="search" value={searchTerm} onChange={event => setSearchTerm(event.target.value)} placeholder="Search transactions..." className="min-h-11 w-full rounded-xl border border-brand-line bg-white py-2.5 pl-10 pr-3 text-sm text-brand-ink placeholder:text-brand-muted focus:outline-none focus:ring-2 focus:ring-brand-orange/30" />
+        </label>
+
+        <div className="space-y-2">
+          <span className="text-xs font-medium text-brand-muted">Date Range</span>
+          <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[1fr_auto_1fr]">
+            <label className="relative block">
+              <CalendarDays className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-muted" aria-hidden="true" />
+              <span className="sr-only">Start date</span>
+              <input type="date" value={fromDate} onChange={event => setFromDate(event.target.value)} className="min-h-11 w-full rounded-xl border border-brand-line bg-white py-2 pl-10 pr-3 text-sm text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-orange/30" />
+            </label>
+            <span className="hidden text-brand-muted sm:block" aria-hidden="true">→</span>
+            <label className="relative block">
+              <CalendarDays className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-muted" aria-hidden="true" />
+              <span className="sr-only">End date</span>
+              <input type="date" value={toDate} onChange={event => setToDate(event.target.value)} className="min-h-11 w-full rounded-xl border border-brand-line bg-white py-2 pl-10 pr-3 text-sm text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-orange/30" />
+            </label>
           </div>
-
-          {/* Type Filter */}
-          <select
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-            className="bg-slate-900/80 text-white text-xs px-3 py-2 rounded-lg border border-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500"
-          >
-            <option value="all">All Transaction Types</option>
-            <option value="expense">Expenses Only</option>
-            <option value="income">Income Only</option>
-            <option value="transfer">Transfers Only</option>
-            <option value="loan">Loan Payments Only</option>
-          </select>
-
-          {/* Category Filter */}
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="bg-slate-900/80 text-white text-xs px-3 py-2 rounded-lg border border-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500"
-          >
-            <option value="all">All Categories</option>
-            {categories.map(c => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-
-          {/* Payer Filter */}
-          <select
-            value={payerFilter}
-            onChange={(e) => setPayerFilter(e.target.value)}
-            className="bg-slate-900/80 text-white text-xs px-3 py-2 rounded-lg border border-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500"
-          >
-            <option value="all">All Household Members</option>
-            {members.map(m => (
-              <option key={m.id} value={m.id}>{m.display_name}</option>
-            ))}
-          </select>
         </div>
-      </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <label className="block space-y-1.5">
+            <span className="text-xs font-medium text-brand-muted">Category</span>
+            <span className="relative block">
+              <Filter className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-muted" aria-hidden="true" />
+              <select value={categoryFilter} onChange={event => { setCategoryFilter(event.target.value as typeof categoryFilter); setCategoryTypeFilter('all'); }} className="min-h-11 w-full rounded-xl border border-brand-line bg-white py-2 pl-10 pr-9 text-sm text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-orange/30">
+                <option value="all">All Categories</option>
+                <option value="income">Income</option>
+                <option value="expense">Expenses</option>
+              </select>
+            </span>
+          </label>
+
+          <label className="block space-y-1.5">
+            <span className="text-xs font-medium text-brand-muted">Category Type</span>
+            <select value={categoryTypeFilter} onChange={event => setCategoryTypeFilter(event.target.value)} className="min-h-11 w-full rounded-xl border border-brand-line bg-white px-3 text-sm text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-orange/30">
+              <option value="all">All Types</option>
+              {categoryFilter === 'all' && <option value="uncategorized">Uncategorized</option>}
+              {availableCategoryTypes.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+            </select>
+          </label>
+
+          <label className="block space-y-1.5">
+            <span className="text-xs font-medium text-brand-muted">Member</span>
+            <select value={payerFilter} onChange={event => setPayerFilter(event.target.value)} className="min-h-11 w-full rounded-xl border border-brand-line bg-white px-3 text-sm text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-orange/30">
+              <option value="all">All Members</option>
+              {members.map(member => <option key={member.id} value={member.id}>{member.display_name}</option>)}
+            </select>
+          </label>
+
+          <label className="block space-y-1.5">
+            <span className="text-xs font-medium text-brand-muted">Wallet</span>
+            <span className="relative block">
+              <WalletIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-muted" aria-hidden="true" />
+              <select value={walletFilter} onChange={event => setWalletFilter(event.target.value)} className="min-h-11 w-full rounded-xl border border-brand-line bg-white py-2 pl-10 pr-9 text-sm text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-orange/30">
+                <option value="all">All Wallets</option>
+                {visibleWallets.map(wallet => <option key={wallet.id} value={wallet.id}>{wallet.name}</option>)}
+              </select>
+            </span>
+          </label>
+
+          <label className="block space-y-1.5">
+            <span className="text-xs font-medium text-brand-muted">Account Type</span>
+            <span className="relative block">
+              <CreditCard className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-muted" aria-hidden="true" />
+              <select value={accountTypeFilter} onChange={event => setAccountTypeFilter(event.target.value as typeof accountTypeFilter)} className="min-h-11 w-full rounded-xl border border-brand-line bg-white py-2 pl-10 pr-9 text-sm text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-orange/30">
+                <option value="all">All Account Types</option>
+                <option value="cash">Physical Cash</option>
+                <option value="bank">Debit Card</option>
+                <option value="credit_card">Credit Card / Credit Line</option>
+                <option value="e_wallet">E-Wallet</option>
+                <option value="e_wallet_savings">E-Wallet (Savings)</option>
+              </select>
+            </span>
+          </label>
+        </div>
+
+        <div className="flex flex-col-reverse gap-2 border-t border-brand-line pt-4 sm:flex-row sm:justify-end">
+          <Button type="button" tone="secondary" onClick={handleExportCsv} title="Export filtered transaction ledger to CSV file">
+            <Download className="h-4 w-4" aria-hidden="true" />
+            <span>Export to CSV</span>
+          </Button>
+          <Button type="button" tone="primary" className="!text-white" onClick={() => {
+            setErrorMsg('');
+            if (visibleWallets.length > 0) setWalletId(visibleWallets[0].id);
+            setCategoryId('');
+            setSelectedRecurringId('');
+            setSelectedLoanId('');
+            setShowCustomNote(false);
+            setIsCreditCardPayment(false);
+            setShowModal(true);
+          }}>
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            <span>Log transaction</span>
+          </Button>
+        </div>
+      </section>
 
       {/* Desktop Ledger Table (>= md) */}
       <div className="hidden md:block bg-slate-800/80 border border-slate-700/70 rounded-xl overflow-hidden shadow-lg">
